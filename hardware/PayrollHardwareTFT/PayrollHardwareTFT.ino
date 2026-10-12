@@ -764,17 +764,66 @@ int requestHardwareServer(String path, String payload, String& response, bool ba
   return code;
 }
 
+int lastEnrollmentHttpCode = 0;
+String lastEnrollmentError;
+bool enrollmentResultRejected = false;
+
 bool sendEnrollmentResult(String id, String status, String identifier, String message) {
   String payload = "{\"status\":\"" + status + "\",\"identifier\":\"" + identifier + "\",\"message\":\"" + message + "\"}";
   String response;
-  int code = requestHardwareServer("/enrollments/" + id + "/result", payload, response, false);
-  Serial.println("Enrollment result HTTP " + String(code) + ": " + response);
-  return code >= 200 && code < 300;
+  enrollmentResultRejected = false;
+  lastEnrollmentError = "Server unconfirmed";
+  for (int attempt = 0; attempt < 2; attempt++) {
+    int code = requestHardwareServer("/enrollments/" + id + "/result", payload, response, false);
+    lastEnrollmentHttpCode = code;
+    Serial.println("Enrollment result HTTP " + String(code) + ": " + response);
+    if (code == 200 && jsonValue(response, "status") == status &&
+        (status != "completed" || jsonValue(response, "identifier") == identifier)) return true;
+    String error = jsonValue(response, "message");
+    if (error.length()) lastEnrollmentError = error;
+
+    // Reconcile a lost POST reply before retrying or removing a local template.
+    String stateResponse;
+    int stateCode = requestHardwareServer("/enrollments/" + id + "/status", "", stateResponse, false);
+    String state = jsonValue(stateResponse, "status");
+    if (stateCode == 200 && state == status &&
+        (status != "completed" || jsonValue(stateResponse, "identifier") == identifier)) return true;
+    if (stateCode == 200 && (state == "failed" || state == "cancelled" ||
+                            state == "expired" || state == "completed")) {
+      enrollmentResultRejected = true;
+      error = jsonValue(stateResponse, "message");
+      if (error.length()) lastEnrollmentError = error;
+      return false;
+    }
+    if (code >= 400 && code < 500 && code != 408 && code != 429 && code != 409) {
+      enrollmentResultRejected = true;
+      return false;
+    }
+    delay(500);
+  }
+  return false;
 }
 
 int fingerprintSlot(String code) {
-  if (!code.startsWith("FP-")) return 0;
+  if (!code.startsWith("FP-") || code.length() <= 3 || code.length() > 8) return 0;
+  for (unsigned int i = 3; i < code.length(); i++) {
+    if (code[i] < '0' || code[i] > '9') return 0;
+  }
+  if (code.substring(3).toInt() > 65535) return 0;
   return code.substring(3).toInt();
+}
+
+uint8_t readFingerprintIndexPage(uint8_t page, uint8_t* occupied) {
+  uint8_t command[] = {0x1F, page};
+  Adafruit_Fingerprint_Packet packet(FINGERPRINT_COMMANDPACKET, sizeof(command), command);
+  finger.writeStructuredPacket(packet);
+  uint8_t result = finger.getStructuredPacket(&packet);
+  if (result != FINGERPRINT_OK) return result;
+  if (packet.type != FINGERPRINT_ACKPACKET) return FINGERPRINT_PACKETRECIEVEERR;
+  if (packet.data[0] != FINGERPRINT_OK) return packet.data[0];
+  if (packet.length != 35) return FINGERPRINT_PACKETRECIEVEERR;
+  memcpy(occupied, packet.data + 1, 32);
+  return FINGERPRINT_OK;
 }
 
 int findFreeFingerprintSlot(String currentIdentifier) {
@@ -791,40 +840,36 @@ int findFreeFingerprintSlot(String currentIdentifier) {
     return -2;
   }
   String reservedSlots = "," + jsonValue(response, "reserved_slots") + ",";
-  int maximum = fingerprintCapacity > 0 ? fingerprintCapacity : 127;
+  int maximum = fingerprintCapacity > 1 ? fingerprintCapacity - 1 : 127;
   int oldSlot = fingerprintSlot(currentIdentifier);
-  if (oldSlot >= 1 && oldSlot <= maximum) {
-    uint8_t result = finger.loadModel(oldSlot);
-    if (result == FINGERPRINT_DBRANGEFAIL || result == FINGERPRINT_NOTFOUND) {
-      Serial.println("Reusing this faculty member's empty fingerprint slot " + String(oldSlot) + ".");
-      return oldSlot;
-    }
-    if (result != FINGERPRINT_OK) {
-      Serial.println("AS608 slot " + String(oldSlot) + " read error: 0x" + String(result, HEX));
-      return -1;
-    }
-  }
-
   int firstSlot = nextFingerprintSlotHint;
+  if (oldSlot >= 1 && oldSlot <= maximum) firstSlot = oldSlot;
   if (firstSlot < 1 || firstSlot > maximum) {
     firstSlot = finger.templateCount < maximum ? finger.templateCount + 1 : 1;
   }
 
   Serial.println("AS608 capacity: " + String(maximum) +
                  ", stored: " + String(finger.templateCount));
+  uint8_t occupied[32] = {};
+  int loadedPage = -1;
   for (int offset = 0; offset < maximum; offset++) {
     updateRegistrationIndicator();
     int slot = ((firstSlot - 1 + offset) % maximum) + 1;
-    if (reservedSlots.indexOf("," + String(slot) + ",") >= 0) continue;
-    uint8_t result = finger.loadModel(slot);
-    if (result == FINGERPRINT_DBRANGEFAIL || result == FINGERPRINT_NOTFOUND) {
+    if (slot != oldSlot && reservedSlots.indexOf("," + String(slot) + ",") >= 0) continue;
+    int page = slot / 256;
+    if (finger.templateCount > 0 && loadedPage != page) {
+      uint8_t result = readFingerprintIndexPage(page, occupied);
+      if (result != FINGERPRINT_OK) {
+        Serial.println("AS608 index read error: 0x" + String(result, HEX));
+        return -1;
+      }
+      loadedPage = page;
+    }
+    bool used = finger.templateCount > 0 && (occupied[(slot % 256) / 8] & (1 << (slot % 8)));
+    if (!used) {
       nextFingerprintSlotHint = slot;
       Serial.println("Using free fingerprint slot " + String(slot) + ".");
       return slot;
-    }
-    if (result != FINGERPRINT_OK) {
-      Serial.println("AS608 slot " + String(slot) + " read error: 0x" + String(result, HEX));
-      return -1;
     }
   }
   return 0;
@@ -932,10 +977,13 @@ void enrollFingerprint(String id, String currentIdentifier) {
     successSignal();
     showMessage("Fingerprint", "Registered");
   } else {
-    finger.deleteModel(newSlot);
-    nextFingerprintSlotHint = newSlot;
+    if (enrollmentResultRejected) {
+      finger.deleteModel(newSlot);
+      nextFingerprintSlotHint = newSlot;
+    }
     errorSignal();
-    showMessage("Server rejected", "fingerprint");
+    showMessage((enrollmentResultRejected ? "Server rejected " : "Unconfirmed HTTP ") +
+                String(lastEnrollmentHttpCode), lastEnrollmentError);
   }
   delay(2500);
 }
@@ -974,7 +1022,6 @@ void enrollmentPollTask(void* parameter) {
     if (ENABLE_REMOTE_ENROLLMENT &&
         !enrollmentBusy &&
         !attendanceBusy &&
-        !offlineUploadsPending &&
         queueIsEmpty &&
         WiFi.status() == WL_CONNECTED) {
       {

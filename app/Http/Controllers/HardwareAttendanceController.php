@@ -156,7 +156,12 @@ class HardwareAttendanceController extends Controller
             $enrollment->update(['status' => 'expired', 'message' => 'The registration request expired.']);
         }
 
-        return response()->json(['id' => (string) $enrollment->id, 'status' => $enrollment->status]);
+        return response()->json([
+            'id' => (string) $enrollment->id,
+            'status' => $enrollment->status,
+            'identifier' => $enrollment->identifier ?? '',
+            'message' => $enrollment->message ?? '',
+        ]);
     }
 
     public function completeEnrollment(Request $request, HardwareEnrollment $enrollment)
@@ -164,16 +169,6 @@ class HardwareAttendanceController extends Controller
         if ($unauthorized = $this->authorizeHardware($request)) {
             return $unauthorized;
         }
-
-        if (! in_array($enrollment->status, ['pending', 'processing'], true) || $enrollment->expires_at->isPast()) {
-            return response()->json(['ok' => false, 'message' => 'Enrollment is no longer active.'], 409);
-        }
-
-        $currentCredentialId = $enrollment->method === 'rfid'
-            ? optional($enrollment->employee->rfidCards()->first())->id
-            : optional($enrollment->employee->fingerprintTemplates()->first())->id;
-        $table = $enrollment->method === 'rfid' ? 'rfid_cards' : 'fingerprint_templates';
-        $column = $enrollment->method === 'rfid' ? 'rfid_uid' : 'fingerprint_code';
 
         $data = $request->validate([
             'status' => ['required', 'in:completed,failed'],
@@ -185,6 +180,26 @@ class HardwareAttendanceController extends Controller
             ],
             'message' => ['nullable', 'string', 'max:255'],
         ]);
+
+        // A device may retry after the server saved a result but its reply was lost.
+        if ($enrollment->status === 'completed' && $data['status'] === 'completed'
+            && $enrollment->identifier === strtoupper($data['identifier'])) {
+            return response()->json([
+                'ok' => true,
+                'status' => 'completed',
+                'identifier' => $enrollment->identifier,
+            ]);
+        }
+
+        if (! in_array($enrollment->status, ['pending', 'processing'], true) || $enrollment->expires_at->isPast()) {
+            return response()->json(['ok' => false, 'message' => 'Enrollment is no longer active.'], 409);
+        }
+
+        $currentCredentialId = $enrollment->method === 'rfid'
+            ? optional($enrollment->employee->rfidCards()->first())->id
+            : optional($enrollment->employee->fingerprintTemplates()->first())->id;
+        $table = $enrollment->method === 'rfid' ? 'rfid_cards' : 'fingerprint_templates';
+        $column = $enrollment->method === 'rfid' ? 'rfid_uid' : 'fingerprint_code';
 
         if ($data['status'] === 'failed') {
             $enrollment->update([

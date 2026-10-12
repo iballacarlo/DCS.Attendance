@@ -353,6 +353,62 @@ class EmployeeCredentialTest extends TestCase
             ->assertJsonValidationErrors('finger_label');
     }
 
+    public function test_completed_fingerprint_result_can_be_retried_without_duplicate_registration(): void
+    {
+        config(['services.hardware.api_key' => 'device-secret']);
+        $employee = $this->employee();
+        $id = $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->postJson(route('employees.credentials.enrollments.store', $employee), [
+                'method' => 'fingerprint', 'finger_label' => 'Right thumb',
+            ])->assertCreated()->json('id');
+        $url = "/api/hardware/enrollments/{$id}/result";
+        $payload = ['status' => 'completed', 'identifier' => 'FP-1'];
+        $this->withHeader('X-Hardware-Key', 'device-secret')->postJson($url, $payload)->assertOk();
+        $registeredAt = $employee->fingerprintTemplates()->firstOrFail()->registered_at;
+        $this->travel(6)->minutes();
+        $this->withHeader('X-Hardware-Key', 'device-secret')->postJson($url, $payload)
+            ->assertOk()->assertJsonPath('identifier', 'FP-1');
+        $this->assertSame($registeredAt, $employee->fingerprintTemplates()->firstOrFail()->registered_at);
+        $this->assertDatabaseCount('fingerprint_templates', 1);
+        $this->withHeader('X-Hardware-Key', 'device-secret')
+            ->getJson("/api/hardware/enrollments/{$id}/status")
+            ->assertOk()->assertJsonPath('status', 'completed')->assertJsonPath('identifier', 'FP-1');
+        $this->withHeader('X-Hardware-Key', 'device-secret')
+            ->postJson($url, ['status' => 'completed', 'identifier' => 'FP-2'])->assertConflict();
+    }
+
+    public function test_sensor_replacement_reset_removes_only_fingerprint_credentials_and_active_requests(): void
+    {
+        $employee = $this->employee();
+        $employee->fingerprintTemplates()->create([
+            'fingerprint_code' => 'FP-1', 'finger_label' => 'Right thumb', 'status' => 'active',
+        ]);
+        $other = $this->employee('COS-9002');
+        $other->fingerprintTemplates()->create([
+            'fingerprint_code' => 'FP-2', 'finger_label' => 'Right thumb', 'status' => 'inactive',
+        ]);
+        $employee->rfidCards()->create(['rfid_uid' => 'KEEP-CARD', 'status' => 'active']);
+        foreach (['pending', 'processing', 'completed'] as $status) {
+            \App\Models\HardwareEnrollment::create([
+                'employee_id' => $employee->id, 'method' => 'fingerprint',
+                'status' => $status, 'current_identifier' => 'FP-1', 'expires_at' => now()->addMinutes(5),
+            ]);
+        }
+        $rfid = \App\Models\HardwareEnrollment::create([
+            'employee_id' => $employee->id, 'method' => 'rfid',
+            'status' => 'pending', 'expires_at' => now()->addMinutes(5),
+        ]);
+        $migration = require database_path('migrations/2026_10_12_000001_clear_fingerprint_registrations_for_sensor_replacement.php');
+        $migration->up();
+        $this->assertDatabaseCount('fingerprint_templates', 0);
+        $this->assertDatabaseHas('rfid_cards', ['rfid_uid' => 'KEEP-CARD']);
+        $this->assertNotNull($employee->fresh());
+        $this->assertNotNull($other->fresh());
+        $this->assertSame('pending', $rfid->fresh()->status);
+        $this->assertSame(2, \App\Models\HardwareEnrollment::where('method', 'fingerprint')->where('status', 'cancelled')->count());
+        $this->assertSame(1, \App\Models\HardwareEnrollment::where('method', 'fingerprint')->where('status', 'completed')->count());
+    }
+
     private function employee(string $employeeNumber = 'COS-9001'): Employee
     {
         $rank = FacultyRank::where('is_active', true)->firstOrFail();

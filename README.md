@@ -34,7 +34,9 @@ The configured API base is `https://payroll-system.up.railway.app/api/hardware`.
 4. Follow the prompts shown on the attendance device.
 5. The ESP32 sends the captured RFID UID or fingerprint template ID to the system.
 
-Enrollment requests expire after three minutes. The ESP32 checks for a pending registration request every two seconds.
+Enrollment requests expire after five minutes. Queued attendance does not block enrollment polling. The TFT reports the enrollment HTTP code and server error when registration cannot be confirmed.
+
+The one-time `2026_10_12_000001_clear_fingerprint_registrations_for_sensor_replacement` migration removes all server fingerprint credentials and cancels active fingerprint enrollments, as requested for sensor replacement. Run `php artisan migrate --force` on the deployed server. RFID credentials, employee records, attendance history, and payroll are preserved. This does not erase templates stored inside a physical sensor; faculty must enroll again after the server reset.
 
 ### ESP32 pin map
 

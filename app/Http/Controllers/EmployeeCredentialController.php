@@ -31,7 +31,7 @@ class EmployeeCredentialController extends Controller
                 'finger_label' => $data['finger_label'] ?? null,
                 'current_identifier' => $currentIdentifier,
                 'status' => 'pending',
-                'expires_at' => now()->addMinutes(3),
+                'expires_at' => now()->addMinutes(5),
             ]);
         });
 
