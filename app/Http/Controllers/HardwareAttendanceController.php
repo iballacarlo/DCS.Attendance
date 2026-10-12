@@ -124,6 +124,28 @@ class HardwareAttendanceController extends Controller
         ]);
     }
 
+    public function fingerprintSlots(Request $request)
+    {
+        if ($unauthorized = $this->authorizeHardware($request)) {
+            return $unauthorized;
+        }
+
+        $slots = FingerprintTemplate::query()
+            ->pluck('fingerprint_code')
+            ->map(function ($code) {
+                return preg_match('/^FP-([1-9][0-9]*)$/', strtoupper($code), $matches)
+                    ? (int) $matches[1]
+                    : null;
+            })
+            ->filter(fn ($slot) => $slot !== null && $slot <= 65535)
+            ->unique()
+            ->sort()
+            ->values()
+            ->implode(',');
+
+        return response()->json(['reserved_slots' => $slots]);
+    }
+
     public function enrollmentStatus(Request $request, HardwareEnrollment $enrollment)
     {
         if ($unauthorized = $this->authorizeHardware($request)) {

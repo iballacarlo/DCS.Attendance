@@ -2,6 +2,10 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <SPI.h>
+#include <Wire.h>
+#include <RTClib.h>
+#include <esp_sntp.h>
+#include <sys/time.h>
 #include <MFRC522.h>
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
@@ -10,6 +14,7 @@
 #include <Preferences.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
+#include <freertos/semphr.h>
 #include <time.h>
 #include "device_config.h"
 
@@ -19,15 +24,19 @@
 
 #define RFID_SS_PIN 5
 #define RFID_RST_PIN 4
-#define BUZZER_PIN 26
-#define GREEN_LED_PIN 25
-#define RED_LED_PIN 27
-#define YELLOW_LED_PIN 32
+#define BUZZER_PIN 15
+#define GREEN_LED_PIN 16
+#define RED_LED_PIN 17
+#define YELLOW_LED_PIN 2
 #define FINGER_RX_PIN 13
 #define FINGER_TX_PIN 14
-#define TFT_CS_PIN 21
-#define TFT_DC_PIN 22
-#define TFT_RST_PIN 33
+#define TFT_SCK_PIN 32
+#define TFT_MOSI_PIN 33
+#define TFT_CS_PIN 25
+#define TFT_DC_PIN 26
+#define TFT_RST_PIN 27
+#define RTC_SDA_PIN 21
+#define RTC_SCL_PIN 22
 
 class PayrollDisplay : public lgfx::LGFX_Device {
   lgfx::Panel_ILI9488 panel;
@@ -44,8 +53,8 @@ class PayrollDisplay : public lgfx::LGFX_Device {
       config.spi_3wire = false;
       config.use_lock = true;
       config.dma_channel = 1;
-      config.pin_sclk = 16;
-      config.pin_mosi = 17;
+      config.pin_sclk = TFT_SCK_PIN;
+      config.pin_mosi = TFT_MOSI_PIN;
       config.pin_miso = -1;
       config.pin_dc = TFT_DC_PIN;
       bus.config(config);
@@ -77,20 +86,25 @@ class PayrollDisplay : public lgfx::LGFX_Device {
 };
 
 const char* API_BASE_URL = "https://payroll-system.up.railway.app/api/hardware";
+const char* API_HOST = "payroll-system.up.railway.app";
+SemaphoreHandle_t hardwareHttpMutex = nullptr;
 
 MFRC522 rfid(RFID_SS_PIN, RFID_RST_PIN);
 PayrollDisplay lcd;
 HardwareSerial fingerSerial(2);
 Adafruit_Fingerprint finger(&fingerSerial);
-WiFiClientSecure secureClient;
 Preferences offlinePreferences;
+RTC_DS3231 rtc;
+bool rtcAvailable = false;
+volatile bool rtcSyncPending = false;
 
 bool fingerprintAvailable = false;
 bool waitForFingerRelease = false;
+uint8_t fingerprintImageConfirmations = 0;
+uint8_t fingerprintReleaseConfirmations = 0;
 unsigned long lastClockUpdate = 0;
 unsigned long lastFingerprintScan = 0;
 unsigned long lastWiFiAttempt = 0;
-unsigned long fingerReleaseStarted = 0;
 unsigned long lastFingerprintReconnect = 0;
 unsigned long lastRegistrationBlink = 0;
 uint16_t fingerprintCapacity = 127;
@@ -101,10 +115,17 @@ bool wifiWasConnected = false;
 uint32_t offlineQueueHead = 0;
 uint32_t offlineEventSequence = 0;
 unsigned long lastOfflineSyncAttempt = 0;
+unsigned long offlineSyncRetryMs = 1500;
+String offlineSyncStatus = "FACULTY ATTENDANCE";
+volatile bool offlineUploadsPending = false;
+volatile bool serverReconnectRequested = false;
+uint8_t serverTransportFailures = 0;
+unsigned long lastServerReconnect = 0;
 
 const unsigned long WIFI_RETRY_MS = 10000;
-const unsigned long ENROLLMENT_POLL_MS = 600;
-const unsigned long FINGER_RELEASE_TIMEOUT_MS = 5000;
+const unsigned long ENROLLMENT_POLL_MS = 2500;
+const unsigned long FINGER_SCAN_INTERVAL_MS = 120;
+const uint8_t FINGER_CONFIRMATION_SAMPLES = 3;
 const unsigned long OFFLINE_SYNC_INTERVAL_MS = 1500;
 const uint32_t MAX_OFFLINE_ATTENDANCE = 2000;
 const time_t MINIMUM_VALID_TIME = 1700000000;
@@ -131,43 +152,115 @@ QueueHandle_t enrollmentQueue = nullptr;
 volatile bool enrollmentBusy = false;
 volatile bool attendanceBusy = false;
 
-const uint16_t DISPLAY_BACKGROUND = 0x020C;
-const uint16_t DISPLAY_GREEN = 0x0548;
+const uint16_t DISPLAY_BACKGROUND = 0xF7BE;
+const uint16_t DISPLAY_GREEN = 0x0247;
 const uint16_t DISPLAY_GOLD = 0xFE60;
 const uint16_t DISPLAY_WHITE = 0xFFFF;
-const uint16_t DISPLAY_MUTED = 0xBDF7;
+const uint16_t DISPLAY_MUTED = 0x6B6D;
+lgfx::LGFX_Sprite displayBuffer(&lcd);
+bool displayBufferReady = false;
+bool displayFrameReady = false;
+bool displayShowingClock = false;
+String lastDisplayLines[2];
+String lastDisplayFooter;
+String lastDisplaySyncStatus;
+uint8_t fingerprintCommunicationErrors = 0;
+uint8_t lastFingerprintImageResult = FINGERPRINT_TIMEOUT;
+
+void drawTextBand(int y, String text, int textSize, uint16_t color) {
+  if (displayBufferReady) {
+    displayBuffer.fillSprite(DISPLAY_BACKGROUND);
+    displayBuffer.setTextDatum(lgfx::middle_center);
+    displayBuffer.setTextColor(color, DISPLAY_BACKGROUND);
+    displayBuffer.setTextSize(textSize);
+    while (textSize > 1 && displayBuffer.textWidth(text) > lcd.width() - 32) {
+      displayBuffer.setTextSize(--textSize);
+    }
+    displayBuffer.drawString(text, lcd.width() / 2, 41);
+    displayBuffer.pushSprite(0, y);
+  } else {
+    // Opaque padded text avoids a clear-then-draw flash if allocation fails.
+    lcd.setTextDatum(lgfx::middle_center);
+    lcd.setTextColor(color, DISPLAY_BACKGROUND);
+    lcd.setTextSize(textSize);
+    while (textSize > 1 && lcd.textWidth(text) > lcd.width() - 32) lcd.setTextSize(--textSize);
+    lcd.setTextPadding(lcd.width());
+    lcd.drawString(text, lcd.width() / 2, y + 41);
+    lcd.setTextPadding(0);
+  }
+}
 
 void drawDisplayFrame() {
+  if (displayFrameReady) return;
   lcd.fillScreen(DISPLAY_BACKGROUND);
-  lcd.fillRect(0, 0, lcd.width(), 54, DISPLAY_GREEN);
-  lcd.fillRect(0, 54, lcd.width(), 4, DISPLAY_GOLD);
+  lcd.fillRect(0, 0, lcd.width(), 48, DISPLAY_GREEN);
+  lcd.fillRect(0, 48, lcd.width(), 3, DISPLAY_GOLD);
+  lcd.setTextDatum(lgfx::top_left);
   lcd.setTextColor(DISPLAY_WHITE, DISPLAY_GREEN);
   lcd.setTextSize(2);
-  lcd.setCursor(18, 18);
-  lcd.print("CvSU IMUS  |  DCS PAYROLL");
+  lcd.setCursor(16, 16);
+  lcd.print("CvSU IMUS / DCS PAYROLL");
+  lcd.setTextColor(DISPLAY_MUTED, DISPLAY_BACKGROUND);
+  lcd.setTextSize(1);
+  lcd.setCursor(16, 64);
+  lcd.print("FACULTY ATTENDANCE");
+  displayFrameReady = true;
 }
 
 void printLine(int row, String text) {
-  const int y = row == 0 ? 92 : 188;
-  const int height = 72;
-  const int maxWidth = lcd.width() - 40;
-  int textSize = row == 0 ? 4 : 3;
+  if (lastDisplayLines[row] == text) return;
+  lastDisplayLines[row] = text;
+  int size = displayShowingClock ? (row == 0 ? 2 : 5) : (row == 0 ? 3 : 2);
+  drawTextBand(row == 0 ? 80 : 178, text, size, row == 0 ? DISPLAY_MUTED : DISPLAY_GREEN);
+}
 
-  lcd.fillRect(0, y - 8, lcd.width(), height + 16, DISPLAY_BACKGROUND);
-  lcd.setTextDatum(lgfx::middle_center);
-  lcd.setTextColor(row == 0 ? DISPLAY_WHITE : DISPLAY_MUTED, DISPLAY_BACKGROUND);
-  lcd.setTextSize(textSize);
-  while (textSize > 1 && lcd.textWidth(text) > maxWidth) {
-    lcd.setTextSize(--textSize);
+void updateDisplayFooter() {
+  if (offlineSyncStatus != lastDisplaySyncStatus) {
+    lastDisplaySyncStatus = offlineSyncStatus;
+    lcd.setTextDatum(lgfx::top_left);
+    lcd.setTextSize(1);
+    lcd.setTextColor(DISPLAY_MUTED, DISPLAY_BACKGROUND);
+    lcd.setTextPadding(lcd.width() - 32);
+    lcd.drawString(offlineSyncStatus.substring(0, 74), 16, 64);
+    lcd.setTextPadding(0);
   }
-  lcd.drawString(text, lcd.width() / 2, y + height / 2);
-  lcd.setTextDatum(lgfx::top_left);
+  String text = WiFi.status() == WL_CONNECTED ? "ONLINE" : "OFFLINE";
+  text += fingerprintAvailable ? "  |  FINGER READY" : "  |  FINGER UNAVAILABLE";
+  if (fingerprintAvailable) {
+    char scanStatus[12];
+    snprintf(scanStatus, sizeof(scanStatus), " / SCAN %02X", lastFingerprintImageResult);
+    text += scanStatus;
+  }
+  text += "  |  QUEUED " + String(pendingOfflineRecordCount());
+  if (text == lastDisplayFooter) return;
+  lastDisplayFooter = text;
+  if (displayBufferReady) {
+    displayBuffer.fillSprite(DISPLAY_GREEN);
+    displayBuffer.setTextDatum(lgfx::middle_center);
+    displayBuffer.setTextSize(1);
+    displayBuffer.setTextColor(DISPLAY_WHITE, DISPLAY_GREEN);
+    displayBuffer.drawString(text, lcd.width() / 2, 20);
+    displayBuffer.pushSprite(0, 280);
+  } else {
+    lcd.setTextDatum(lgfx::middle_center);
+    lcd.setTextSize(1);
+    lcd.setTextColor(DISPLAY_WHITE, DISPLAY_GREEN);
+    lcd.setTextPadding(lcd.width());
+    lcd.drawString(text, lcd.width() / 2, 300);
+    lcd.setTextPadding(0);
+  }
 }
 
 void showMessage(String first, String second) {
   drawDisplayFrame();
+  if (displayShowingClock) {
+    lastDisplayLines[0] = "\x01";
+    lastDisplayLines[1] = "\x01";
+  }
+  displayShowingClock = false;
   printLine(0, first);
   printLine(1, second);
+  updateDisplayFooter();
 }
 
 void startRegistrationIndicator() {
@@ -257,6 +350,46 @@ bool hasValidClock() {
   return time(nullptr) >= MINIMUM_VALID_TIME;
 }
 
+void onInternetTimeSync(struct timeval* timestamp) {
+  rtcSyncPending = true;
+}
+
+void initializeRtc() {
+  // RTC stores UTC; the screen and attendance payloads use Philippine time.
+  setenv("TZ", "PHT-8", 1);
+  tzset();
+  sntp_set_time_sync_notification_cb(onInternetTimeSync);
+  Wire.begin(RTC_SDA_PIN, RTC_SCL_PIN);
+  rtcAvailable = rtc.begin(&Wire);
+  if (!rtcAvailable) {
+    Serial.println("DS3231 not detected. Check 3.3V, GND, SDA->D21, SCL->D22.");
+    return;
+  }
+  if (rtc.lostPower()) {
+    Serial.println("DS3231 needs internet time sync before offline attendance is available.");
+    return;
+  }
+  DateTime storedTime = rtc.now();
+  if (!storedTime.isValid() || storedTime.unixtime() < MINIMUM_VALID_TIME) {
+    Serial.println("DS3231 time is invalid. Waiting for internet time sync.");
+    return;
+  }
+  struct timeval restoredTime = {};
+  restoredTime.tv_sec = storedTime.unixtime();
+  settimeofday(&restoredTime, nullptr);
+  Serial.println("DS3231 detected. System clock restored from battery-backed RTC (UTC).");
+}
+
+void syncRtcFromInternet() {
+  if (!rtcSyncPending) return;
+  rtcSyncPending = false;
+  if (!hasValidClock()) return;
+  if (!rtcAvailable) rtcAvailable = rtc.begin(&Wire);
+  if (!rtcAvailable) return;
+  rtc.adjust(DateTime(static_cast<uint32_t>(time(nullptr))));
+  Serial.println("DS3231 updated from internet time. Offline clock is ready.");
+}
+
 uint32_t storedOfflineRecordCount() {
   if (!offlineStorageAvailable || !LittleFS.exists(OFFLINE_QUEUE_PATH)) return 0;
   File file = LittleFS.open(OFFLINE_QUEUE_PATH, FILE_READ);
@@ -308,6 +441,7 @@ void initializeOfflineStorage() {
   }
 
   Serial.println("Offline attendance ready. Pending records: " + String(pendingOfflineRecordCount()));
+  offlineUploadsPending = pendingOfflineRecordCount() > 0;
 }
 
 String createAttendanceEventId(time_t occurredAt) {
@@ -343,6 +477,7 @@ bool appendOfflineRecord(const OfflineAttendanceRecord& record) {
   if (!file) return false;
   bool saved = file.write(reinterpret_cast<const uint8_t*>(&record), sizeof(record)) == sizeof(record);
   file.close();
+  if (saved) offlineUploadsPending = true;
   return saved;
 }
 
@@ -362,6 +497,7 @@ void acknowledgeOfflineRecord() {
   offlineQueueHead++;
   offlinePreferences.putUInt("head", offlineQueueHead);
   if (pendingOfflineRecordCount() == 0) resetOfflineQueue();
+  offlineUploadsPending = pendingOfflineRecordCount() > 0;
 }
 
 String attendanceTimestamp(const OfflineAttendanceRecord& record) {
@@ -409,6 +545,7 @@ void connectWiFi() {
   showMessage("Connecting WiFi", "Please wait");
   WiFi.disconnect();
   WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
   WiFi.begin(WIFI_NAME, WIFI_PASSWORD);
   for (int attempt = 0; WiFi.status() != WL_CONNECTED && attempt < 20; attempt++) delay(500);
   if (WiFi.status() == WL_CONNECTED) {
@@ -429,6 +566,20 @@ void connectWiFi() {
 }
 
 void maintainWiFi() {
+  // Recover a WiFi association that still reports connected while HTTPS keeps
+  // failing. Keep flash records intact and reconnect without blocking scans.
+  if (serverReconnectRequested && !enrollmentBusy && !attendanceBusy &&
+      millis() - lastServerReconnect >= 60000 && hardwareHttpMutex &&
+      xSemaphoreTake(hardwareHttpMutex, 0) == pdTRUE) {
+    serverReconnectRequested = false;
+    serverTransportFailures = 0;
+    lastServerReconnect = millis();
+    lastWiFiAttempt = millis();
+    Serial.println("Repeated server connection failures. Refreshing WiFi; queued records preserved.");
+    WiFi.disconnect(false, false);
+    WiFi.begin(WIFI_NAME, WIFI_PASSWORD);
+    xSemaphoreGive(hardwareHttpMutex);
+  }
   bool connected = WiFi.status() == WL_CONNECTED;
   if (connected && !wifiWasConnected) {
     Serial.print("WiFi reconnected. IP: ");
@@ -447,30 +598,39 @@ void maintainWiFi() {
 }
 
 void showClock() {
+  if (!displayShowingClock) {
+    lastDisplayLines[0] = "\x01";
+    lastDisplayLines[1] = "\x01";
+  }
+  displayShowingClock = true;
   time_t currentTime = time(nullptr);
-  if (currentTime < 100000) {
-    showMessage("Payroll System", "Time syncing...");
+  if (!hasValidClock()) {
+    printLine(0, "Waiting for network time");
+    printLine(1, "--:--:--");
+    updateDisplayFooter();
     return;
   }
 
   struct tm info;
   localtime_r(&currentTime, &info);
-  char dateText[17];
+  char dateText[32];
   char timeText[17];
-  strftime(dateText, sizeof(dateText), "%m/%d/%Y", &info);
+  strftime(dateText, sizeof(dateText), "%a, %b %d, %Y", &info);
   strftime(timeText, sizeof(timeText), "%I:%M:%S %p", &info);
-  String dateLine = String(dateText);
-  if (WiFi.status() != WL_CONNECTED) dateLine += " OFF";
-  printLine(0, dateLine);
+  printLine(0, dateText);
   printLine(1, timeText);
+  updateDisplayFooter();
 }
 
 void setupFingerprint() {
+  // Do not call finger.begin(): it begins UART again without explicit pins.
+  // Keep AS608 on GPIO13/14; GPIO16/17 now drive the indicator LEDs.
+  fingerSerial.end();
   fingerSerial.begin(57600, SERIAL_8N1, FINGER_RX_PIN, FINGER_TX_PIN);
-  finger.begin(57600);
+  delay(1000);
   fingerprintAvailable = false;
   for (int attempt = 1; attempt <= 5 && !fingerprintAvailable; attempt++) {
-    fingerprintAvailable = finger.verifyPassword();
+    fingerprintAvailable = finger.verifyPassword() && finger.getParameters() == FINGERPRINT_OK;
     if (!fingerprintAvailable) {
       Serial.println("AS608 detection attempt " + String(attempt) + " of 5 failed.");
       delay(400);
@@ -495,11 +655,14 @@ void setupFingerprint() {
 bool reconnectFingerprint() {
   if (fingerprintAvailable) return true;
 
+  fingerSerial.end();
+  fingerSerial.begin(57600, SERIAL_8N1, FINGER_RX_PIN, FINGER_TX_PIN);
+
   showMessage("AS608 reconnect", "Please wait...");
   fingerprintAvailable = false;
   for (int attempt = 1; attempt <= 5 && !fingerprintAvailable; attempt++) {
     Serial.println("Reconnecting AS608, attempt " + String(attempt) + " of 5...");
-    fingerprintAvailable = finger.verifyPassword();
+    fingerprintAvailable = finger.verifyPassword() && finger.getParameters() == FINGERPRINT_OK;
     if (!fingerprintAvailable) {
       updateRegistrationIndicator();
       delay(400);
@@ -523,19 +686,89 @@ bool reconnectFingerprint() {
 
 void addHardwareHeaders(HTTPClient& http) {
   http.addHeader("Content-Type", "application/json");
+  http.addHeader("Accept", "application/json");
   http.addHeader("X-Hardware-Key", HARDWARE_API_KEY);
 }
 
+void noteServerConnectionFailure() {
+  if (serverTransportFailures < 3) serverTransportFailures++;
+  if (serverTransportFailures >= 3) serverReconnectRequested = true;
+}
+
+int requestHardwareServer(String path, String payload, String& response, bool background) {
+  response = "";
+  if (WiFi.status() != WL_CONNECTED) return -1000;
+  if (!hardwareHttpMutex || xSemaphoreTake(hardwareHttpMutex,
+      background ? 0 : pdMS_TO_TICKS(45000)) != pdTRUE) return -1002;
+
+  // One TLS client at a time: simultaneous handshakes compete for ESP32 heap.
+  if (background && (attendanceBusy || enrollmentBusy)) {
+    xSemaphoreGive(hardwareHttpMutex);
+    return -1002;
+  }
+  int code = -1001;
+  const int maximumAttempts = background ? 1 : 2;
+  for (int attempt = 0; attempt < maximumAttempts; attempt++) {
+    if (attempt > 0) {
+      Serial.println("Connection failed before sending. Retrying with a fresh TLS client...");
+      delay(750);
+    }
+    if (WiFi.status() != WL_CONNECTED) {
+      code = -1000;
+      break;
+    }
+    // Both clients are destroyed at the end of each attempt, before retrying.
+    WiFiClientSecure secureClient;
+    secureClient.setInsecure();
+    secureClient.setHandshakeTimeout(15);
+    IPAddress serverIp;
+    if (WiFi.hostByName(API_HOST, serverIp) != 1) {
+      Serial.println("Server DNS lookup failed. Check WiFi internet access and DNS.");
+      code = -1003;
+      break;
+    }
+    Serial.println("Server request " + path + ": DNS=" + serverIp.toString() +
+                   ", RSSI=" + String(WiFi.RSSI()) + ", free heap=" + String(ESP.getFreeHeap()) +
+                   ", largest block=" + String(ESP.getMaxAllocHeap()));
+
+    HTTPClient http;
+    if (!http.begin(secureClient, String(API_BASE_URL) + path)) {
+      code = -1001;
+      break;
+    }
+    http.setReuse(false);
+    http.setConnectTimeout(15000);
+    http.setTimeout(15000);
+    addHardwareHeaders(http);
+    code = payload.length() ? http.POST(payload) : http.GET();
+    response = http.getString();
+    if (code < 0) {
+      char tlsError[160] = {};
+      int tlsCode = secureClient.lastError(tlsError, sizeof(tlsError));
+      Serial.println("Server transport error " + String(code) + ": " + HTTPClient::errorToString(code));
+      Serial.println("TLS error " + String(tlsCode) + ": " + String(tlsError));
+    }
+    http.end();
+    secureClient.stop();
+    // HTTPClient returns this only when connect() fails, before sending HTTP.
+    // Do not blindly repeat requests whose response was lost after sending.
+    if (code != HTTPC_ERROR_CONNECTION_REFUSED) break;
+  }
+  if (code < 0) {
+    noteServerConnectionFailure();
+  } else {
+    serverTransportFailures = 0;
+    serverReconnectRequested = false;
+  }
+  xSemaphoreGive(hardwareHttpMutex);
+  return code;
+}
+
 bool sendEnrollmentResult(String id, String status, String identifier, String message) {
-  HTTPClient http;
-  String url = String(API_BASE_URL) + "/enrollments/" + id + "/result";
-  if (!http.begin(secureClient, url)) return false;
-  http.setTimeout(10000);
-  addHardwareHeaders(http);
   String payload = "{\"status\":\"" + status + "\",\"identifier\":\"" + identifier + "\",\"message\":\"" + message + "\"}";
-  int code = http.POST(payload);
-  Serial.println("Enrollment result HTTP " + String(code) + ": " + http.getString());
-  http.end();
+  String response;
+  int code = requestHardwareServer("/enrollments/" + id + "/result", payload, response, false);
+  Serial.println("Enrollment result HTTP " + String(code) + ": " + response);
   return code >= 200 && code < 300;
 }
 
@@ -544,14 +777,34 @@ int fingerprintSlot(String code) {
   return code.substring(3).toInt();
 }
 
-int findFreeFingerprintSlot() {
+int findFreeFingerprintSlot(String currentIdentifier) {
   if (finger.getTemplateCount() != FINGERPRINT_OK) {
     fingerprintAvailable = false;
     Serial.println("Could not read AS608 storage information.");
     return -1;
   }
 
+  String response;
+  int code = requestHardwareServer("/fingerprint-slots", "", response, false);
+  if (code != 200 || response.indexOf("\"reserved_slots\":\"") < 0) {
+    Serial.println("Could not read fingerprint slots reserved on the server. HTTP " + String(code));
+    return -2;
+  }
+  String reservedSlots = "," + jsonValue(response, "reserved_slots") + ",";
   int maximum = fingerprintCapacity > 0 ? fingerprintCapacity : 127;
+  int oldSlot = fingerprintSlot(currentIdentifier);
+  if (oldSlot >= 1 && oldSlot <= maximum) {
+    uint8_t result = finger.loadModel(oldSlot);
+    if (result == FINGERPRINT_DBRANGEFAIL || result == FINGERPRINT_NOTFOUND) {
+      Serial.println("Reusing this faculty member's empty fingerprint slot " + String(oldSlot) + ".");
+      return oldSlot;
+    }
+    if (result != FINGERPRINT_OK) {
+      Serial.println("AS608 slot " + String(oldSlot) + " read error: 0x" + String(result, HEX));
+      return -1;
+    }
+  }
+
   int firstSlot = nextFingerprintSlotHint;
   if (firstSlot < 1 || firstSlot > maximum) {
     firstSlot = finger.templateCount < maximum ? finger.templateCount + 1 : 1;
@@ -562,6 +815,7 @@ int findFreeFingerprintSlot() {
   for (int offset = 0; offset < maximum; offset++) {
     updateRegistrationIndicator();
     int slot = ((firstSlot - 1 + offset) % maximum) + 1;
+    if (reservedSlots.indexOf("," + String(slot) + ",") >= 0) continue;
     uint8_t result = finger.loadModel(slot);
     if (result == FINGERPRINT_DBRANGEFAIL || result == FINGERPRINT_NOTFOUND) {
       nextFingerprintSlotHint = slot;
@@ -588,19 +842,26 @@ bool waitForFingerprintImage(unsigned long timeoutMs) {
   return false;
 }
 
-void waitForFingerRemoval() {
+bool waitForFingerRemoval() {
   unsigned long started = millis();
-  while (millis() - started < 15000 && finger.getImage() != FINGERPRINT_NOFINGER) {
+  while (millis() - started < 15000) {
     updateRegistrationIndicator();
+    uint8_t result = finger.getImage();
+    if (result == FINGERPRINT_NOFINGER) return true;
+    if (result == FINGERPRINT_PACKETRECIEVEERR) {
+      fingerprintAvailable = false;
+      return false;
+    }
     delay(80);
   }
+  return false;
 }
 
 bool captureFingerprintModel() {
   showMessage("Place finger", "First scan");
   if (!waitForFingerprintImage(30000) || finger.image2Tz(1) != FINGERPRINT_OK) return false;
   showMessage("Remove finger", "");
-  waitForFingerRemoval();
+  if (!waitForFingerRemoval()) return false;
   delay(500);
   showMessage("Place same", "finger again");
   if (!waitForFingerprintImage(30000) || finger.image2Tz(2) != FINGERPRINT_OK) return false;
@@ -616,8 +877,32 @@ void enrollFingerprint(String id, String currentIdentifier) {
     return;
   }
 
-  // Start the user-facing scan immediately. Slot lookup happens only after
-  // both images are captured, so it cannot delay the LCD prompt.
+  // loadModel() writes sensor buffer 1. Find a slot before capturing the
+  // new template so occupied-slot checks cannot overwrite it before saving.
+  showMessage("Checking finger memory", "Please wait...");
+  int newSlot = findFreeFingerprintSlot(currentIdentifier);
+  if (newSlot == -2) {
+    sendEnrollmentResult(id, "failed", "", "Could not verify available fingerprint slots with the server.");
+    errorSignal();
+    showMessage("Server unavailable", "Try again later");
+    delay(2500);
+    return;
+  }
+  if (newSlot < 0) {
+    sendEnrollmentResult(id, "failed", "", "Could not read AS608 fingerprint storage. Check sensor wiring and power.");
+    errorSignal();
+    showMessage("AS608 read error", "Check wiring");
+    delay(2500);
+    return;
+  }
+  if (newSlot == 0) {
+    sendEnrollmentResult(id, "failed", "", "No free fingerprint slot not assigned to another faculty member.");
+    errorSignal();
+    showMessage("Finger memory", "is full");
+    delay(2500);
+    return;
+  }
+
   if (!captureFingerprintModel()) {
     sendEnrollmentResult(id, "failed", "", "Fingerprint capture failed.");
     errorSignal();
@@ -627,22 +912,6 @@ void enrollFingerprint(String id, String currentIdentifier) {
   }
 
   showMessage("Saving finger", "Please wait...");
-  int newSlot = findFreeFingerprintSlot();
-  if (newSlot < 0) {
-    sendEnrollmentResult(id, "failed", "", "Could not read AS608 fingerprint storage. Check sensor wiring and power.");
-    errorSignal();
-    showMessage("AS608 read error", "Check wiring");
-    delay(2500);
-    return;
-  }
-  if (newSlot == 0) {
-    sendEnrollmentResult(id, "failed", "", "No free fingerprint slot.");
-    errorSignal();
-    showMessage("Finger memory", "is full");
-    delay(2500);
-    return;
-  }
-
   if (finger.storeModel(newSlot) != FINGERPRINT_OK) {
     sendEnrollmentResult(id, "failed", "", "Fingerprint could not be saved to the AS608.");
     errorSignal();
@@ -699,36 +968,22 @@ void enrollRfid(String id) {
 }
 
 void enrollmentPollTask(void* parameter) {
-  WiFiClientSecure enrollmentClient;
-  enrollmentClient.setInsecure();
-  enrollmentClient.setHandshakeTimeout(5);
-
-  HTTPClient http;
-  String url = String(API_BASE_URL) + "/enrollment";
-  bool requestReady = false;
-
   while (true) {
+    unsigned long pollDelay = ENROLLMENT_POLL_MS;
     bool queueIsEmpty = enrollmentQueue && uxQueueMessagesWaiting(enrollmentQueue) == 0;
     if (ENABLE_REMOTE_ENROLLMENT &&
         !enrollmentBusy &&
         !attendanceBusy &&
+        !offlineUploadsPending &&
         queueIsEmpty &&
         WiFi.status() == WL_CONNECTED) {
-      if (!requestReady && http.begin(enrollmentClient, url)) {
-        http.setReuse(true);
-        http.setConnectTimeout(3000);
-        http.setTimeout(5000);
-        addHardwareHeaders(http);
-        requestReady = true;
-      }
-
-      if (requestReady) {
+      {
         unsigned long pollStarted = millis();
-        int code = http.GET();
-        String response = http.getString();
+        String response;
+        int code = requestHardwareServer("/enrollment", "", response, true);
         unsigned long pollDuration = millis() - pollStarted;
 
-        if (code != 204 && code != 200) {
+        if (code != 204 && code != 200 && code != -1002) {
           Serial.println("Enrollment poll HTTP " + String(code) + " in " +
                          String(pollDuration) + " ms: " + response);
         }
@@ -749,22 +1004,20 @@ void enrollmentPollTask(void* parameter) {
         }
 
         if (code < 0) {
-          http.end();
-          enrollmentClient.stop();
-          requestReady = false;
+          if (code != -1002) pollDelay = 20000;
         }
       }
     }
 
-    vTaskDelay(pdMS_TO_TICKS(ENROLLMENT_POLL_MS));
+    vTaskDelay(pdMS_TO_TICKS(pollDelay));
   }
 }
 
-void processEnrollmentRequest() {
-  if (!enrollmentQueue || enrollmentBusy) return;
+bool processEnrollmentRequest() {
+  if (!enrollmentQueue || enrollmentBusy) return false;
 
   EnrollmentRequest request;
-  if (xQueueReceive(enrollmentQueue, &request, 0) != pdTRUE) return;
+  if (xQueueReceive(enrollmentQueue, &request, 0) != pdTRUE) return false;
 
   enrollmentBusy = true;
   startRegistrationIndicator();
@@ -775,21 +1028,16 @@ void processEnrollmentRequest() {
   else if (method == "fingerprint") enrollFingerprint(String(request.id), String(request.currentIdentifier));
   stopRegistrationIndicator();
   enrollmentBusy = false;
+  if (method == "fingerprint" && fingerprintAvailable) {
+    waitForFingerRelease = true;
+    fingerprintImageConfirmations = 0;
+    fingerprintReleaseConfirmations = 0;
+  }
+  return true;
 }
 
 int postAttendanceRecord(const OfflineAttendanceRecord& record, String& response) {
-  if (WiFi.status() != WL_CONNECTED) return -1000;
-  HTTPClient http;
-  String url = String(API_BASE_URL) + "/tap";
-  if (!http.begin(secureClient, url)) return -1001;
-  http.setReuse(true);
-  http.setConnectTimeout(1500);
-  http.setTimeout(10000);
-  addHardwareHeaders(http);
-  int code = http.POST(attendancePayload(record));
-  response = http.getString();
-  http.end();
-  return code;
+  return requestHardwareServer("/tap", attendancePayload(record), response, false);
 }
 
 bool shouldQueueAttendance(int code) {
@@ -821,8 +1069,8 @@ void showOfflineSaved(const OfflineAttendanceRecord& record) {
   String methodLabel = String(record.method) == "rfid" ? "RFID" : "FINGER";
 
   successSignal();
-  showMessage("Attendance Saved", methodLabel + " " + String(timeText));
-  Serial.println("Attendance saved offline. Pending records: " +
+  showMessage("Saved for upload", methodLabel + " " + String(timeText));
+  Serial.println("Attendance retained for upload. Pending records: " +
                  String(pendingOfflineRecordCount()));
 }
 
@@ -837,8 +1085,8 @@ void sendAttendance(String identifier, String method) {
     return;
   }
 
-  // Preserve tap order: new taps join the queue until every older event is synced.
-  if (WiFi.status() != WL_CONNECTED || pendingOfflineRecordCount() > 0) {
+  // WiFi-connected taps go directly to the server, even with an older backlog.
+  if (WiFi.status() != WL_CONNECTED) {
     attendanceBusy = false;
     if (appendOfflineRecord(record)) showOfflineSaved(record);
     else {
@@ -874,30 +1122,52 @@ void sendAttendance(String identifier, String method) {
 void syncNextOfflineAttendance() {
   if (!offlineStorageAvailable || attendanceBusy || enrollmentBusy ||
       WiFi.status() != WL_CONNECTED || pendingOfflineRecordCount() == 0 ||
-      millis() - lastOfflineSyncAttempt < OFFLINE_SYNC_INTERVAL_MS) return;
+      millis() - lastOfflineSyncAttempt < offlineSyncRetryMs) return;
 
   lastOfflineSyncAttempt = millis();
   OfflineAttendanceRecord record = {};
   if (!readNextOfflineRecord(record)) {
     Serial.println("Could not read the next offline attendance record.");
+    offlineSyncRetryMs = 60000;
+    offlineSyncStatus = "SYNC: STORAGE READ ERROR / RECORDS PRESERVED";
+    updateDisplayFooter();
     return;
   }
 
   attendanceBusy = true;
   digitalWrite(YELLOW_LED_PIN, HIGH);
-  showMessage("Syncing offline", "Please wait");
+  offlineSyncStatus = "SYNC: UPLOADING " + String(pendingOfflineRecordCount()) + " QUEUED SCANS";
+  updateDisplayFooter();
   String response;
   int code = postAttendanceRecord(record, response);
   digitalWrite(YELLOW_LED_PIN, LOW);
   attendanceBusy = false;
 
   Serial.println("Offline sync HTTP " + String(code) + ": " + response);
-  if (code >= 200 && code < 300) {
+  // A successful tap includes an action; never discard records for an HTML
+  // response or an unrelated 2xx reply from a proxy or wrong endpoint.
+  if (code == 200 && jsonValue(response, "action") != "") {
     acknowledgeOfflineRecord();
+    offlineSyncRetryMs = OFFLINE_SYNC_INTERVAL_MS;
+    offlineSyncStatus = pendingOfflineRecordCount() == 0 ? "SYNC: COMPLETE / ALL SCANS UPLOADED" : "SYNC: UPLOADED / CONTINUING QUEUE";
     Serial.println("Offline attendance synced. Remaining: " + String(pendingOfflineRecordCount()));
-  } else if (!shouldQueueAttendance(code)) {
-    Serial.println("Offline sync paused because the server rejected the record.");
+  } else {
+    offlineSyncRetryMs = shouldQueueAttendance(code) ? 30000 : 60000;
+    if (code < 0) offlineSyncStatus = "SYNC: CONNECTION FAILED (" + String(code) + ") / RETRY 30s";
+    else if (code == 401 || code == 403) offlineSyncStatus = "SYNC: API KEY REJECTED / CHECK SERVER CONFIG";
+    else if (code == 404) offlineSyncStatus = "SYNC: 404 / CREDENTIAL OR API NOT FOUND";
+    else if (code == 422 && response.indexOf("future") >= 0) offlineSyncStatus = "SYNC: RECORD TIME IN FUTURE / CHECK CLOCK";
+    else if (code == 422) offlineSyncStatus = "SYNC: 422 / SERVER REJECTED RECORD DATA";
+    else if (code == 409) offlineSyncStatus = "SYNC: 409 / RECORD CONFLICT";
+    else if (code >= 500) offlineSyncStatus = "SYNC: SERVER ERROR " + String(code) + " / RETRY 30s";
+    else offlineSyncStatus = "SYNC: HTTP " + String(code) + " / UNEXPECTED RESPONSE";
+    Serial.println("Queued record preserved: " + String(record.eventId) + " at " + attendanceTimestamp(record));
+    if (code < 0) Serial.println("Transport error: " + HTTPClient::errorToString(code));
+    Serial.println("Next sync attempt in " + String(offlineSyncRetryMs / 1000) + " seconds.");
   }
+  // Start the backoff after the request finishes, not before its timeout.
+  lastOfflineSyncAttempt = millis();
+  updateDisplayFooter();
 }
 
 void processRfidAttendance() {
@@ -910,25 +1180,60 @@ void processRfidAttendance() {
 }
 
 void processFingerprintAttendance() {
-  if (!fingerprintAvailable || waitForFingerRelease || millis() - lastFingerprintScan < 500) return;
-  uint8_t result = finger.getImage();
-  if (result == FINGERPRINT_NOFINGER) return;
+  if (!fingerprintAvailable || waitForFingerRelease ||
+      millis() - lastFingerprintScan < FINGER_SCAN_INTERVAL_MS) return;
   lastFingerprintScan = millis();
-
-  if (result != FINGERPRINT_OK) {
-    Serial.println("Fingerprint getImage error: 0x" + String(result, HEX));
+  uint8_t result = finger.getImage();
+  lastFingerprintImageResult = result;
+  updateDisplayFooter();
+  if (result == FINGERPRINT_NOFINGER) {
+    fingerprintCommunicationErrors = 0;
+    fingerprintImageConfirmations = 0;
     return;
   }
 
+  if (result != FINGERPRINT_OK) {
+    fingerprintImageConfirmations = 0;
+    Serial.println("Fingerprint getImage error: 0x" + String(result, HEX));
+    if (result == FINGERPRINT_PACKETRECIEVEERR && ++fingerprintCommunicationErrors >= 3) {
+      fingerprintAvailable = false;
+      showMessage("Fingerprint disconnected", "Check power and TX/RX");
+    } else if (result != FINGERPRINT_PACKETRECIEVEERR) {
+      fingerprintCommunicationErrors = 0;
+      errorSignal();
+      showMessage("Finger image failed", "Sensor code " + String(result, HEX));
+      waitForFingerRelease = true;
+      fingerprintReleaseConfirmations = 0;
+      delay(2000);
+    }
+    return;
+  }
+  fingerprintCommunicationErrors = 0;
+  if (++fingerprintImageConfirmations < FINGER_CONFIRMATION_SAMPLES) return;
+  fingerprintImageConfirmations = 0;
+
   waitForFingerRelease = true;
-  fingerReleaseStarted = millis();
-  if (finger.image2Tz() == FINGERPRINT_OK && finger.fingerSearch() == FINGERPRINT_OK) {
+  fingerprintReleaseConfirmations = 0;
+  showMessage("Reading fingerprint", "Please wait...");
+  uint8_t conversion = finger.image2Tz(1);
+  uint8_t match = conversion == FINGERPRINT_OK ? finger.fingerSearch(1) : conversion;
+  if (conversion == FINGERPRINT_OK && match == FINGERPRINT_OK) {
     Serial.println("Fingerprint matched: FP-" + String(finger.fingerID));
     sendAttendance("FP-" + String(finger.fingerID), "fingerprint");
   } else {
-    Serial.println("Fingerprint not registered or could not be converted.");
+    Serial.println("Fingerprint conversion: 0x" + String(conversion, HEX) +
+                   ", search: 0x" + String(match, HEX));
     errorSignal();
-    showMessage("Fingerprint", "Not registered");
+    if (match == FINGERPRINT_PACKETRECIEVEERR) {
+      fingerprintAvailable = false;
+      showMessage("Sensor communication error", "Check power and TX/RX");
+    } else if (conversion != FINGERPRINT_OK) {
+      showMessage("Scan unclear", "Lift finger and try again");
+    } else if (match == FINGERPRINT_NOTFOUND) {
+      showMessage("Fingerprint not found", "Try registered finger");
+    } else {
+      showMessage("Fingerprint scan error", "Code " + String(match));
+    }
     delay(2000);
   }
 }
@@ -954,8 +1259,13 @@ void setup() {
   SPI.begin(18, 19, 23);
   lcd.init();
   lcd.setRotation(1);
+  // Halve the persistent sprite allocation to leave more heap for TLS.
+  displayBuffer.setColorDepth(8);
+  displayBufferReady = displayBuffer.createSprite(lcd.width(), 82) != nullptr;
+  if (!displayBufferReady) Serial.println("Display buffer unavailable. Using opaque text updates.");
   drawDisplayFrame();
   rfid.PCD_Init();
+  initializeRtc();
   rfid.PCD_SetAntennaGain(MFRC522::RxGain_max);
   byte rfidVersion = rfid.PCD_ReadRegister(rfid.VersionReg);
   Serial.print("RC522 version: 0x");
@@ -965,7 +1275,8 @@ void setup() {
   }
   setupFingerprint();
   initializeOfflineStorage();
-  secureClient.setInsecure();
+  hardwareHttpMutex = xSemaphoreCreateMutex();
+  if (!hardwareHttpMutex) Serial.println("Could not create server request mutex. Records remain queued.");
   WiFi.setTxPower(WIFI_POWER_15dBm);
   connectWiFi();
   enrollmentQueue = xQueueCreate(1, sizeof(EnrollmentRequest));
@@ -982,6 +1293,7 @@ void setup() {
 
 void loop() {
   maintainWiFi();
+  syncRtcFromInternet();
 
   if (millis() - lastClockUpdate >= 1000) {
     showClock();
@@ -990,22 +1302,37 @@ void loop() {
 
   if (!fingerprintAvailable && millis() - lastFingerprintReconnect >= 10000) {
     lastFingerprintReconnect = millis();
-    fingerprintAvailable = finger.verifyPassword();
+    fingerSerial.end();
+    fingerSerial.begin(57600, SERIAL_8N1, FINGER_RX_PIN, FINGER_TX_PIN);
+    fingerprintAvailable = finger.verifyPassword() && finger.getParameters() == FINGERPRINT_OK;
+    fingerprintCommunicationErrors = 0;
     if (fingerprintAvailable) Serial.println("AS608 reconnected for attendance.");
   }
 
+  if (processEnrollmentRequest()) return;
+
   if (waitForFingerRelease) {
-    uint8_t releaseResult = finger.getImage();
-    if (releaseResult == FINGERPRINT_NOFINGER ||
-        releaseResult == FINGERPRINT_PACKETRECIEVEERR ||
-        millis() - fingerReleaseStarted >= FINGER_RELEASE_TIMEOUT_MS) {
-      waitForFingerRelease = false;
+    if (millis() - lastFingerprintScan >= FINGER_SCAN_INTERVAL_MS) {
+      lastFingerprintScan = millis();
+      uint8_t releaseResult = finger.getImage();
+      lastFingerprintImageResult = releaseResult;
+      if (releaseResult == FINGERPRINT_NOFINGER) {
+        if (++fingerprintReleaseConfirmations >= FINGER_CONFIRMATION_SAMPLES) {
+          waitForFingerRelease = false;
+          fingerprintReleaseConfirmations = 0;
+        }
+      } else if (releaseResult == FINGERPRINT_PACKETRECIEVEERR) {
+        fingerprintAvailable = false;
+        waitForFingerRelease = false;
+        fingerprintReleaseConfirmations = 0;
+      } else {
+        fingerprintReleaseConfirmations = 0;
+      }
     }
   } else {
     processFingerprintAttendance();
   }
 
   processRfidAttendance();
-  processEnrollmentRequest();
   syncNextOfflineAttendance();
 }

@@ -1,8 +1,8 @@
-#define TFT_SCK_PIN 16
-#define TFT_MOSI_PIN 17
-#define TFT_CS_PIN 21
-#define TFT_DC_PIN 22
-#define TFT_RST_PIN 33
+#define TFT_SCK_PIN 32
+#define TFT_MOSI_PIN 33
+#define TFT_CS_PIN 25
+#define TFT_DC_PIN 26
+#define TFT_RST_PIN 27
 
 void writeBus(uint8_t value) {
   for (uint8_t mask = 0x80; mask; mask >>= 1) {

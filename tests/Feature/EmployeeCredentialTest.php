@@ -137,6 +137,81 @@ class EmployeeCredentialTest extends TestCase
         $this->assertDatabaseHas('hardware_enrollments', ['id' => $enrollmentId, 'status' => 'failed']);
     }
 
+    public function test_replacement_sensor_can_reuse_the_faculty_members_existing_fingerprint_slot(): void
+    {
+        config(['services.hardware.api_key' => 'device-secret']);
+        $employee = $this->employee();
+        $employee->fingerprintTemplates()->create([
+            'fingerprint_code' => 'FP-1',
+            'finger_label' => 'Right thumb',
+            'status' => 'active',
+        ]);
+        $otherEmployee = $this->employee('COS-9002');
+        $otherEmployee->fingerprintTemplates()->create([
+            'fingerprint_code' => 'FP-2',
+            'finger_label' => 'Right index',
+            'status' => 'inactive',
+        ]);
+
+        $this->getJson('/api/hardware/fingerprint-slots')->assertUnauthorized();
+        $this->withHeader('X-Hardware-Key', 'device-secret')
+            ->getJson('/api/hardware/fingerprint-slots')
+            ->assertOk()
+            ->assertJsonPath('reserved_slots', '1,2');
+
+        $enrollmentId = $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->postJson(route('employees.credentials.enrollments.store', $employee), [
+                'method' => 'fingerprint',
+                'finger_label' => 'Right thumb',
+            ])
+            ->assertCreated()
+            ->json('id');
+
+        $this->withHeader('X-Hardware-Key', 'device-secret')
+            ->getJson('/api/hardware/enrollment')
+            ->assertOk()
+            ->assertJsonPath('current_identifier', 'FP-1');
+
+        $this->withHeader('X-Hardware-Key', 'device-secret')
+            ->postJson("/api/hardware/enrollments/{$enrollmentId}/result", [
+                'status' => 'completed',
+                'identifier' => 'FP-1',
+            ])
+            ->assertOk()
+            ->assertJsonPath('status', 'completed');
+
+        $this->assertDatabaseHas('fingerprint_templates', [
+            'employee_id' => $employee->id,
+            'fingerprint_code' => 'FP-1',
+            'status' => 'active',
+        ]);
+    }
+
+    public function test_replacement_sensor_cannot_assign_another_faculty_members_fingerprint_slot(): void
+    {
+        config(['services.hardware.api_key' => 'device-secret']);
+        $owner = $this->employee();
+        $owner->fingerprintTemplates()->create(['fingerprint_code' => 'FP-1', 'status' => 'active']);
+        $otherEmployee = $this->employee('COS-9002');
+
+        $enrollmentId = $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->postJson(route('employees.credentials.enrollments.store', $otherEmployee), [
+                'method' => 'fingerprint',
+                'finger_label' => 'Right thumb',
+            ])
+            ->json('id');
+
+        $this->withHeader('X-Hardware-Key', 'device-secret')
+            ->postJson("/api/hardware/enrollments/{$enrollmentId}/result", [
+                'status' => 'completed',
+                'identifier' => 'FP-1',
+            ])
+            ->assertUnprocessable();
+
+        $this->assertDatabaseMissing('fingerprint_templates', ['employee_id' => $otherEmployee->id]);
+        $this->assertDatabaseHas('fingerprint_templates', ['employee_id' => $owner->id, 'fingerprint_code' => 'FP-1']);
+    }
+
     public function test_faculty_email_and_phone_use_institutional_formats(): void
     {
         $employee = $this->employee();
