@@ -8,7 +8,9 @@ class HardwareEnrollment extends Model
 {
     protected $fillable = [
         'employee_id',
+        'requested_by',
         'method',
+        'operation',
         'finger_label',
         'current_identifier',
         'identifier',

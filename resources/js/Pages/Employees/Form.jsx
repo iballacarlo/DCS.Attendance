@@ -104,6 +104,8 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
 
     const startHardwareRegistration = async (method) => {
         if (isNew) return;
+        const existingIdentifier = method === 'rfid' ? form.data.rfid_uid : form.data.fingerprint_code;
+        if (existingIdentifier && !window.confirm(`Replace this faculty member's existing ${method === 'rfid' ? 'RFID card' : 'fingerprint'}? The old credential remains active until the new registration succeeds.`)) return;
         setEnrollmentError('');
         setEnrollment({ method, status: 'starting' });
         try {
@@ -122,11 +124,23 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
         const { data } = await axios.delete(`/employees/${employee.id}/credentials/enrollments/${enrollment.id}`);
         setEnrollment(data);
     };
-    const unlinkCredential = (type) => {
-        if (type === 'rfid') {
-            form.setData({ ...form.data, rfid_uid: '', rfid_reregister: true });
-        } else {
-            form.setData({ ...form.data, fingerprint_code: '', finger_label: '', fingerprint_reregister: true });
+    const unlinkCredential = async (method) => {
+        const identifier = method === 'rfid' ? form.data.rfid_uid : form.data.fingerprint_code;
+        const confirmation = window.prompt(`Type UNLINK to remove this ${method === 'rfid' ? 'RFID card' : 'fingerprint'} from this faculty member.`);
+        if (confirmation !== 'UNLINK') return;
+
+        setEnrollmentError('');
+        try {
+            const { data } = await axios.post(`/employees/${employee.id}/credentials/${method}/unlink`, {
+                confirmation,
+                current_identifier: identifier,
+            });
+            setEnrollment(data);
+            if (method === 'rfid') {
+                form.setData('rfid_uid', '');
+            }
+        } catch (error) {
+            setEnrollmentError(error.response?.data?.message || `Could not unlink the ${method} credential.`);
         }
     };
     const selectRank = (rankId) => {
@@ -187,16 +201,16 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
             </section>}
             {enrollment && <div className={`credential-enrollment-status is-${enrollment.status}`}>
                 {['starting', 'pending', 'processing'].includes(enrollment.status) ? <LoaderCircle className="spin" size={18} /> : <CircleCheck size={18} />}
-                <span><strong>{enrollment.status === 'completed' ? 'Registration complete' : enrollment.status === 'failed' ? 'Registration failed' : enrollment.status === 'expired' ? 'Registration expired' : enrollment.status === 'cancelled' ? 'Registration cancelled' : 'Waiting for attendance device'}</strong><small>{enrollment.message || (enrollment.method === 'rfid' ? 'Tap the RFID card on the RC522.' : 'Follow the fingerprint scanner prompts.')}</small></span>
-                {['pending', 'processing'].includes(enrollment.status) && <button type="button" onClick={cancelHardwareRegistration} aria-label="Cancel registration"><X size={16} /></button>}
+                <span><strong>{enrollment.status === 'completed' ? (enrollment.operation === 'unlink' ? 'Credential unlinked' : 'Registration complete') : enrollment.status === 'failed' ? (enrollment.operation === 'unlink' ? 'Unlink failed' : 'Registration failed') : enrollment.status === 'expired' ? 'Registration expired' : enrollment.status === 'cancelled' ? 'Registration cancelled' : enrollment.operation === 'unlink' ? 'Waiting for fingerprint sensor' : 'Waiting for attendance device'}</strong><small>{enrollment.message || (enrollment.operation === 'unlink' ? 'The fingerprint will be removed from the sensor before it is unlinked.' : enrollment.method === 'rfid' ? 'Tap the RFID card on the RC522.' : 'Follow the fingerprint scanner prompts.')}</small></span>
+                {['pending', 'processing'].includes(enrollment.status) && enrollment.operation !== 'unlink' && <button type="button" onClick={cancelHardwareRegistration} aria-label="Cancel registration"><X size={16} /></button>}
             </div>}
             {enrollmentError && <div className="credential-enrollment-error">{enrollmentError}</div>}
             <div className="credential-row">
                 <div className="credential-heading"><span className="credential-icon"><Radio size={19} /></span><span><strong>RFID card</strong><small>{form.data.rfid_uid ? 'Registered' : 'Not registered'}</small></span></div>
                 <label><FieldLabel note="This value is supplied by the RC522 after hardware registration.">Card UID</FieldLabel><input ref={rfidInput} value={form.data.rfid_uid} readOnly aria-readonly="true" placeholder="Register using the attendance device" /></label>
                 <div className="credential-actions">
-                    <button className="credential-action" type="button" title="Start RFID registration on the attendance device" disabled={isNew || ['starting', 'pending', 'processing'].includes(enrollment?.status)} onClick={() => startHardwareRegistration('rfid')}>{form.data.rfid_uid ? <RefreshCw size={16} /> : <Radio size={16} />}{isNew ? 'Save first' : form.data.rfid_uid ? 'Re-register' : 'Register'}</button>
-                    {form.data.rfid_uid && <button className="credential-unlink" type="button" title="Remove the RFID card from this faculty record" onClick={() => unlinkCredential('rfid')} aria-label="Unlink RFID card"><Link2Off size={16} /></button>}
+                    <button className="credential-action" type="button" title="Register or safely replace the RFID card using the attendance device" disabled={isNew || ['starting', 'pending', 'processing'].includes(enrollment?.status)} onClick={() => startHardwareRegistration('rfid')}>{form.data.rfid_uid ? <RefreshCw size={16} /> : <Radio size={16} />}{isNew ? 'Save first' : form.data.rfid_uid ? 'Replace' : 'Register'}</button>
+                    {form.data.rfid_uid && <button className="credential-unlink" type="button" title="Permanently unlink this RFID card" onClick={() => unlinkCredential('rfid')} aria-label="Unlink RFID card"><Link2Off size={16} /></button>}
                 </div>
             </div>
             <div className="credential-row">
@@ -204,8 +218,8 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
                 <label><FieldLabel note="This template slot is assigned automatically by the AS608 sensor.">Template ID</FieldLabel><input ref={fingerprintInput} readOnly aria-readonly="true" placeholder="Register using the attendance device" value={form.data.fingerprint_code} /></label>
                 <label><FieldLabel note="Select the finger before starting registration on the AS608 sensor.">Finger</FieldLabel><select disabled={['starting', 'pending', 'processing'].includes(enrollment?.status)} value={form.data.finger_label} onChange={(e) => form.setData('finger_label', e.target.value)}><option value="">Select finger</option><option>Right thumb</option><option>Right index</option><option>Right middle</option><option>Left thumb</option><option>Left index</option><option>Left middle</option></select></label>
                 <div className="credential-actions">
-                    <button className="credential-action" type="button" title="Start fingerprint enrollment on the AS608 sensor" disabled={isNew || !form.data.finger_label || ['starting', 'pending', 'processing'].includes(enrollment?.status)} onClick={() => startHardwareRegistration('fingerprint')}>{form.data.fingerprint_code ? <RefreshCw size={16} /> : <Fingerprint size={16} />}{isNew ? 'Save first' : form.data.fingerprint_code ? 'Re-register' : 'Register'}</button>
-                    {form.data.fingerprint_code && <button className="credential-unlink" type="button" title="Remove the fingerprint from this faculty record" onClick={() => unlinkCredential('fingerprint')} aria-label="Unlink fingerprint"><Link2Off size={16} /></button>}
+                    <button className="credential-action" type="button" title="Register or safely replace the fingerprint using the AS608 sensor" disabled={isNew || !form.data.finger_label || ['starting', 'pending', 'processing'].includes(enrollment?.status)} onClick={() => startHardwareRegistration('fingerprint')}>{form.data.fingerprint_code ? <RefreshCw size={16} /> : <Fingerprint size={16} />}{isNew ? 'Save first' : form.data.fingerprint_code ? 'Replace' : 'Register'}</button>
+                    {form.data.fingerprint_code && <button className="credential-unlink" type="button" title="Permanently remove this fingerprint from the sensor and faculty record" onClick={() => unlinkCredential('fingerprint')} aria-label="Unlink fingerprint"><Link2Off size={16} /></button>}
                 </div>
             </div>
             <div className="form-actions"><Link href="/employees">Cancel</Link><button type="submit" disabled={form.processing}>{form.processing ? 'Saving...' : isNew ? 'Create & Continue to Device Registration' : 'Save Faculty'}</button></div>

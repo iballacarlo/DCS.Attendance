@@ -43,6 +43,7 @@ Route::middleware('auth')->group(function () {
 
     Route::resource('employees', EmployeeController::class)->except(['show'])->middleware('role:admin');
     Route::post('employees/{employee}/credentials/enrollments', [EmployeeCredentialController::class, 'store'])->name('employees.credentials.enrollments.store')->middleware('role:admin');
+    Route::post('employees/{employee}/credentials/{method}/unlink', [EmployeeCredentialController::class, 'unlink'])->name('employees.credentials.unlink')->middleware('role:admin');
     Route::get('employees/{employee}/credentials/enrollments/{enrollment}', [EmployeeCredentialController::class, 'show'])->name('employees.credentials.enrollments.show')->middleware('role:admin');
     Route::delete('employees/{employee}/credentials/enrollments/{enrollment}', [EmployeeCredentialController::class, 'destroy'])->name('employees.credentials.enrollments.destroy')->middleware('role:admin');
     Route::post('employees/{employee}/email-verification', [EmailVerificationController::class, 'resendForEmployee'])->name('employees.email-verification.send')->middleware(['role:admin', 'throttle:5,10']);

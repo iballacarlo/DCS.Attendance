@@ -214,7 +214,7 @@ free heap, largest allocatable heap block, and the TLS error. No credentials
 are printed. A successful firmware build does not verify the device's network
 or power supply; retained scans upload only after the server accepts them.
 
-When queued scans cannot upload, the status line above the date shows the last
+When queued scans cannot upload, the status line above the footer shows the last
 sync error (connection, API key, HTTP status, or invalid record time). Failed
 requests retry after 30 seconds for temporary errors or 60 seconds for rejected
 records. Records remain queued; fix the reported cause rather than formatting
@@ -223,7 +223,8 @@ the live clock is corrected. Do not change historical scan times automatically.
 
 The display uses a reusable 480x82 pixel buffer instead of clearing the screen
 every second. The header stays fixed, the date updates only when it changes,
-and the footer shows connectivity, fingerprint availability, and queued scans.
+and the footer shows WiFi connectivity and queued scans. Sensor failures appear
+on the status line above the footer. The CvSU logo is embedded in the sketch.
 Offline synchronization does not replace the clock with a full-screen message.
 
 AS608 UART is explicitly initialized on GPIO13/14 at 57600 baud, separate from
@@ -241,10 +242,13 @@ After uploading, check these on the actual hardware:
 
 1. Leave the clock visible for a minute. It should update without blank flashes.
 2. Confirm `AS608 fingerprint sensor detected.` and the template count in Serial
-   Monitor at 115200 baud; the footer should show `FINGER READY`.
+   Monitor at 115200 baud. Check that the logo colors match the green header.
 3. Scan a registered finger, lift it, then try an unregistered finger. Unclear
    images and communication failures must not be labeled as unregistered.
 4. Disconnect WiFi, scan, then restore WiFi and confirm the queue decreases.
-5. If the footer says `FINGER UNAVAILABLE`, check sensor TX to D13, sensor RX
+5. Start fingerprint and RFID registrations, then cancel each from the admin form
+   while the device waits for a finger or card. The screen should show
+   `Registration cancelled` and return to the clock.
+6. If the screen says `FINGERPRINT SENSOR UNAVAILABLE`, check sensor TX to D13, sensor RX
    to D14, common ground, and regulated sensor power. Send the Serial Monitor
    output if detection or matching still fails; compiling cannot verify wiring.

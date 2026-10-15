@@ -119,6 +119,7 @@ class HardwareAttendanceController extends Controller
             'ok' => true,
             'id' => (string) $enrollment->id,
             'method' => $enrollment->method,
+            'operation' => $enrollment->operation,
             'employee' => $this->displayName($enrollment->employee),
             'current_identifier' => $enrollment->current_identifier ?? '',
         ]);
@@ -158,6 +159,7 @@ class HardwareAttendanceController extends Controller
 
         return response()->json([
             'id' => (string) $enrollment->id,
+            'operation' => $enrollment->operation,
             'status' => $enrollment->status,
             'identifier' => $enrollment->identifier ?? '',
             'message' => $enrollment->message ?? '',
@@ -211,6 +213,32 @@ class HardwareAttendanceController extends Controller
             return response()->json(['ok' => true, 'status' => 'failed']);
         }
 
+        if ($enrollment->operation === 'unlink') {
+            if (strtoupper($data['identifier']) !== $enrollment->current_identifier) {
+                return response()->json(['ok' => false, 'message' => 'The device confirmed a different fingerprint identifier.'], 422);
+            }
+
+            DB::transaction(function () use ($enrollment) {
+                $enrollment->employee->fingerprintTemplates()
+                    ->where('fingerprint_code', $enrollment->current_identifier)
+                    ->delete();
+                $enrollment->update([
+                    'identifier' => $enrollment->current_identifier,
+                    'status' => 'completed',
+                    'message' => 'Fingerprint unlinked successfully.',
+                    'completed_at' => now(),
+                ]);
+                $this->auditCredential($enrollment, 'credential.unlinked',
+                    "Fingerprint {$enrollment->current_identifier} unlinked from {$enrollment->employee->full_name} after sensor confirmation.");
+            });
+
+            return response()->json([
+                'ok' => true,
+                'status' => 'completed',
+                'identifier' => $enrollment->current_identifier,
+            ]);
+        }
+
         $duplicate = DB::table($table)
             ->where($column, strtoupper($data['identifier']))
             ->when($currentCredentialId, fn ($query) => $query->where('id', '!=', $currentCredentialId))
@@ -253,6 +281,11 @@ class HardwareAttendanceController extends Controller
                 'message' => 'Credential registered successfully.',
                 'completed_at' => now(),
             ]);
+            $action = $enrollment->current_identifier ? 'credential.replaced' : 'credential.registered';
+            $description = $enrollment->current_identifier
+                ? "{$enrollment->method} {$enrollment->current_identifier} replaced with ".strtoupper($data['identifier'])." for {$enrollment->employee->full_name}."
+                : "{$enrollment->method} ".strtoupper($data['identifier'])." registered for {$enrollment->employee->full_name}.";
+            $this->auditCredential($enrollment, $action, $description);
         });
 
         return response()->json([
@@ -279,6 +312,18 @@ class HardwareAttendanceController extends Controller
             'ok' => false,
             'message' => 'Invalid hardware API key.',
         ], 401);
+    }
+
+    private function auditCredential(HardwareEnrollment $enrollment, string $action, string $description): void
+    {
+        DB::table('audit_trails')->insert([
+            'action' => $action,
+            'table_name' => 'employees',
+            'record_id' => $enrollment->employee_id,
+            'description' => $description.($enrollment->requested_by ? " Verified by administrator #{$enrollment->requested_by}." : ''),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
     private function recordAttendance(int $employeeId, string $method, Carbon $occurredAt): array
