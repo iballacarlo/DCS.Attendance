@@ -17,7 +17,7 @@ class EmployeeCredentialController extends Controller
             'finger_label' => ['nullable', 'required_if:method,fingerprint', 'string', 'max:50'],
         ]);
 
-        $enrollment = DB::transaction(function () use ($employee, $data) {
+        $enrollment = DB::transaction(function () use ($request, $employee, $data) {
             HardwareEnrollment::whereIn('status', ['pending', 'processing'])
                 ->update(['status' => 'cancelled', 'message' => 'Replaced by a new enrollment request.']);
 

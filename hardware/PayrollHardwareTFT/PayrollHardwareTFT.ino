@@ -224,7 +224,9 @@ void drawTextBand(int y, String text, int textSize, uint16_t color,
 }
 
 void drawHeaderLogo(const uint16_t* logo, int left, int top) {
-  lcd.startWrite();
+  // Keep the display transaction boundaries under LovyanGFX control. Manual
+  // startWrite/endWrite can leave some ILI9488 modules blank after boot when
+  // the ESP32 is also initialising other SPI peripherals.
   for (int y = 0; y < 64; y++) {
     int runStart = 0;
     uint16_t runColor = pgm_read_word(&logo[y * 64]);
@@ -239,7 +241,6 @@ void drawHeaderLogo(const uint16_t* logo, int left, int top) {
       }
     }
   }
-  lcd.endWrite();
 }
 
 void drawDisplayFrame() {
@@ -666,6 +667,15 @@ void connectWiFi() {
     showMessage("WiFi Failed", "Check settings");
   }
   digitalWrite(YELLOW_LED_PIN, LOW);
+}
+
+void startWiFiInBackground() {
+  lastWiFiAttempt = millis();
+  WiFi.disconnect();
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+  WiFi.begin(WIFI_NAME, WIFI_PASSWORD);
+  Serial.println("Connecting WiFi in the background.");
 }
 
 void maintainWiFi() {
@@ -1496,6 +1506,9 @@ void processFingerprintAttendance() {
   } else {
     Serial.println("Fingerprint conversion: 0x" + String(conversion, HEX) +
                    ", search: 0x" + String(match, HEX));
+    // Signal the rejection before updating the TFT. This keeps the red LED
+    // independent of any slow display redraw after an unknown fingerprint.
+    errorSignal();
     if (match == FINGERPRINT_PACKETRECIEVEERR) {
       fingerprintAvailable = false;
       showMessage("Sensor communication error", "Check power and TX/RX");
@@ -1506,7 +1519,6 @@ void processFingerprintAttendance() {
     } else {
       showMessage("Fingerprint scan error", "Code " + String(match));
     }
-    errorSignal();
     delay(2000);
   }
 }
@@ -1553,7 +1565,9 @@ void setup() {
   hardwareHttpMutex = xSemaphoreCreateMutex();
   if (!hardwareHttpMutex) Serial.println("Could not create server request mutex. Records remain queued.");
   WiFi.setTxPower(WIFI_POWER_15dBm);
-  connectWiFi();
+  // Do not hold the startup screen while WiFi negotiates. The RTC and local
+  // attendance queue are ready immediately; maintainWiFi() completes this.
+  startWiFiInBackground();
   enrollmentQueue = xQueueCreate(1, sizeof(EnrollmentRequest));
   if (enrollmentQueue) {
     xTaskCreatePinnedToCore(enrollmentPollTask, "enrollment-poll", 12288, nullptr, 1, nullptr, 0);
