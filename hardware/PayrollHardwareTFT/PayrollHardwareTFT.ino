@@ -17,8 +17,6 @@
 #include <freertos/semphr.h>
 #include <time.h>
 #include "device_config.h"
-#include "cvsu_logo.h"
-#include "dcs_logo.h"
 
 #ifndef FORMAT_OFFLINE_STORAGE_ONCE
 #define FORMAT_OFFLINE_STORAGE_ONCE false
@@ -124,6 +122,11 @@ String offlineSyncStatus = "FACULTY ATTENDANCE";
 volatile bool offlineUploadsPending = false;
 volatile bool serverReconnectRequested = false;
 uint8_t serverTransportFailures = 0;
+volatile int lastServerHttpCode = 0;
+volatile unsigned long lastServerResponseAt = 0;
+uint32_t offlineSyncProcessed = 0;
+unsigned long offlineSyncNoticeAt = 0;
+time_t timeOutAvailableAt = 0;
 unsigned long lastServerReconnect = 0;
 
 const unsigned long WIFI_RETRY_MS = 10000;
@@ -164,13 +167,15 @@ volatile uint32_t activeEnrollmentId = 0;
 
 const uint16_t DISPLAY_BACKGROUND = 0xFFFF;
 const uint16_t DISPLAY_GREEN = 0x0266;
-const uint16_t DISPLAY_GOLD = 0xFEA8;
-const uint16_t DISPLAY_WHITE = 0xFFFF;
 const uint16_t DISPLAY_INK = 0x1082;
 const uint16_t DISPLAY_MUTED = 0x632C;
 const uint16_t DISPLAY_ERROR = 0xB104;
 const uint16_t DISPLAY_WARNING = 0x9360;
 const uint16_t DISPLAY_RULE = 0xD6BA;
+const uint16_t DISPLAY_GOLD = 0xFEA8;
+const uint16_t DISPLAY_FOOTER = 0xEF7D;
+const int DISPLAY_FIRST_ROW_Y = 48;
+const int DISPLAY_SECOND_ROW_Y = 142;
 lgfx::LGFX_Sprite displayBuffer(&lcd);
 bool displayBufferReady = false;
 bool displayFrameReady = false;
@@ -178,6 +183,8 @@ bool displayShowingClock = false;
 String lastDisplayLines[2];
 String lastDisplayFooter;
 String lastDisplaySyncStatus;
+String lastDisplayHeading;
+String lastDisplayServerStatus;
 uint32_t displayMessageStarted = 0;
 bool marqueeFacultyName = false;
 String marqueeFacultyText;
@@ -223,45 +230,27 @@ void drawTextBand(int y, String text, int textSize, uint16_t color,
   if (displayBufferReady) displayBuffer.pushSprite(0, y);
 }
 
-void drawHeaderLogo(const uint16_t* logo, int left, int top) {
-  // Keep the display transaction boundaries under LovyanGFX control. Manual
-  // startWrite/endWrite can leave some ILI9488 modules blank after boot when
-  // the ESP32 is also initialising other SPI peripherals.
-  for (int y = 0; y < 64; y++) {
-    int runStart = 0;
-    uint16_t runColor = pgm_read_word(&logo[y * 64]);
-    for (int x = 1; x <= 64; x++) {
-      uint16_t color = x < 64 ? pgm_read_word(&logo[y * 64 + x]) : runColor;
-      if (x == 64 || color != runColor) {
-        if (runColor != DISPLAY_GREEN) {
-          lcd.drawFastHLine(left + runStart, top + y, x - runStart, runColor);
-        }
-        runStart = x;
-        runColor = color;
-      }
-    }
-  }
-}
-
 void drawDisplayFrame() {
   if (displayFrameReady) return;
   lcd.fillScreen(DISPLAY_BACKGROUND);
-  lcd.fillRect(0, 0, lcd.width(), 76, DISPLAY_GREEN);
-  lcd.fillRect(0, 76, lcd.width(), 2, DISPLAY_GOLD);
-  // Draw by runs instead of pushImage so transparent pixels retain the
-  // header color on the ILI9488.
-  drawHeaderLogo(CVSU_LOGO, 12, 6);
-  drawHeaderLogo(DCS_LOGO, lcd.width() - 76, 6);
-  lcd.setTextDatum(lgfx::top_left);
-  lcd.setFont(&fonts::Font4);
-  lcd.setTextColor(DISPLAY_WHITE, DISPLAY_GREEN);
-  lcd.setTextSize(1);
-  lcd.drawString("CvSU IMUS", 92, 13);
-  lcd.setFont(&fonts::Font2);
-  lcd.setTextColor(DISPLAY_GOLD, DISPLAY_GREEN);
-  lcd.drawString("DCS / FACULTY ATTENDANCE", 94, 46);
+  lcd.fillRect(0, 0, lcd.width(), 40, DISPLAY_GREEN);
+  lcd.fillRect(0, 40, lcd.width(), 2, DISPLAY_GOLD);
   lcd.drawFastHLine(16, 284, lcd.width() - 32, DISPLAY_RULE);
   displayFrameReady = true;
+}
+
+void drawDisplayHeading(const String& heading) {
+  if (heading == lastDisplayHeading) return;
+  lastDisplayHeading = heading;
+  lcd.fillRect(0, 0, lcd.width(), 40, DISPLAY_GREEN);
+  lcd.drawCircle(25, 20, 8, DISPLAY_BACKGROUND);
+  lcd.drawLine(25, 20, 25, 15, DISPLAY_BACKGROUND);
+  lcd.drawLine(25, 20, 29, 22, DISPLAY_BACKGROUND);
+  lcd.setFont(&fonts::Font2);
+  lcd.setTextSize(1);
+  lcd.setTextDatum(lgfx::middle_left);
+  lcd.setTextColor(DISPLAY_BACKGROUND, DISPLAY_GREEN);
+  lcd.drawString(heading, 44, 20);
 }
 
 void printLine(int row, String text, int fixedTextSize = 0,
@@ -274,19 +263,21 @@ void printLine(int row, String text, int fixedTextSize = 0,
   uint16_t color = displayShowingClock
     ? (row == 0 ? DISPLAY_MUTED : DISPLAY_INK)
     : (row == 0 ? DISPLAY_INK : DISPLAY_GREEN);
-  drawTextBand(row == 0 ? 88 : 170, text, size, color, compactFont, marquee);
+  drawTextBand(row == 0 ? DISPLAY_FIRST_ROW_Y : DISPLAY_SECOND_ROW_Y,
+               text, size, color, compactFont, marquee);
 }
 
 void refreshFacultyMarquee() {
   if (!marqueeFacultyName || displayShowingClock || millis() - lastFacultyMarqueeDraw < 35) return;
   lastFacultyMarqueeDraw = millis();
-  drawTextBand(88, marqueeFacultyText, 2, DISPLAY_INK, false, true);
+  drawTextBand(DISPLAY_FIRST_ROW_Y, marqueeFacultyText, 2, DISPLAY_INK, false, true);
 }
 
 void waitWithDisplayRefresh(unsigned long durationMs) {
   unsigned long started = millis();
   while (millis() - started < durationMs) {
     refreshFacultyMarquee();
+    refreshTimeOutCountdown();
     delay(20);
   }
 }
@@ -294,12 +285,33 @@ void waitWithDisplayRefresh(unsigned long durationMs) {
 void updateDisplayFooter() {
   uint32_t pending = pendingOfflineRecordCount();
   bool connected = WiFi.status() == WL_CONNECTED;
+  bool freshServerStatus = lastServerResponseAt != 0 &&
+                          millis() - lastServerResponseAt < 30000;
+  String serverText = !connected ? "SERVER / WAITING FOR WI-FI"
+    : !freshServerStatus ? "SERVER / CHECKING CONNECTION"
+    : lastServerHttpCode == 401 || lastServerHttpCode == 403 ? "SERVER / ACCESS DENIED"
+    : lastServerHttpCode >= 500 ? "SERVER / TEMPORARILY UNAVAILABLE"
+    : lastServerHttpCode > 0 ? "SERVER / ONLINE" : "SERVER / UNREACHABLE";
+  if (serverText != lastDisplayServerStatus) {
+    lastDisplayServerStatus = serverText;
+    lcd.fillRect(0, 228, lcd.width(), 28, DISPLAY_BACKGROUND);
+    lcd.setFont(&fonts::Font2);
+    lcd.setTextSize(1);
+    lcd.setTextDatum(lgfx::middle_center);
+    lcd.setTextColor(connected && freshServerStatus && lastServerHttpCode > 0 &&
+                     lastServerHttpCode < 400 ? DISPLAY_GREEN : DISPLAY_MUTED,
+                     DISPLAY_BACKGROUND);
+    lcd.drawString(serverText, lcd.width() / 2, 242);
+  }
   String syncText;
   bool syncError = false;
-  if (pending > 0 && offlineSyncStatus.startsWith("SYNC:") &&
-      offlineSyncStatus.indexOf("COMPLETE") < 0 && offlineSyncStatus.indexOf("UPLOADED") < 0) {
+  if (offlineSyncStatus.startsWith("SYNC:") &&
+      (pending > 0 || (offlineSyncNoticeAt != 0 && millis() - offlineSyncNoticeAt < 5000))) {
     syncText = offlineSyncStatus.substring(6);
-    syncError = offlineSyncStatus.indexOf("UPLOADING") < 0;
+    syncError = offlineSyncStatus.indexOf("ERROR") >= 0 ||
+                offlineSyncStatus.indexOf("FAILED") >= 0 ||
+                offlineSyncStatus.indexOf("REJECTED") >= 0 ||
+                offlineSyncStatus.indexOf("HTTP") >= 0;
   } else if (!fingerprintAvailable) {
     syncText = "FINGERPRINT SENSOR UNAVAILABLE";
     syncError = true;
@@ -318,21 +330,24 @@ void updateDisplayFooter() {
   String text = String(connected ? "WI-FI CONNECTED" : "WI-FI OFFLINE") + String(pending);
   if (text == lastDisplayFooter) return;
   lastDisplayFooter = text;
-  lcd.fillRect(0, 288, lcd.width(), 32, DISPLAY_BACKGROUND);
+  lcd.fillRect(0, 288, lcd.width(), 32, DISPLAY_FOOTER);
   lcd.fillCircle(20, 303, 4, connected ? DISPLAY_GREEN : DISPLAY_ERROR);
   lcd.setFont(&fonts::Font2);
   lcd.setTextSize(1);
-  lcd.setTextColor(DISPLAY_MUTED, DISPLAY_BACKGROUND);
+  lcd.setTextColor(DISPLAY_MUTED, DISPLAY_FOOTER);
   lcd.setTextDatum(lgfx::middle_left);
   lcd.drawString(connected ? "WI-FI CONNECTED" : "WI-FI OFFLINE", 34, 303);
+  lcd.drawFastVLine(lcd.width() / 2 + 20, 296, 15, DISPLAY_RULE);
   lcd.setTextDatum(lgfx::middle_right);
-  lcd.setTextColor(pending ? DISPLAY_WARNING : DISPLAY_MUTED, DISPLAY_BACKGROUND);
+  lcd.setTextColor(pending ? DISPLAY_WARNING : DISPLAY_MUTED, DISPLAY_FOOTER);
   lcd.drawString("PENDING " + String(pending), lcd.width() - 18, 303);
 }
 
 void showMessage(String first, String second, bool firstIsFacultyName = false) {
+  timeOutAvailableAt = 0;
   displayMessageStarted = millis();
   drawDisplayFrame();
+  drawDisplayHeading(firstIsFacultyName ? "ATTENDANCE RESULT" : "DEVICE STATUS");
   if (displayShowingClock) {
     lastDisplayLines[0] = "\x01";
     lastDisplayLines[1] = "\x01";
@@ -713,17 +728,19 @@ void maintainWiFi() {
 void showClock() {
   if (fingerprintImageConfirmations > 0) return;
   if (!displayShowingClock && millis() - displayMessageStarted < 3000) return;
+  drawDisplayHeading(hasValidClock() ? "READY TO SCAN" : "SYNCING CLOCK");
   if (!displayShowingClock) {
     lastDisplayLines[0] = "\x01";
     lastDisplayLines[1] = "\x01";
   }
   displayShowingClock = true;
+  timeOutAvailableAt = 0;
   marqueeFacultyName = false;
   marqueeFacultyText = "";
   time_t currentTime = time(nullptr);
   if (!hasValidClock()) {
-    printLine(0, "Waiting for network time");
-    printLine(1, "--:--:--");
+    printLine(0, "Clock not set", 2, true);
+    printLine(1, "Attendance unavailable", 2, true);
     updateDisplayFooter();
     return;
   }
@@ -881,6 +898,8 @@ int requestHardwareServer(String path, String payload, String& response, bool ba
     serverReconnectRequested = false;
   }
   xSemaphoreGive(hardwareHttpMutex);
+  lastServerHttpCode = code;
+  lastServerResponseAt = millis();
   return code;
 }
 
@@ -1319,19 +1338,39 @@ bool shouldQueueAttendance(int code) {
   return code < 0 || code == 408 || code == 429 || code >= 500;
 }
 
-void showAttendanceResponse(int code, const String& response) {
+void refreshTimeOutCountdown() {
+  if (timeOutAvailableAt == 0 || displayShowingClock) return;
+  time_t now = time(nullptr);
+  unsigned long remaining = timeOutAvailableAt > now ? timeOutAvailableAt - now : 0;
+  char countdown[32];
+  snprintf(countdown, sizeof(countdown), "Time-out in %02lu:%02lu", remaining / 60, remaining % 60);
+  printLine(1, remaining ? String(countdown) : "You may scan again", 2, true);
+}
+
+void showAttendanceResponse(int code, const String& response, const String& method) {
   if (code == 200) {
     String action = jsonValue(response, "action");
     String displayTime = jsonValue(response, "display_time");
     showMessage(jsonValue(response, "display_name"), attendanceDisplayLine(action, displayTime), true);
+    if (action == "WAIT") {
+      timeOutAvailableAt = static_cast<time_t>(jsonValue(response, "time_out_available_at").toInt());
+      if (timeOutAvailableAt > 0) refreshTimeOutCountdown();
+      else printLine(1, "Time-out at " + displayTime, 2, true);
+      doneSignal();
+      return;
+    }
     if (action == "ALREADY OUT") doneSignal();
     else successSignal();
   } else if (code == 409) {
     errorSignal();
     showMessage(jsonValue(response, "display_name"), "NO SCHEDULE", true);
+  } else if (code == 404) {
+    errorSignal();
+    showMessage(method == "rfid" ? "Card not registered" : "Fingerprint not registered",
+                "See administrator");
   } else {
     errorSignal();
-    showMessage(code == 404 ? "Not registered" : "Server error", "Code " + String(code));
+    showMessage("Server error", "Please try again");
   }
 }
 
@@ -1344,7 +1383,7 @@ void showOfflineSaved(const OfflineAttendanceRecord& record) {
   String methodLabel = String(record.method) == "rfid" ? "RFID" : "FINGER";
 
   successSignal();
-  showMessage("Saved for upload", methodLabel + " " + String(timeText));
+  showMessage("Saved on device", "Awaiting upload");
   Serial.println("Attendance retained for upload. Pending records: " +
                  String(pendingOfflineRecordCount()));
 }
@@ -1355,7 +1394,7 @@ void sendAttendance(String identifier, String method) {
   if (!createAttendanceRecord(identifier, method, record)) {
     attendanceBusy = false;
     errorSignal();
-    showMessage("Time not synced", "WiFi required");
+    showMessage("Clock not set", "Attendance unavailable");
     delay(2500);
     return;
   }
@@ -1389,7 +1428,7 @@ void sendAttendance(String identifier, String method) {
       showMessage(offlineStorageAvailable ? "Offline full" : "Storage error", "Not recorded");
     }
   } else {
-    showAttendanceResponse(code, response);
+    showAttendanceResponse(code, response, method);
   }
   waitWithDisplayRefresh(2500);
 }
@@ -1411,7 +1450,8 @@ void syncNextOfflineAttendance() {
 
   attendanceBusy = true;
   queuedUploadBlinking = true;
-  offlineSyncStatus = "SYNC: UPLOADING " + String(pendingOfflineRecordCount()) + " QUEUED SCANS";
+  offlineSyncStatus = "SYNC: UPLOADING " + String(offlineSyncProcessed + 1) + " OF " +
+                      String(offlineSyncProcessed + pendingOfflineRecordCount());
   updateDisplayFooter();
   String response;
   int code = postAttendanceRecord(record, response);
@@ -1419,13 +1459,30 @@ void syncNextOfflineAttendance() {
   attendanceBusy = false;
 
   Serial.println("Offline sync HTTP " + String(code) + ": " + response);
+  String rejectionMessage = jsonValue(response, "message");
+  // Laravel JSON may escape the slash in RFID/fingerprint as RFID\/fingerprint.
+  rejectionMessage.replace("\\/", "/");
   // A successful tap includes an action; never discard records for an HTML
   // response or an unrelated 2xx reply from a proxy or wrong endpoint.
   if (code == 200 && jsonValue(response, "action") != "") {
     acknowledgeOfflineRecord();
+    offlineSyncProcessed++;
     offlineSyncRetryMs = OFFLINE_SYNC_INTERVAL_MS;
-    offlineSyncStatus = pendingOfflineRecordCount() == 0 ? "SYNC: COMPLETE / ALL SCANS UPLOADED" : "SYNC: UPLOADED / CONTINUING QUEUE";
+    offlineSyncStatus = pendingOfflineRecordCount() == 0 ? "SYNC: UPLOAD COMPLETE / QUEUE CLEARED" : "SYNC: UPLOADING / CONTINUING QUEUE";
+    offlineSyncNoticeAt = millis();
+    if (pendingOfflineRecordCount() == 0) offlineSyncProcessed = 0;
     Serial.println("Offline attendance synced. Remaining: " + String(pendingOfflineRecordCount()));
+  } else if (code == 404 && rejectionMessage ==
+             "RFID/fingerprint is not registered to an active faculty member.") {
+    // Only discard a confirmed credential rejection, never a proxy/API 404.
+    acknowledgeOfflineRecord();
+    offlineSyncProcessed++;
+    offlineSyncRetryMs = OFFLINE_SYNC_INTERVAL_MS;
+    offlineSyncStatus = "SYNC: UNREGISTERED SCAN REMOVED";
+    offlineSyncNoticeAt = millis();
+    if (pendingOfflineRecordCount() == 0) offlineSyncProcessed = 0;
+    Serial.println("Unregistered queued scan removed: " + String(record.eventId) +
+                   ". Remaining: " + String(pendingOfflineRecordCount()));
   } else {
     offlineSyncRetryMs = shouldQueueAttendance(code) ? 30000 : 60000;
     if (code < 0) offlineSyncStatus = "SYNC: CONNECTION FAILED (" + String(code) + ") / RETRY 30s";
@@ -1576,6 +1633,7 @@ void setup() {
     Serial.println("Could not create the enrollment request queue.");
   }
   showMessage("Payroll System", "Ready to tap");
+  tone(BUZZER_PIN, 1400, 180);
   digitalWrite(YELLOW_LED_PIN, LOW);
   delay(1000);
 }

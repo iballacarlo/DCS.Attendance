@@ -69,6 +69,7 @@ class HardwareAttendanceController extends Controller
                 'display_name' => $this->displayName($employee),
                 'action' => $result['action'],
                 'display_time' => $result['time'],
+                'time_out_available_at' => $result['time_out_available_at'] ?? '',
                 'status' => $result['log']->status,
                 'time_in' => $result['log']->time_in,
                 'time_out' => $result['log']->time_out,
@@ -349,7 +350,8 @@ class HardwareAttendanceController extends Controller
                 $action = 'WAIT';
                 $time = $canTimeOutAt->format('h:i A');
 
-                return ['message' => $message, 'action' => $action, 'time' => $time, 'log' => $log];
+                return ['message' => $message, 'action' => $action, 'time' => $time, 'log' => $log,
+                    'time_out_available_at' => (string) $canTimeOutAt->timestamp];
             }
 
             $log->time_out = $now->format('H:i:s');
