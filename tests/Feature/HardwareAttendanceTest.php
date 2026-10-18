@@ -13,6 +13,42 @@ class HardwareAttendanceTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_rfid_list_requires_the_hardware_key(): void
+    {
+        config(['services.hardware.api_key' => 'device-secret']);
+        $this->getJson('/api/hardware/rfid-cards')->assertUnauthorized();
+    }
+
+    public function test_rfid_list_tracks_registration_replacement_unlink_and_inactive_faculty(): void
+    {
+        config(['services.hardware.api_key' => 'device-secret']);
+        $rank = FacultyRank::where('is_active', true)->firstOrFail();
+        $employee = Employee::create([
+            'employee_no' => 'RFID-CACHE-1',
+            'first_name' => 'Cache',
+            'last_name' => 'Faculty',
+            'faculty_rank_id' => $rank->id,
+            'rate_type' => 'hourly',
+            'rate_amount' => $rank->rate_amount,
+            'status' => 'active',
+        ]);
+        $list = fn () => $this->withHeader('X-Hardware-Key', 'device-secret')
+            ->getJson('/api/hardware/rfid-cards');
+        $list()->assertOk()->assertJsonPath('complete', 'true')->assertJsonPath('uids', '');
+        $card = $employee->rfidCards()->create(['rfid_uid' => 'aabbccdd', 'status' => 'active']);
+        $list()->assertOk()->assertJsonPath('uids', 'AABBCCDD');
+        $card->update(['rfid_uid' => '11223344556677']);
+        $list()->assertOk()->assertJsonPath('uids', '11223344556677');
+        $card->update(['status' => 'lost']);
+        $list()->assertOk()->assertJsonPath('uids', '');
+        $card->update(['status' => 'active']);
+        $employee->update(['status' => 'inactive']);
+        $list()->assertOk()->assertJsonPath('uids', '');
+        $employee->update(['status' => 'active']);
+        $card->delete();
+        $list()->assertOk()->assertJsonPath('uids', '');
+    }
+
     public function test_hardware_endpoint_rejects_requests_when_server_key_is_missing(): void
     {
         config(['services.hardware.api_key' => null]);

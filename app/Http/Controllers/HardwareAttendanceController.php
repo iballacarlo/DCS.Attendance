@@ -126,6 +126,23 @@ class HardwareAttendanceController extends Controller
         ]);
     }
 
+    public function rfidCards(Request $request)
+    {
+        if ($unauthorized = $this->authorizeHardware($request)) {
+            return $unauthorized;
+        }
+
+        $uids = RfidCard::where('status', 'active')
+            ->whereHas('employee', fn ($query) => $query->where('status', 'active'))
+            ->pluck('rfid_uid')
+            ->map(fn ($uid) => strtoupper($uid))
+            ->filter(fn ($uid) => preg_match('/^(?:[0-9A-F]{8}|[0-9A-F]{14}|[0-9A-F]{20})$/', $uid))
+            ->unique()->sort()->values()->implode(',');
+
+        return response()->json(['uids' => $uids, 'complete' => 'true'])
+            ->header('Cache-Control', 'no-store');
+    }
+
     public function fingerprintSlots(Request $request)
     {
         if ($unauthorized = $this->authorizeHardware($request)) {
