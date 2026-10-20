@@ -66,6 +66,26 @@ class SchoolCalendarDtrTest extends TestCase
         $this->assertDatabaseHas('attendance_logs', ['employee_id' => $employee->id, 'time_in' => '09:00']);
     }
 
+    public function test_unscheduled_tap_is_retained_for_audit_but_hidden_from_dtr(): void
+    {
+        $employee = $this->employee('EMP-001', 'Ada');
+        AttendanceLog::create([
+            'employee_id' => $employee->id, 'attendance_date' => '2026-10-06',
+            'time_in' => '08:00', 'time_out' => '17:00', 'total_hours' => 8,
+            'status' => 'present',
+        ]);
+
+        $dtr = app(DtrService::class)->build($employee, '2026-10-01', '2026-10-15');
+        $row = $dtr['rows']->firstWhere('date', '2026-10-06');
+
+        $this->assertFalse($row['has_schedule']);
+        $this->assertNull($row['time_in']);
+        $this->assertNull($row['time_out']);
+        $this->assertSame(0.0, $row['payable_hours']);
+        $this->assertSame('not_scheduled', $row['status']);
+        $this->assertDatabaseHas('attendance_logs', ['employee_id' => $employee->id, 'attendance_date' => '2026-10-06']);
+    }
+
     public function test_hardware_tap_on_paid_event_is_acknowledged_without_attendance_log(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-10-05 08:00:00', 'Asia/Manila'));

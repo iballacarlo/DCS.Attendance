@@ -23,7 +23,9 @@ class DtrService
             $dateString = $date->toDateString();
             $schedules = $employee->schedules->where('day_of_week', $date->dayOfWeek)->sortBy('start_time')->values();
             $scheduledHours = round(AttendanceCalculator::scheduledHoursForDay($employee, $date), 4);
-            $log = $logs->get($dateString);
+            // Keep unscheduled taps in the audit log, but never expose or pay
+            // them through the official DTR.
+            $log = $scheduledHours > 0 ? $logs->get($dateString) : null;
             $event = $scheduledHours > 0 ? SchoolCalendarService::paidEventFor($employee, $date) : null;
             $late = $event ? 0 : (int) ($log?->late_minutes ?? 0);
             $undertime = $event ? 0 : (int) ($log?->undertime_minutes ?? 0);

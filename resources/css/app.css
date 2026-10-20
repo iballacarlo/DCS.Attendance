@@ -5757,11 +5757,13 @@ html[data-theme='dark'] .dashboard-academic-context > strong { color: #f1f6f3; }
 .official-dtr .hours-margin { border-right-color: transparent; font-weight: 700; }
 .official-dtr .event-cell { font-size: 8px; font-weight: 700; letter-spacing: 0; }
 .official-dtr .event-cell small { display: block; font-size: 7px; font-weight: 400; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.official-dtr-certification { font-size: 9px; line-height: 1.35; margin: 16px auto 0; width: 78%; }
-.official-dtr-certification > p { margin: 8px 0; text-align: justify; }
-.signature-line { border-bottom: 1px solid #111; display: grid; justify-items: center; margin: 22px auto 8px; min-height: 23px; width: 88%; }
-.signature-line strong { align-self: end; font-size: 10px; }
-.signature-line span { font-size: 8px; margin-bottom: -13px; }
+.official-dtr-certification { font-size: 9px; line-height: 1.45; margin: 18px auto 0; width: 78%; }
+.official-dtr-certification .certification-statement { margin: 0; text-align: justify; text-indent: 28px; }
+.faculty-signature-line { border-bottom: 1px solid #111; height: 27px; margin: 4px auto 11px; width: 88%; }
+.official-dtr-certification .verification-statement { margin: 0 0 20px; text-align: center; }
+.signatory-line { border-bottom: 1px solid #111; display: grid; justify-items: center; margin: 0 auto; min-height: 22px; position: relative; width: 88%; }
+.signatory-line strong { align-self: end; font-size: 10px; line-height: 1.2; padding: 0 8px 3px; }
+.signatory-line span { font-size: 8px; left: 0; position: absolute; right: 0; text-align: center; top: calc(100% + 3px); }
 html[data-theme='dark'] .dtr-export-toolbar { background: #18241e; border-color: #365044; }
 html[data-theme='dark'] .official-dtr,
 html[data-theme='dark'] .official-dtr :is(h2, strong, span, p, small, td, th) { background-color: #fff; color: #111; }
@@ -5775,4 +5777,41 @@ html[data-theme='dark'] .official-dtr :is(h2, strong, span, p, small, td, th) { 
     .calendar-event-item { grid-template-columns: 76px minmax(0, 1fr); }
     .calendar-event-item .row-actions { grid-column: 1 / -1; justify-content: flex-end; }
     .dtr-export-toolbar > * { width: 100%; }
+}
+
+/* Keep sidebar identity and account controls fixed; only navigation scrolls. */
+@media (min-width: 901px) {
+    .sidebar {
+        overflow: hidden;
+    }
+
+    .sidebar > .brand,
+    .sidebar > .sidebar-account,
+    .sidebar > .logout-button {
+        flex: 0 0 auto;
+    }
+
+    .sidebar > nav {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: none;
+    }
+
+    .sidebar > nav::-webkit-scrollbar {
+        display: none;
+        height: 0;
+        width: 0;
+    }
+}
+
+.mobile-navigation {
+    scrollbar-width: none;
+}
+
+.mobile-navigation::-webkit-scrollbar {
+    display: none;
+    height: 0;
 }
