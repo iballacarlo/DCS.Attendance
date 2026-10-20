@@ -179,7 +179,6 @@ class AttendanceController extends Controller
             return back()->withErrors(['employee_ids' => 'Select at least one active faculty member.']);
         }
         $created = 0;
-        $overwritten = 0;
         $removed = 0;
         $skipped = 0;
         $withoutSchedule = 0;
@@ -195,11 +194,18 @@ class AttendanceController extends Controller
 
         foreach ($employees as $employee) {
             for ($date = $start->copy(); $date->lte($effectiveEnd); $date->addDay()) {
+                $existingLog = AttendanceLog::where('employee_id', $employee->id)
+                    ->whereDate('attendance_date', $date->toDateString())
+                    ->first();
                 $schedules = $employee->schedules
                     ->where('day_of_week', $date->dayOfWeek)
                     ->sortBy('start_time');
 
                 if ($schedules->isEmpty()) {
+                    if ($data['generation_mode'] === 'overwrite' && $existingLog) {
+                        $existingLog->delete();
+                        $removed++;
+                    }
                     $withoutSchedule++;
 
                     continue;
@@ -216,13 +222,15 @@ class AttendanceController extends Controller
                     continue;
                 }
 
-                $existingLog = AttendanceLog::where('employee_id', $employee->id)
-                    ->whereDate('attendance_date', $date->toDateString())
-                    ->first();
                 if ($data['generation_mode'] === 'fill_missing' && $existingLog) {
                     $skipped++;
 
                     continue;
+                }
+                if ($data['generation_mode'] === 'overwrite' && $existingLog) {
+                    $existingLog->delete();
+                    $removed++;
+                    $existingLog = null;
                 }
 
                 $scheduledIn = Carbon::parse($date->toDateString().' '.$schedules->first()->start_time, 'Asia/Manila');
@@ -240,10 +248,6 @@ class AttendanceController extends Controller
                 // An absent day intentionally has no attendance record, which is
                 // how the DTR distinguishes absence from an incomplete tap.
                 if ($scenario === 'absent') {
-                    if ($data['generation_mode'] === 'overwrite' && $existingLog) {
-                        $existingLog->delete();
-                        $removed++;
-                    }
                     $generated['absent']++;
 
                     continue;
@@ -267,17 +271,17 @@ class AttendanceController extends Controller
                         $timeInValue = null;
                     }
                 }
+                $generatedMethod = random_int(1, 100) <= 80 ? 'rfid' : 'fingerprint';
 
-                $log = AttendanceLog::updateOrCreate(
-                    ['employee_id' => $employee->id, 'attendance_date' => $date->toDateString()],
-                    [
-                        'time_in' => $timeInValue,
-                        'time_out' => $timeOutValue,
-                        'method_in' => $timeInValue ? 'manual' : null,
-                        'method_out' => $timeOutValue ? 'manual' : null,
-                        'remarks' => 'Random test attendance: '.str_replace('_', ' ', $scenario).'.',
-                    ]
-                );
+                $log = AttendanceLog::create([
+                    'employee_id' => $employee->id,
+                    'attendance_date' => $date->toDateString(),
+                    'time_in' => $timeInValue,
+                    'time_out' => $timeOutValue,
+                    'method_in' => $timeInValue ? $generatedMethod : null,
+                    'method_out' => $timeOutValue ? $generatedMethod : null,
+                    'remarks' => 'Random test attendance: '.str_replace('_', ' ', $scenario).'.',
+                ]);
 
                 $log->setRelation('employee', $employee);
                 $this->recalculate($log);
@@ -288,11 +292,7 @@ class AttendanceController extends Controller
                     default => 'incomplete',
                 };
                 $log->save();
-                if ($log->wasRecentlyCreated) {
-                    $created++;
-                } else {
-                    $overwritten++;
-                }
+                $created++;
                 $generated[$scenario]++;
             }
         }
@@ -303,7 +303,7 @@ class AttendanceController extends Controller
             ->implode(', ');
 
         $modeSummary = $data['generation_mode'] === 'overwrite'
-            ? "Created {$created}, overwritten {$overwritten}, and removed {$removed} existing log(s) for absent days."
+            ? "Removed {$removed} existing log(s) and created {$created} replacement test log(s)."
             : "Created {$created} and preserved {$skipped} existing log(s).";
         $scopeSummary = "Skipped {$withoutSchedule} faculty-date(s) without schedules and {$protectedDates} protected calendar/leave date(s).";
 
