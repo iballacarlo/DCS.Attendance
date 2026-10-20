@@ -66,6 +66,28 @@ class SchoolCalendarDtrTest extends TestCase
         $this->assertDatabaseHas('attendance_logs', ['employee_id' => $employee->id, 'time_in' => '09:00']);
     }
 
+    public function test_dtr_hides_margin_hours_when_attendance_has_undertime(): void
+    {
+        $employee = $this->employee('EMP-001', 'Ada');
+        $this->mondaySchedule($employee);
+        AttendanceLog::create([
+            'employee_id' => $employee->id,
+            'attendance_date' => '2026-10-05',
+            'time_in' => '08:00',
+            'time_out' => '16:12',
+            'late_minutes' => 0,
+            'undertime_minutes' => 48,
+            'total_hours' => 7.2,
+            'status' => 'undertime',
+        ]);
+
+        $row = app(DtrService::class)->build($employee, '2026-10-01', '2026-10-15')['rows']->firstWhere('date', '2026-10-05');
+
+        $this->assertSame(48, $row['undertime_minutes']);
+        $this->assertSame(7.2, $row['payable_hours']);
+        $this->assertNull($row['margin_hours']);
+    }
+
     public function test_unscheduled_tap_is_retained_for_audit_but_hidden_from_dtr(): void
     {
         $employee = $this->employee('EMP-001', 'Ada');

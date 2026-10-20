@@ -55,7 +55,9 @@ class DtrService
                 'variance_hours' => intdiv($variance, 60),
                 'variance_minutes' => $variance % 60,
                 'payable_hours' => $payableHours,
-                'margin_hours' => $late === 0 && ($log || $isPaidException) ? $payableHours : null,
+                'margin_hours' => $isPaidException
+                    ? $payableHours
+                    : ($log?->time_in && $log?->time_out && $variance === 0 ? $payableHours : null),
                 'event' => $calendarEvent ? [
                     'id' => $calendarEvent->id,
                     'title' => $calendarEvent->title,
