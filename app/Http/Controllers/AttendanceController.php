@@ -172,7 +172,8 @@ class AttendanceController extends Controller
             return back()->withErrors(['employee_ids' => 'Select at least one active faculty member.']);
         }
         $created = 0;
-        $skipped = 0;
+        $overwritten = 0;
+        $removed = 0;
         $generated = [
             'clean' => 0,
             'late' => 0,
@@ -199,13 +200,6 @@ class AttendanceController extends Controller
                     continue;
                 }
 
-                if (AttendanceLog::where('employee_id', $employee->id)
-                    ->whereDate('attendance_date', $date->toDateString())->exists()) {
-                    $skipped++;
-
-                    continue;
-                }
-
                 $scheduledIn = Carbon::parse($date->toDateString().' '.$schedules->first()->start_time, 'Asia/Manila');
                 $scheduledOut = Carbon::parse($date->toDateString().' '.$schedules->last()->end_time, 'Asia/Manila');
                 $roll = random_int(1, 100);
@@ -221,6 +215,9 @@ class AttendanceController extends Controller
                 // An absent day intentionally has no attendance record, which is
                 // how the DTR distinguishes absence from an incomplete tap.
                 if ($scenario === 'absent') {
+                    $removed += AttendanceLog::where('employee_id', $employee->id)
+                        ->whereDate('attendance_date', $date->toDateString())
+                        ->delete();
                     $generated['absent']++;
 
                     continue;
@@ -245,19 +242,24 @@ class AttendanceController extends Controller
                     }
                 }
 
-                $log = AttendanceLog::create([
-                    'employee_id' => $employee->id,
-                    'attendance_date' => $date->toDateString(),
-                    'time_in' => $timeInValue,
-                    'time_out' => $timeOutValue,
-                    'method_in' => $timeInValue ? 'manual' : null,
-                    'method_out' => $timeOutValue ? 'manual' : null,
-                    'remarks' => 'Random test attendance: '.str_replace('_', ' ', $scenario).'.',
-                ]);
+                $log = AttendanceLog::updateOrCreate(
+                    ['employee_id' => $employee->id, 'attendance_date' => $date->toDateString()],
+                    [
+                        'time_in' => $timeInValue,
+                        'time_out' => $timeOutValue,
+                        'method_in' => $timeInValue ? 'manual' : null,
+                        'method_out' => $timeOutValue ? 'manual' : null,
+                        'remarks' => 'Random test attendance: '.str_replace('_', ' ', $scenario).'.',
+                    ]
+                );
 
                 $log->setRelation('employee', $employee);
                 $this->recalculate($log);
-                $created++;
+                if ($log->wasRecentlyCreated) {
+                    $created++;
+                } else {
+                    $overwritten++;
+                }
                 $generated[$scenario]++;
             }
         }
@@ -267,7 +269,7 @@ class AttendanceController extends Controller
             ->map(fn ($count, $scenario) => str_replace('_', ' ', $scenario).": {$count}")
             ->implode(', ');
 
-        return redirect()->route('attendance.index')->with('success', "Generated random attendance for {$employees->count()} faculty: {$created} log(s) ({$breakdown}). Skipped {$skipped} existing log(s).");
+        return redirect()->route('attendance.index')->with('success', "Generated random attendance for {$employees->count()} faculty ({$breakdown}). Created {$created}, overwritten {$overwritten}, and removed {$removed} existing log(s) for absent days.");
     }
 
     private function recordAttendance(Employee $employee, string $method): array
