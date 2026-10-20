@@ -83,12 +83,16 @@ class DtrService
         $signatory = DtrSignatory::whereDate('effective_from', '<=', $end->toDateString())
             ->where(fn ($query) => $query->whereNull('effective_to')->orWhereDate('effective_to', '>=', $end->toDateString()))
             ->orderByDesc('effective_from')->first();
+        $dtrSignatory = $signatory ? [
+            'name' => strtoupper($signatory->name),
+            'designation' => 'In Charge',
+        ] : null;
 
         return [
             'employee' => $employee,
             'cutoff' => ['start_date' => $start->toDateString(), 'end_date' => $end->toDateString()],
             'rows' => $rows->values(),
-            'signatory' => $signatory,
+            'signatory' => $dtrSignatory,
             'summary' => [
                 'scheduled_days' => $scheduledRows->count(),
                 'days_present' => $presentRows->count(),

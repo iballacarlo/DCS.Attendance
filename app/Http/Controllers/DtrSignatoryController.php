@@ -47,12 +47,13 @@ class DtrSignatoryController extends Controller
 
     private function validated(Request $request): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'name' => ['required', 'string', 'max:150'],
-            'designation' => ['required', 'string', 'max:100'],
             'effective_from' => ['required', 'date'],
             'effective_to' => ['nullable', 'date', 'after_or_equal:effective_from'],
         ]);
+
+        return [...$data, 'designation' => 'In Charge'];
     }
 
     private function ensureNoOverlap(array $data, ?int $exceptId = null): void

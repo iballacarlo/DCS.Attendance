@@ -144,7 +144,8 @@ class SchoolCalendarDtrTest extends TestCase
                 ->component('Dtr/Show')
                 ->where('dtr.employee.id', $employee->id)
                 ->where('dtr.cutoff.end_date', '2026-10-15')
-                ->where('dtr.signatory.name', 'Dr. Historical Dean')
+                ->where('dtr.signatory.name', 'DR. HISTORICAL DEAN')
+                ->where('dtr.signatory.designation', 'In Charge')
                 ->has('dtr.rows', 15)
             );
     }

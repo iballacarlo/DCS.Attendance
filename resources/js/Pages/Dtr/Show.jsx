@@ -66,8 +66,8 @@ export default function DtrShow({ dtr, cutoffOptions, employees, canSelectFacult
                 <div className="faculty-signature-line" aria-hidden="true"></div>
                 <p className="verification-statement">Verified as to the prescribed office hours:</p>
                 <div className="signatory-line">
-                    <strong>{dtr.signatory?.name?.toUpperCase() || 'NO SIGNATORY CONFIGURED'}</strong>
-                    <span>{dtr.signatory?.designation || 'Dean / In Charge'}</span>
+                    <strong>{dtr.signatory?.name || 'NO SIGNATORY CONFIGURED'}</strong>
+                    <span>In Charge</span>
                 </div>
             </section>
         </article></div>
