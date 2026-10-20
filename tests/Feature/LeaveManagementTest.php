@@ -72,6 +72,32 @@ class LeaveManagementTest extends TestCase
         $this->assertDatabaseHas('leave_requests', ['id' => $leave->id, 'status' => 'cancelled']);
     }
 
+    public function test_rejecting_leave_requires_and_saves_a_reason(): void
+    {
+        $employee = $this->employee();
+        $type = LeaveType::where('code', 'SL')->firstOrFail();
+        $leave = LeaveRequest::create([
+            'employee_id' => $employee->id, 'leave_type_id' => $type->id,
+            'start_date' => '2026-10-05', 'end_date' => '2026-10-05',
+            'reason' => 'Medical', 'status' => 'pending',
+        ]);
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)->put("/leave/{$leave->id}/review", [
+            'status' => 'rejected', 'reviewer_remarks' => '',
+        ])->assertSessionHasErrors('reviewer_remarks');
+        $this->assertDatabaseHas('leave_requests', ['id' => $leave->id, 'status' => 'pending']);
+
+        $this->actingAs($admin)->put("/leave/{$leave->id}/review", [
+            'status' => 'rejected', 'reviewer_remarks' => 'Supporting document is required.',
+        ])->assertRedirect();
+        $this->assertDatabaseHas('leave_requests', [
+            'id' => $leave->id,
+            'status' => 'rejected',
+            'reviewer_remarks' => 'Supporting document is required.',
+        ]);
+    }
+
     private function employee(): Employee
     {
         return Employee::create([

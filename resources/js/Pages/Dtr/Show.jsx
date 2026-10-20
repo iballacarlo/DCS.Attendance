@@ -52,7 +52,6 @@ export default function DtrShow({ dtr, cutoffOptions, employees, canSelectFacult
         <div className="dtr-export-toolbar print-hidden">
             {canSelectFaculty && <label>Faculty<select value={employee.id} onChange={(e) => reload({ employee_id: e.target.value })}>{employees.map((item) => <option value={item.id} key={item.id}>{fullName(item)} · {item.employee_no}</option>)}</select></label>}
             <label>Cutoff period<select value={cutoff.start_date} onChange={(e) => reload({ start_date: e.target.value })}>{cutoffOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label>
-            <span className="dtr-cutoff-chip">{dateText(cutoff.start_date)} – {dateText(cutoff.end_date)}</span>
             <button type="button" onClick={print} disabled={Boolean(pdfAction)}><Printer size={17} />{pdfAction === 'print' ? 'Preparing...' : 'Print'}</button>
             <button type="button" onClick={download} disabled={Boolean(pdfAction)}><Download size={17} />{pdfAction === 'download' ? 'Preparing...' : 'Download PDF'}</button>
         </div>

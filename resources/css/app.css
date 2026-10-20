@@ -1210,7 +1210,7 @@ button.schedule-slot.is-range-anchor:hover {
     align-items: end;
     display: grid;
     gap: 12px;
-    grid-template-columns: 1.4fr 1fr 1fr auto;
+    grid-template-columns: minmax(180px, 1.2fr) minmax(220px, 1.2fr) auto;
 }
 
 @media (max-width: 900px) {
@@ -5697,7 +5697,7 @@ html[data-theme='dark'] .dashboard-academic-context > strong { color: #f1f6f3; }
 .dtr-page-actions .button { align-items: center; display: inline-flex; gap: 8px; }
 .dtr-export-toolbar { background: #fff; border: 1px solid #d4dfd8; margin-bottom: 18px; padding: 14px; }
 .dtr-export-toolbar label { min-width: 190px; }
-.dtr-cutoff-chip { color: #52625b; margin-right: auto; }
+.dtr-export-toolbar > button:first-of-type { margin-left: auto; }
 .dtr-sheet-viewport { overflow-x: auto; padding-bottom: 8px; width: 100%; }
 .official-dtr { background: #fff; box-sizing: border-box; color: #111; font-family: Arial, Helvetica, sans-serif; height: 1123px; margin: 0 auto; overflow: hidden; padding: 24px 30px 20px; width: 794px; }
 .official-dtr header { display: grid; justify-items: center; margin-bottom: 14px; text-align: center; }
@@ -5824,6 +5824,12 @@ html[data-theme='dark'] .official-dtr :is(h2, strong, span, p, small, td, th) { 
 /* Faculty leave workflow */
 .leave-request-form { display: grid; gap: 14px; margin-bottom: 18px; }
 .leave-request-form textarea { resize: vertical; }
+.leave-filter-bar { align-items: end; border-bottom: 1px solid #dde5e0; display: grid; gap: 10px; grid-template-columns: minmax(220px, 1.6fr) repeat(4, minmax(135px, .8fr)) auto; margin: 0 0 14px; padding: 0 0 14px; }
+.leave-filter-bar label { color: #52625b; display: grid; font-size: 11px; font-weight: 800; gap: 5px; }
+.leave-filter-search { position: relative; }
+.leave-filter-search svg { color: #718078; left: 11px; pointer-events: none; position: absolute; top: 50%; transform: translateY(-50%); }
+.leave-filter-search input { padding-left: 36px; width: 100%; }
+.leave-filter-clear { align-items: center; background: #edf2ef !important; border-color: #c7d5cc !important; color: #314d3e !important; display: inline-flex; gap: 6px; justify-content: center; min-height: 42px; }
 .leave-cards { display: grid; gap: 10px; }
 .leave-card { align-items: center; border: 1px solid #d7e0db; display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr) auto; padding: 14px; }
 .leave-card-main { display: grid; gap: 5px; min-width: 0; }
@@ -5839,6 +5845,11 @@ html[data-theme='dark'] .official-dtr :is(h2, strong, span, p, small, td, th) { 
 .leave-card-actions button { align-items: center; display: inline-flex; gap: 6px; }
 .leave-approve { background: #17643a; }
 .leave-reject { background: #fff; border-color: #b94a51; color: #9b2830; }
+.leave-rejection-dialog { grid-template-rows: auto auto auto; max-width: 520px; }
+.leave-rejection-field { display: grid; gap: 6px; grid-column: 1 / -1; margin-top: 18px; }
+.leave-rejection-field span { color: #35463e; font-size: 12px; font-weight: 800; }
+.leave-rejection-field textarea { min-height: 100px; resize: vertical; width: 100%; }
+.leave-rejection-field small { color: #9b3030; font-size: 11px; }
 
 html[data-theme='dark'] .school-calendar-shell,
 html[data-theme='dark'] .calendar-day { background: #17231d; border-color: #3a4d43; color: #edf6f1; }
@@ -5847,11 +5858,15 @@ html[data-theme='dark'] .calendar-weekday { background: #22352b; border-color: #
 html[data-theme='dark'] .calendar-day.is-outside { background: #111a15; color: #708078; }
 html[data-theme='dark'] .leave-card { border-color: #3a4d43; }
 html[data-theme='dark'] .leave-card-main blockquote { color: #d7e4dd; }
+html[data-theme='dark'] .leave-filter-bar { border-color: #3a4d43; }
+html[data-theme='dark'] .leave-rejection-field span { color: #d7e4dd; }
 
 @media (max-width: 900px) {
     .signatory-settings-layout { grid-template-columns: 1fr; }
     .calendar-day { height: 88px; padding: 5px; }
     .calendar-event-pill { font-size: 0; height: 6px; padding: 0; }
+    .leave-filter-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .leave-filter-bar > label:first-child { grid-column: 1 / -1; }
 }
 
 @media (max-width: 600px) {
@@ -5867,4 +5882,6 @@ html[data-theme='dark'] .leave-card-main blockquote { color: #d7e4dd; }
     .calendar-day-add { display: none; }
     .leave-card { align-items: start; grid-template-columns: 1fr; }
     .leave-card-actions { justify-content: flex-end; }
+    .leave-filter-bar { grid-template-columns: 1fr; }
+    .leave-filter-bar > label:first-child { grid-column: auto; }
 }

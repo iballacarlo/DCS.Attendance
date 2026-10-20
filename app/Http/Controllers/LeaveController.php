@@ -17,16 +17,45 @@ class LeaveController extends Controller
     public function index(Request $request)
     {
         $canReview = in_array($request->user()->role, ['admin', 'payroll_staff'], true);
-        $query = LeaveRequest::with(['employee', 'leaveType', 'reviewer'])->latest('start_date')->latest('id');
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', Rule::in(['pending', 'approved', 'rejected', 'cancelled'])],
+            'leave_type_id' => ['nullable', 'integer', 'exists:leave_types,id'],
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
+        ]);
+        $query = LeaveRequest::with(['employee', 'leaveType', 'reviewer']);
         if (! $canReview) {
             abort_unless($request->user()->employee_id, 403, 'Your account is not linked to a faculty record.');
             $query->where('employee_id', $request->user()->employee_id);
         }
 
+        $query
+            ->when($filters['search'] ?? null, function ($query, string $search) {
+                $query->where(function ($query) use ($search) {
+                    $query->where('reason', 'like', "%{$search}%")
+                        ->orWhereHas('employee', fn ($employee) => $employee
+                            ->where('employee_no', 'like', "%{$search}%")
+                            ->orWhere('first_name', 'like', "%{$search}%")
+                            ->orWhere('middle_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%"));
+                });
+            })
+            ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
+            ->when($filters['leave_type_id'] ?? null, fn ($query, $type) => $query->where('leave_type_id', $type))
+            ->when($filters['date_from'] ?? null, fn ($query, $date) => $query->whereDate('end_date', '>=', $date))
+            ->when($filters['date_to'] ?? null, fn ($query, $date) => $query->whereDate('start_date', '<=', $date));
+
+        if ($canReview) {
+            $query->orderByRaw("CASE WHEN status = 'pending' THEN 0 ELSE 1 END");
+        }
+        $query->latest('start_date')->latest('id');
+
         return Inertia::render('Leave/Index', [
             'requests' => $query->paginate(15)->withQueryString(),
             'leaveTypes' => LeaveType::where('is_active', true)->orderBy('name')->get(),
             'canReview' => $canReview,
+            'filters' => $filters,
         ]);
     }
 
@@ -71,7 +100,7 @@ class LeaveController extends Controller
     {
         $data = $request->validate([
             'status' => ['required', Rule::in(['approved', 'rejected'])],
-            'reviewer_remarks' => ['nullable', 'string', 'max:1000'],
+            'reviewer_remarks' => [Rule::requiredIf($request->input('status') === 'rejected'), 'nullable', 'string', 'max:1000'],
         ]);
         if ($leaveRequest->status !== 'pending') {
             return back()->with('error', 'This leave request has already been reviewed.');
