@@ -290,7 +290,10 @@ class AttendanceController extends Controller
             ? "Created {$created}, overwritten {$overwritten}, and removed {$removed} existing log(s) for absent days."
             : "Created {$created} and preserved {$skipped} existing log(s).";
 
-        return redirect()->route('attendance.index')->with('success', "Generated random attendance through {$effectiveEnd->format('M j, Y')} for {$employees->count()} faculty ({$breakdown}). {$modeSummary}");
+        return redirect()->route('attendance.index', [
+            'date_from' => $start->toDateString(),
+            'date_to' => $effectiveEnd->toDateString(),
+        ])->with('success', "Generated random attendance through {$effectiveEnd->format('M j, Y')} for {$employees->count()} faculty ({$breakdown}). {$modeSummary}");
     }
 
     private function recordAttendance(Employee $employee, string $method): array

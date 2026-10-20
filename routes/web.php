@@ -72,9 +72,9 @@ Route::middleware('auth')->group(function () {
     Route::delete('settings/dtr-signatories/{dtrSignatory}', [DtrSignatoryController::class, 'destroy'])->name('settings.dtr-signatories.destroy')->middleware('role:admin,payroll_staff');
 
     Route::get('attendance', [AttendanceController::class, 'index'])->name('attendance.index');
-    Route::post('attendance/tap', [AttendanceController::class, 'tap'])->name('attendance.tap')->middleware('role:payroll_staff');
-    Route::post('attendance/manual', [AttendanceController::class, 'manual'])->name('attendance.manual')->middleware('role:payroll_staff');
-    Route::post('attendance/generate-test', [AttendanceController::class, 'generateScheduledTestAttendance'])->name('attendance.generate-test')->middleware('role:payroll_staff');
+    Route::post('attendance/tap', [AttendanceController::class, 'tap'])->name('attendance.tap')->middleware('role:admin,payroll_staff');
+    Route::post('attendance/manual', [AttendanceController::class, 'manual'])->name('attendance.manual')->middleware('role:admin,payroll_staff');
+    Route::post('attendance/generate-test', [AttendanceController::class, 'generateScheduledTestAttendance'])->name('attendance.generate-test')->middleware('role:admin,payroll_staff');
     Route::get('attendance/dtr', [DtrController::class, 'show'])->name('attendance.dtr');
 
     Route::get('school-calendar', [CalendarController::class, 'index'])->name('calendar.index');
