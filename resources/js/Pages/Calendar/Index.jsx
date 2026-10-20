@@ -1,5 +1,5 @@
 import { router, useForm } from '@inertiajs/react';
-import { CalendarDays, ChevronLeft, ChevronRight, Edit3, Save, Trash2 } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Edit3, Plus, Save, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
 import useConfirmDialog from '../../hooks/useConfirmDialog';
@@ -8,6 +8,7 @@ import { fullName } from '../../lib/format';
 const blankEvent = { title: '', type: 'regular_holiday', start_date: '', end_date: '', is_paid: true, scope_type: 'campus', department: '', employee_ids: [], remarks: '' };
 const eventLabels = { regular_holiday: 'Regular Holiday', special_holiday: 'Special Holiday', asynchronous: 'Asynchronous Day', suspension: 'Suspension' };
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const months = Array.from({ length: 12 }, (_, index) => new Date(2026, index, 1).toLocaleDateString('en-PH', { month: 'long' }));
 const iso = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 export default function CalendarIndex({ month, events, employees, departments, canManage }) {
@@ -31,6 +32,8 @@ export default function CalendarIndex({ month, events, employees, departments, c
         next.setMonth(next.getMonth() + offset);
         router.get('/school-calendar', { month: iso(next).slice(0, 7) }, { preserveState: true });
     };
+    const jumpTo = (year, monthIndex) => router.get('/school-calendar', { month: `${year}-${String(monthIndex + 1).padStart(2, '0')}` }, { preserveState: true });
+    const today = () => router.get('/school-calendar', { month: iso(new Date()).slice(0, 7) }, { preserveState: true });
     const chooseDate = (date) => {
         if (!canManage || editingEvent) return;
         form.setData({ ...blankEvent, start_date: date, end_date: date });
@@ -53,9 +56,10 @@ export default function CalendarIndex({ month, events, employees, departments, c
 
     return <AppLayout title="School Calendar" subtitle="Review holidays, asynchronous days, and campus suspensions.">
         <section className="school-calendar-shell">
-            <header className="school-calendar-toolbar"><button type="button" title="Previous month" onClick={() => navigate(-1)}><ChevronLeft size={19} /></button><div><span>School Calendar</span><h2>{monthLabel}</h2></div><button type="button" title="Next month" onClick={() => navigate(1)}><ChevronRight size={19} /></button></header>
+            <header className="school-calendar-toolbar"><button type="button" title="Previous month" onClick={() => navigate(-1)}><ChevronLeft size={19} /></button><div className="calendar-period-controls"><label><span>Month</span><select aria-label="Calendar month" value={monthDate.getMonth()} onChange={(event) => jumpTo(monthDate.getFullYear(), Number(event.target.value))}>{months.map((name, index) => <option value={index} key={name}>{name}</option>)}</select></label><label><span>Year</span><select aria-label="Calendar year" value={monthDate.getFullYear()} onChange={(event) => jumpTo(Number(event.target.value), monthDate.getMonth())}>{Array.from({ length: 9 }, (_, index) => monthDate.getFullYear() - 4 + index).map((year) => <option value={year} key={year}>{year}</option>)}</select></label><button type="button" className="calendar-today-button" onClick={today}>Today</button></div><button type="button" title="Next month" onClick={() => navigate(1)}><ChevronRight size={19} /></button></header>
+            <h2 className="calendar-current-period">{monthLabel}</h2>
             <div className="calendar-legend">{Object.entries(eventLabels).map(([type, label]) => <span className={`is-${type}`} key={type}><i></i>{label}</span>)}</div>
-            <div className="school-calendar-grid">{weekdays.map((day) => <div className="calendar-weekday" key={day}>{day}</div>)}{cells.map((cell) => <button type="button" className={`calendar-day${cell.current ? '' : ' is-outside'}${cell.date === iso(new Date()) ? ' is-today' : ''}`} key={cell.date} onClick={() => chooseDate(cell.date)}><strong>{cell.day}</strong><span>{cell.events.slice(0, 3).map((event) => <i className={`calendar-event-pill is-${event.type}`} key={event.id}>{eventLabels[event.type]}</i>)}{cell.events.length > 3 && <small>+{cell.events.length - 3} more</small>}</span></button>)}</div>
+            <div className="school-calendar-grid">{weekdays.map((day) => <div className="calendar-weekday" key={day}>{day}</div>)}{cells.map((cell) => <div className={`calendar-day${cell.current ? '' : ' is-outside'}${cell.date === iso(new Date()) ? ' is-today' : ''}`} key={cell.date}><div className="calendar-day-heading"><strong>{cell.day}</strong>{canManage && cell.current && <button type="button" className="calendar-day-add" title={`Add event on ${cell.date}`} aria-label={`Add event on ${cell.date}`} onClick={() => chooseDate(cell.date)}><Plus size={13} /></button>}</div><span>{cell.events.slice(0, 3).map((event) => <i className={`calendar-event-pill is-${event.type}`} key={event.id}>{eventLabels[event.type]}</i>)}{cell.events.length > 3 && <small>+{cell.events.length - 3} more</small>}</span></div>)}</div>
         </section>
 
         {canManage && <form className="panel calendar-event-form" onSubmit={submit}>
