@@ -60,7 +60,7 @@ export default function PayrollShow({ record }) {
     const { auth } = usePage().props;
     const period = record.payroll_period;
     const employee = record.employee;
-    const canManage = auth.user.role === 'payroll_staff';
+    const canManage = ['admin', 'payroll_staff'].includes(auth.user.role);
     const canEdit = canManage && record.status === 'draft';
     const { ask, dialog } = useConfirmDialog();
     const [editing, setEditing] = useState(false);

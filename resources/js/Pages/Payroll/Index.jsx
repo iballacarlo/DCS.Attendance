@@ -62,7 +62,7 @@ export default function PayrollIndex({ periods, records, filters = {} }) {
     const { auth } = usePage().props;
     const isFaculty = auth.user.role === 'faculty';
     const canReview = !isFaculty;
-    const canManage = auth.user.role === 'payroll_staff';
+    const canManage = ['admin', 'payroll_staff'].includes(auth.user.role);
     const { ask, dialog } = useConfirmDialog();
     const form = useForm({ period_name: '', start_date: '', end_date: '', pay_date: '' });
     const [listFilters, setListFilters] = useState({

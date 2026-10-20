@@ -87,10 +87,10 @@ Route::middleware('auth')->group(function () {
     Route::put('leave/{leaveRequest}/review', [LeaveController::class, 'review'])->name('leave.review')->middleware('role:admin,payroll_staff');
 
     Route::get('payroll', [PayrollController::class, 'index'])->name('payroll.index');
-    Route::post('payroll/periods', [PayrollController::class, 'storePeriod'])->name('payroll.periods.store')->middleware('role:payroll_staff');
-    Route::post('payroll/periods/{period}/generate', [PayrollController::class, 'generate'])->name('payroll.generate')->middleware('role:payroll_staff');
+    Route::post('payroll/periods', [PayrollController::class, 'storePeriod'])->name('payroll.periods.store')->middleware('role:admin,payroll_staff');
+    Route::post('payroll/periods/{period}/generate', [PayrollController::class, 'generate'])->name('payroll.generate')->middleware('role:admin,payroll_staff');
     Route::get('payroll/records/{record}', [PayrollController::class, 'show'])->name('payroll.records.show');
-    Route::put('payroll/records/{record}', [PayrollController::class, 'update'])->name('payroll.records.update')->middleware('role:payroll_staff');
-    Route::post('payroll/records/{record}/approve', [PayrollController::class, 'approve'])->name('payroll.records.approve')->middleware('role:payroll_staff');
-    Route::post('payroll/records/{record}/release', [PayrollController::class, 'release'])->name('payroll.records.release')->middleware('role:payroll_staff');
+    Route::put('payroll/records/{record}', [PayrollController::class, 'update'])->name('payroll.records.update')->middleware('role:admin,payroll_staff');
+    Route::post('payroll/records/{record}/approve', [PayrollController::class, 'approve'])->name('payroll.records.approve')->middleware('role:admin,payroll_staff');
+    Route::post('payroll/records/{record}/release', [PayrollController::class, 'release'])->name('payroll.records.release')->middleware('role:admin,payroll_staff');
 });
