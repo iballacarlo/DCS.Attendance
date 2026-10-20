@@ -128,6 +128,7 @@ class DtrService
     {
         return match ($type) {
             'suspension' => 'SUSPENSION',
+            'official_school_activity' => 'OFFICIAL SCHOOL ACTIVITY',
             'asynchronous' => 'ASYNCHRONOUS',
             'special_holiday' => 'SPECIAL HOLIDAY',
             default => 'REGULAR HOLIDAY',

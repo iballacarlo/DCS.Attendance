@@ -5737,6 +5737,7 @@ html[data-theme='dark'] .dashboard-academic-context > strong { color: #f1f6f3; }
 .calendar-event-item.is-suspension .calendar-event-date { border-color: #b53b35; }
 .calendar-event-item.is-asynchronous .calendar-event-date { border-color: #b48418; }
 .calendar-event-item.is-special_holiday .calendar-event-date { border-color: #3970a8; }
+.calendar-event-item.is-official_school_activity .calendar-event-date { border-color: #2f6690; }
 .calendar-event-item h3 { font-size: 16px; margin: 2px 0; }
 .calendar-event-item p,
 .calendar-event-item span,
@@ -5851,6 +5852,7 @@ html[data-theme='dark'] .official-dtr :is(h2, strong, span, p, small, td, th) { 
 .calendar-legend i { border-radius: 50%; height: 8px; width: 8px; }
 .calendar-legend .is-regular_holiday i { background: #b72f38; }
 .calendar-legend .is-special_holiday i { background: #d27622; }
+.calendar-legend .is-official_school_activity i { background: #2f6690; }
 .calendar-legend .is-asynchronous i { background: #198754; }
 .calendar-legend .is-suspension i { background: #7a3ea1; }
 .school-calendar-grid { border-left: 1px solid #d6dfda; border-top: 1px solid #d6dfda; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
@@ -5867,6 +5869,7 @@ html[data-theme='dark'] .official-dtr :is(h2, strong, span, p, small, td, th) { 
 .calendar-event-pill { background: #f5f6f5; border-left: 3px solid; color: #263a31; display: block; font-size: 8px; font-style: normal; font-weight: 800; overflow: hidden; padding: 3px 4px; text-overflow: ellipsis; white-space: nowrap; }
 .calendar-event-pill.is-regular_holiday { border-color: #b72f38; }
 .calendar-event-pill.is-special_holiday { border-color: #d27622; }
+.calendar-event-pill.is-official_school_activity { border-color: #2f6690; }
 .calendar-event-pill.is-asynchronous { border-color: #198754; }
 .calendar-event-pill.is-suspension { border-color: #7a3ea1; }
 .calendar-event-form { margin-bottom: 18px; }

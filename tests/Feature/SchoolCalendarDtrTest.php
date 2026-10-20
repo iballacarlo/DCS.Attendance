@@ -151,6 +151,39 @@ class SchoolCalendarDtrTest extends TestCase
         $this->assertNull($row['time_out']);
     }
 
+    public function test_official_school_activity_is_paid_and_appears_in_dtr(): void
+    {
+        $employee = $this->employee('EMP-001', 'Ada');
+        $this->mondaySchedule($employee);
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)->post('/school-calendar/events', [
+            'title' => 'University Sportsfest',
+            'type' => 'official_school_activity',
+            'start_date' => '2026-10-05',
+            'end_date' => '2026-10-05',
+            'is_paid' => false,
+            'scope_type' => 'campus',
+            'department' => null,
+            'employee_ids' => [],
+            'remarks' => 'Campus-wide activity',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('calendar_events', [
+            'type' => 'official_school_activity',
+            'is_paid' => true,
+        ]);
+
+        $row = app(DtrService::class)->build($employee, '2026-10-01', '2026-10-15')['rows']
+            ->firstWhere('date', '2026-10-05');
+
+        $this->assertSame('OFFICIAL SCHOOL ACTIVITY', $row['event']['label']);
+        $this->assertSame(8.0, $row['payable_hours']);
+        $this->assertSame(8.0, $row['margin_hours']);
+        $this->assertNull($row['time_in']);
+        $this->assertNull($row['time_out']);
+    }
+
     public function test_faculty_dtr_forces_linked_employee_and_uses_historical_signatory(): void
     {
         $employee = $this->employee('EMP-001', 'Ada');

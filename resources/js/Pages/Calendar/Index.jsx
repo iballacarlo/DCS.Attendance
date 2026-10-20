@@ -6,7 +6,8 @@ import useConfirmDialog from '../../hooks/useConfirmDialog';
 import { fullName } from '../../lib/format';
 
 const blankEvent = { title: '', type: 'regular_holiday', start_date: '', end_date: '', is_paid: true, scope_type: 'campus', department: '', employee_ids: [], remarks: '' };
-const eventLabels = { regular_holiday: 'Regular Holiday', special_holiday: 'Special Holiday', asynchronous: 'Asynchronous Day', suspension: 'Suspension' };
+const eventLabels = { regular_holiday: 'Regular Holiday', special_holiday: 'Special Holiday', official_school_activity: 'Official School Activity', asynchronous: 'Asynchronous Day', suspension: 'Suspension' };
+const paidRequiredTypes = ['regular_holiday', 'official_school_activity'];
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const months = Array.from({ length: 12 }, (_, index) => new Date(2026, index, 1).toLocaleDateString('en-PH', { month: 'long' }));
 const iso = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -54,7 +55,7 @@ export default function CalendarIndex({ month, events, employees, departments, c
     };
     const visibleEvents = events.filter((event) => event.start_date.slice(0, 7) <= month && event.end_date.slice(0, 7) >= month);
 
-    return <AppLayout title="School Calendar" subtitle="Review holidays, asynchronous days, and campus suspensions.">
+    return <AppLayout title="School Calendar" subtitle="Review holidays, official school activities, asynchronous days, and campus suspensions.">
         <section className="school-calendar-shell">
             <header className="school-calendar-toolbar"><button type="button" title="Previous month" onClick={() => navigate(-1)}><ChevronLeft size={19} /></button><div className="calendar-period-controls"><label><span>Month</span><select aria-label="Calendar month" value={monthDate.getMonth()} onChange={(event) => jumpTo(monthDate.getFullYear(), Number(event.target.value))}>{months.map((name, index) => <option value={index} key={name}>{name}</option>)}</select></label><label><span>Year</span><select aria-label="Calendar year" value={monthDate.getFullYear()} onChange={(event) => jumpTo(Number(event.target.value), monthDate.getMonth())}>{Array.from({ length: 9 }, (_, index) => monthDate.getFullYear() - 4 + index).map((year) => <option value={year} key={year}>{year}</option>)}</select></label><button type="button" className="calendar-today-button" onClick={today}>Today</button></div><button type="button" title="Next month" onClick={() => navigate(1)}><ChevronRight size={19} /></button></header>
             <h2 className="calendar-current-period">{monthLabel}</h2>
@@ -65,12 +66,12 @@ export default function CalendarIndex({ month, events, employees, departments, c
         {canManage && <form className="panel calendar-event-form" onSubmit={submit}>
             <div className="panel-heading"><div><span className="bento-eyebrow">Calendar entry</span><h2>{editingEvent ? 'Edit event' : 'Add event'}</h2></div><CalendarDays size={22} /></div>
             <label>Event title<input value={form.data.title} onChange={(e) => form.setData('title', e.target.value)} required /></label>
-            <div className="form-pair"><label>Type<select value={form.data.type} onChange={(e) => { const type = e.target.value; form.setData((current) => ({ ...current, type, is_paid: type === 'regular_holiday' ? true : current.is_paid })); }}>{Object.entries(eventLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>Coverage<select value={form.data.scope_type} onChange={(e) => form.setData('scope_type', e.target.value)}><option value="campus">Entire campus</option><option value="department">Department</option><option value="faculty">Selected faculty</option></select></label></div>
+            <div className="form-pair"><label>Type<select value={form.data.type} onChange={(e) => { const type = e.target.value; form.setData((current) => ({ ...current, type, is_paid: paidRequiredTypes.includes(type) ? true : current.is_paid })); }}>{Object.entries(eventLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>Coverage<select value={form.data.scope_type} onChange={(e) => form.setData('scope_type', e.target.value)}><option value="campus">Entire campus</option><option value="department">Department</option><option value="faculty">Selected faculty</option></select></label></div>
             <div className="form-pair"><label>Start date<input type="date" value={form.data.start_date} onChange={(e) => form.setData('start_date', e.target.value)} required /></label><label>End date<input type="date" min={form.data.start_date || undefined} value={form.data.end_date} onChange={(e) => form.setData('end_date', e.target.value)} required /></label></div>
             {form.data.scope_type === 'department' && <label>Department<select value={form.data.department} onChange={(e) => form.setData('department', e.target.value)} required><option value="">Select department</option>{departments.map((department) => <option key={department}>{department}</option>)}</select></label>}
             {form.data.scope_type === 'faculty' && <label>Faculty<select multiple className="calendar-faculty-select" value={form.data.employee_ids.map(String)} onChange={(e) => form.setData('employee_ids', [...e.target.selectedOptions].map((option) => Number(option.value)))} required>{employees.map((employee) => <option value={employee.id} key={employee.id}>{fullName(employee)}</option>)}</select><small>Hold Ctrl to select multiple faculty members.</small></label>}
             <label>Remarks<textarea rows="2" value={form.data.remarks} onChange={(e) => form.setData('remarks', e.target.value)} /></label>
-            <label className="check-label"><input type="checkbox" checked={form.data.is_paid} disabled={form.data.type === 'regular_holiday'} onChange={(e) => form.setData('is_paid', e.target.checked)} />{form.data.type === 'regular_holiday' ? 'Paid scheduled day (required)' : 'Paid scheduled day'}</label>
+            <label className="check-label"><input type="checkbox" checked={form.data.is_paid} disabled={paidRequiredTypes.includes(form.data.type)} onChange={(e) => form.setData('is_paid', e.target.checked)} />{paidRequiredTypes.includes(form.data.type) ? 'Paid scheduled day (required)' : 'Paid scheduled day'}</label>
             <div className="form-actions">{editingEvent && <button type="button" className="secondary" onClick={reset}>Cancel</button>}<button disabled={form.processing}><Save size={17} />Save Event</button></div>
         </form>}
 

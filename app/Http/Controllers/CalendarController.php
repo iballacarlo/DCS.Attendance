@@ -45,7 +45,9 @@ class CalendarController extends Controller
     public function store(Request $request)
     {
         $data = $this->validateEvent($request);
-        $data['is_paid'] = $data['type'] === 'regular_holiday' ? true : $data['is_paid'];
+        $data['is_paid'] = in_array($data['type'], ['regular_holiday', 'official_school_activity'], true)
+            ? true
+            : $data['is_paid'];
         $event = DB::transaction(function () use ($request, $data) {
             $event = CalendarEvent::create([
                 ...collect($data)->except('employee_ids')->all(),
@@ -64,7 +66,9 @@ class CalendarController extends Controller
     public function update(Request $request, CalendarEvent $calendarEvent)
     {
         $data = $this->validateEvent($request);
-        $data['is_paid'] = $data['type'] === 'regular_holiday' ? true : $data['is_paid'];
+        $data['is_paid'] = in_array($data['type'], ['regular_holiday', 'official_school_activity'], true)
+            ? true
+            : $data['is_paid'];
         DB::transaction(function () use ($request, $calendarEvent, $data) {
             $calendarEvent->update([
                 ...collect($data)->except('employee_ids')->all(),
@@ -90,7 +94,13 @@ class CalendarController extends Controller
     {
         return $request->validate([
             'title' => ['required', 'string', 'max:150'],
-            'type' => ['required', Rule::in(['regular_holiday', 'special_holiday', 'asynchronous', 'suspension'])],
+            'type' => ['required', Rule::in([
+                'regular_holiday',
+                'special_holiday',
+                'official_school_activity',
+                'asynchronous',
+                'suspension',
+            ])],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'is_paid' => ['required', 'boolean'],

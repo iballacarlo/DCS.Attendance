@@ -27,7 +27,7 @@ class SchoolCalendarService
                             ->whereHas('employees', fn ($employees) => $employees->whereKey($employee->id));
                     });
             })
-            ->orderByRaw("CASE type WHEN 'suspension' THEN 1 WHEN 'asynchronous' THEN 2 WHEN 'special_holiday' THEN 3 ELSE 4 END")
+            ->orderByRaw("CASE type WHEN 'suspension' THEN 1 WHEN 'official_school_activity' THEN 2 WHEN 'asynchronous' THEN 3 WHEN 'special_holiday' THEN 4 ELSE 5 END")
             ->orderBy('id')
             ->first();
     }
