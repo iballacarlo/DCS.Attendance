@@ -8,12 +8,12 @@ const navigation = [
     { label: 'Faculty', group: 'Faculty Management', href: '/employees', icon: GraduationCap, tone: 'nav-faculty', roles: ['admin'], active: (url) => url.startsWith('/employees') },
     { label: 'Ranks', group: 'Faculty Management', href: '/faculty-ranks', icon: ChartNoAxesCombined, tone: 'nav-ranks', roles: ['admin'], active: (url) => url.startsWith('/faculty-ranks') },
     { label: 'Attendance', group: 'Operations', href: '/attendance', icon: Clock3, tone: 'nav-attendance', active: (url) => url.startsWith('/attendance') },
-    { label: 'School Calendar', group: 'Operations', href: '/school-calendar', icon: CalendarDays, tone: 'nav-calendar', active: (url) => url.startsWith('/school-calendar') },
-    { label: 'Leave', group: 'Operations', href: '/leave', icon: FileCheck2, tone: 'nav-leave', active: (url) => url.startsWith('/leave') },
     { label: 'Payroll', group: 'Operations', href: '/payroll', icon: Wallet, tone: 'nav-payroll', active: (url) => url.startsWith('/payroll') },
-    { label: 'My Profile', group: 'Account', href: '/profile', icon: UserRound, tone: 'nav-profile', active: (url) => url.startsWith('/profile') },
+    { label: 'Leave', group: 'Operations', href: '/leave', icon: FileCheck2, tone: 'nav-leave', active: (url) => url.startsWith('/leave') },
+    { label: 'School Calendar', group: 'Operations', href: '/school-calendar', icon: CalendarDays, tone: 'nav-calendar', active: (url) => url.startsWith('/school-calendar') },
     { label: 'Settings', group: 'Administration', href: '/settings/accounts', icon: Settings2, tone: 'nav-settings', roles: ['admin'], active: (url) => url.startsWith('/settings') },
     { label: 'DTR Signatory', group: 'Administration', href: '/settings/dtr-signatories', icon: KeyRound, tone: 'nav-settings', roles: ['payroll_staff'], active: (url) => url.startsWith('/settings/dtr-signatories') },
+    { label: 'My Profile', group: 'Account', href: '/profile', icon: UserRound, tone: 'nav-profile', active: (url) => url.startsWith('/profile') },
 ];
 
 export default function AppLayout({ title, subtitle, children }) {
