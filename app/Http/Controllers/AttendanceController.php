@@ -32,7 +32,8 @@ class AttendanceController extends Controller
         ]);
         $query = AttendanceLog::with('employee')
             ->orderByDesc('attendance_date')
-            ->orderByDesc('time_in');
+            ->orderByDesc('time_in')
+            ->orderByDesc('id');
 
         if ($isFaculty) {
             $query->where('employee_id', $user->employee_id);
@@ -181,6 +182,8 @@ class AttendanceController extends Controller
         $overwritten = 0;
         $removed = 0;
         $skipped = 0;
+        $withoutSchedule = 0;
+        $protectedDates = 0;
         $generated = [
             'clean' => 0,
             'late' => 0,
@@ -197,13 +200,19 @@ class AttendanceController extends Controller
                     ->sortBy('start_time');
 
                 if ($schedules->isEmpty()) {
+                    $withoutSchedule++;
+
                     continue;
                 }
 
                 if (SchoolCalendarService::paidEventFor($employee, $date)) {
+                    $protectedDates++;
+
                     continue;
                 }
                 if (LeaveService::approvedLeaveFor($employee, $date)) {
+                    $protectedDates++;
+
                     continue;
                 }
 
@@ -296,11 +305,12 @@ class AttendanceController extends Controller
         $modeSummary = $data['generation_mode'] === 'overwrite'
             ? "Created {$created}, overwritten {$overwritten}, and removed {$removed} existing log(s) for absent days."
             : "Created {$created} and preserved {$skipped} existing log(s).";
+        $scopeSummary = "Skipped {$withoutSchedule} faculty-date(s) without schedules and {$protectedDates} protected calendar/leave date(s).";
 
         return redirect()->route('attendance.index', [
             'date_from' => $start->toDateString(),
             'date_to' => $effectiveEnd->toDateString(),
-        ])->with('success', "Generated random attendance through {$effectiveEnd->format('M j, Y')} for {$employees->count()} faculty ({$breakdown}). {$modeSummary}");
+        ])->with('success', "Generated random attendance through {$effectiveEnd->format('M j, Y')} for {$employees->count()} faculty ({$breakdown}). {$modeSummary} {$scopeSummary}");
     }
 
     private function recordAttendance(Employee $employee, string $method): array
