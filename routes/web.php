@@ -93,4 +93,5 @@ Route::middleware('auth')->group(function () {
     Route::put('payroll/records/{record}', [PayrollController::class, 'update'])->name('payroll.records.update')->middleware('role:admin,payroll_staff');
     Route::post('payroll/records/{record}/approve', [PayrollController::class, 'approve'])->name('payroll.records.approve')->middleware('role:admin,payroll_staff');
     Route::post('payroll/records/{record}/release', [PayrollController::class, 'release'])->name('payroll.records.release')->middleware('role:admin,payroll_staff');
+    Route::post('payroll/records/bulk-status', [PayrollController::class, 'bulkStatus'])->name('payroll.records.bulk-status')->middleware('role:admin,payroll_staff');
 });

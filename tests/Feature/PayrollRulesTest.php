@@ -237,7 +237,95 @@ class PayrollRulesTest extends TestCase
         $this->assertSame(9200.0, (float) $record->net_pay);
     }
 
-    public function test_admin_cannot_create_payroll_periods(): void
+    public function test_authorized_staff_can_bulk_approve_and_release_one_payroll_period(): void
+    {
+        $firstEmployee = $this->employeeWithMondaySchedule();
+        $secondEmployee = Employee::create([
+            'employee_no' => 'EMP-002',
+            'first_name' => 'Grace',
+            'last_name' => 'Hopper',
+            'rate_type' => 'hourly',
+            'rate_amount' => 100,
+            'status' => 'active',
+        ]);
+        $period = PayrollPeriod::create([
+            'period_name' => 'September 1-15, 2026',
+            'start_date' => '2026-09-01',
+            'end_date' => '2026-09-15',
+            'status' => 'processing',
+        ]);
+        $draft = PayrollRecord::create([
+            'payroll_period_id' => $period->id,
+            'employee_id' => $firstEmployee->id,
+            'gross_pay' => 1000,
+            'total_earnings' => 1000,
+            'net_pay' => 1000,
+            'status' => 'draft',
+        ]);
+        $approved = PayrollRecord::create([
+            'payroll_period_id' => $period->id,
+            'employee_id' => $secondEmployee->id,
+            'gross_pay' => 1000,
+            'total_earnings' => 1000,
+            'net_pay' => 1000,
+            'status' => 'approved',
+        ]);
+        $staff = User::factory()->create(['role' => 'payroll_staff']);
+
+        $this->actingAs($staff)->post(route('payroll.records.bulk-status'), [
+            'record_ids' => [$draft->id, $approved->id],
+            'action' => 'approve',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('approved', $draft->fresh()->status);
+        $this->assertSame('approved', $approved->fresh()->status);
+
+        $this->actingAs($staff)->post(route('payroll.records.bulk-status'), [
+            'record_ids' => [$draft->id, $approved->id],
+            'action' => 'release',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('released', $draft->fresh()->status);
+        $this->assertSame('released', $approved->fresh()->status);
+        $this->assertSame('finalized', $period->fresh()->status);
+    }
+
+    public function test_bulk_payroll_action_rejects_records_from_different_periods(): void
+    {
+        $employee = $this->employeeWithMondaySchedule();
+        $otherEmployee = Employee::create([
+            'employee_no' => 'EMP-002', 'first_name' => 'Grace', 'last_name' => 'Hopper',
+            'rate_type' => 'hourly', 'rate_amount' => 100, 'status' => 'active',
+        ]);
+        $firstPeriod = PayrollPeriod::create([
+            'period_name' => 'September 1-15, 2026', 'start_date' => '2026-09-01',
+            'end_date' => '2026-09-15', 'status' => 'processing',
+        ]);
+        $secondPeriod = PayrollPeriod::create([
+            'period_name' => 'September 16-30, 2026', 'start_date' => '2026-09-16',
+            'end_date' => '2026-09-30', 'status' => 'processing',
+        ]);
+        $first = PayrollRecord::create([
+            'payroll_period_id' => $firstPeriod->id, 'employee_id' => $employee->id,
+            'gross_pay' => 1000, 'total_earnings' => 1000, 'net_pay' => 1000, 'status' => 'draft',
+        ]);
+        $second = PayrollRecord::create([
+            'payroll_period_id' => $secondPeriod->id, 'employee_id' => $otherEmployee->id,
+            'gross_pay' => 1000, 'total_earnings' => 1000, 'net_pay' => 1000, 'status' => 'draft',
+        ]);
+
+        $this->actingAs(User::factory()->create(['role' => 'payroll_staff']))
+            ->post(route('payroll.records.bulk-status'), [
+                'record_ids' => [$first->id, $second->id],
+                'action' => 'approve',
+            ])
+            ->assertSessionHasErrors('record_ids');
+
+        $this->assertSame('draft', $first->fresh()->status);
+        $this->assertSame('draft', $second->fresh()->status);
+    }
+
+    public function test_admin_can_create_payroll_periods(): void
     {
         $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->post(route('payroll.periods.store'), [
@@ -245,9 +333,13 @@ class PayrollRulesTest extends TestCase
                 'start_date' => '2026-09-01',
                 'end_date' => '2026-09-15',
             ])
-            ->assertForbidden();
+            ->assertSessionHasNoErrors();
 
-        $this->assertSame(0, PayrollPeriod::count());
+        $this->assertDatabaseHas('payroll_periods', [
+            'period_name' => 'September 1-15, 2026',
+            'start_date' => '2026-09-01',
+            'end_date' => '2026-09-15',
+        ]);
     }
 
     public function test_admin_cannot_create_manual_attendance(): void

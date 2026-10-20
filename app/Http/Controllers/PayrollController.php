@@ -9,6 +9,8 @@ use App\Services\PayrollComputationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -61,7 +63,7 @@ class PayrollController extends Controller
     public function storePeriod(Request $request)
     {
         $data = $request->validate([
-            'period_name' => ['required', 'max:100'],
+            'period_name' => ['nullable', 'string', 'max:100'],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'pay_date' => ['nullable', 'date'],
@@ -76,6 +78,15 @@ class PayrollController extends Controller
             ]);
         }
 
+        $start = Carbon::parse($data['start_date'], 'Asia/Manila');
+        $end = Carbon::parse($data['end_date'], 'Asia/Manila');
+        if (PayrollPeriod::whereDate('start_date', $start)->whereDate('end_date', $end)->exists()) {
+            throw ValidationException::withMessages([
+                'start_date' => 'A payroll period already exists for this cutoff.',
+            ]);
+        }
+
+        $data['period_name'] = $start->format('F').' '.$start->day.'-'.$end->day.', '.$start->year;
         $data['pay_date'] = $expectedPayDate;
 
         PayrollPeriod::create($data);
@@ -205,6 +216,53 @@ class PayrollController extends Controller
         $this->syncPeriodStatus($record->payrollPeriod);
 
         return back()->with('success', 'Payslip released to the faculty member.');
+    }
+
+    public function bulkStatus(Request $request)
+    {
+        $data = $request->validate([
+            'record_ids' => ['required', 'array', 'min:1', 'max:100'],
+            'record_ids.*' => ['integer', 'distinct', 'exists:payroll_records,id'],
+            'action' => ['required', Rule::in(['approve', 'release'])],
+        ]);
+        $requiredStatus = $data['action'] === 'approve' ? 'draft' : 'approved';
+        $newStatus = $data['action'] === 'approve' ? 'approved' : 'released';
+        $updated = 0;
+        $skipped = 0;
+
+        DB::transaction(function () use ($data, $requiredStatus, $newStatus, &$updated, &$skipped) {
+            $records = PayrollRecord::query()
+                ->whereIn('id', $data['record_ids'])
+                ->lockForUpdate()
+                ->get();
+
+            if ($records->pluck('payroll_period_id')->unique()->count() !== 1) {
+                throw ValidationException::withMessages([
+                    'record_ids' => 'Bulk actions can only process payslips from one payroll period at a time.',
+                ]);
+            }
+
+            foreach ($records as $record) {
+                if ($record->status !== $requiredStatus) {
+                    $skipped++;
+                    continue;
+                }
+
+                $record->update(['status' => $newStatus]);
+                $updated++;
+            }
+
+            $period = PayrollPeriod::findOrFail($records->first()->payroll_period_id);
+            $this->syncPeriodStatus($period);
+        });
+
+        $verb = $data['action'] === 'approve' ? 'approved' : 'released';
+        $message = "{$updated} payslip(s) {$verb}.";
+        if ($skipped > 0) {
+            $message .= " {$skipped} skipped because their status was not eligible.";
+        }
+
+        return back()->with('success', $message);
     }
 
     private function syncPeriodStatus(PayrollPeriod $period): void

@@ -5489,6 +5489,26 @@ html[data-theme='dark'] .main .list-filters .clear-filters:hover {
 .payroll-status.is-draft { background: #edf1ef; border-color: #cbd7d0; color: #4b5f54; }
 .payroll-status.is-approved { background: #f8eed4; border-color: #dfc982; color: #725614; }
 .payroll-status.is-released { background: #dfeee5; border-color: #a9cbb7; color: #176b46; }
+.payroll-bulk-bar {
+    align-items: center;
+    background: #f4f7f5;
+    border: 1px solid #d2ddd6;
+    display: flex;
+    gap: 16px;
+    justify-content: space-between;
+    margin: -2px 0 14px;
+    padding: 12px 14px;
+}
+.payroll-bulk-bar > div:first-child { display: grid; gap: 2px; }
+.payroll-bulk-bar strong { color: #294538; font-size: 13px; }
+.payroll-bulk-bar span { color: #65776d; font-size: 10px; }
+.payroll-bulk-bar.is-ready { background: #edf6f0; border-color: #b9d2c2; }
+.payroll-bulk-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
+.payroll-bulk-actions button { align-items: center; display: inline-flex; font-size: 11px; gap: 6px; min-height: 36px; padding: 8px 12px; white-space: nowrap; }
+.payroll-bulk-actions .is-release { background: #9b711d; }
+.payroll-bulk-actions button:disabled { background: #dce3df; color: #819087; cursor: not-allowed; opacity: 1; }
+.payroll-select-cell { min-width: 42px; text-align: center; width: 42px; }
+.payroll-select-cell input { height: 17px; margin: 0; min-height: 0; width: 17px; }
 
 html[data-theme='dark'] .main .academic-term-preview {
     background: #0b1811;
@@ -5500,9 +5520,16 @@ html[data-theme='dark'] .main .academic-term-preview strong { color: #e3ebe6; }
 html[data-theme='dark'] .main .payroll-status.is-draft { background: #26352e; border-color: #4a5e53; color: #d2ddd7; }
 html[data-theme='dark'] .main .payroll-status.is-approved { background: #3b321c; border-color: #6f6034; color: #e4cf8e; }
 html[data-theme='dark'] .main .payroll-status.is-released { background: #1d392a; border-color: #416a52; color: #bfe0cc; }
+html[data-theme='dark'] .main .payroll-bulk-bar { background: #17261e; border-color: #395347; }
+html[data-theme='dark'] .main .payroll-bulk-bar.is-ready { background: #193025; border-color: #416451; }
+html[data-theme='dark'] .main .payroll-bulk-bar strong { color: #edf5f0; }
+html[data-theme='dark'] .main .payroll-bulk-bar span { color: #a8baaf; }
 
 @media (max-width: 600px) {
     .academic-term-fields { grid-template-columns: 1fr; }
+    .payroll-bulk-bar { align-items: stretch; flex-direction: column; }
+    .payroll-bulk-actions { display: grid; grid-template-columns: 1fr; }
+    .payroll-bulk-actions button { justify-content: center; width: 100%; }
 }
 
 /* Consistent application confirmation and notice dialogs. */
