@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AttendanceLog;
 use App\Models\Employee;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRecord;
-use App\Services\AttendanceCalculator;
+use App\Services\PayrollComputationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -84,7 +83,7 @@ class PayrollController extends Controller
         return redirect()->route('payroll.index')->with('success', 'Payroll period created.');
     }
 
-    public function generate(PayrollPeriod $period)
+    public function generate(PayrollPeriod $period, PayrollComputationService $payrollCalculator)
     {
         if ($period->status === 'finalized') {
             return back()->with('error', 'This payroll period is finalized and can no longer be regenerated.');
@@ -93,37 +92,11 @@ class PayrollController extends Controller
         $employees = Employee::with(['facultyRank', 'schedules'])->where('status', 'active')->get();
 
         foreach ($employees as $employee) {
-            $logs = AttendanceLog::with('employee.schedules')->where('employee_id', $employee->id)
-                ->whereBetween('attendance_date', [$period->start_date, $period->end_date])
-                ->get();
-
-            $daysWorked = $logs->filter(fn ($log) => (float) $log->total_hours > 0)->count();
-            $hoursWorked = $logs->sum('total_hours');
-            $lateUndertimeMinutes = $logs->sum('late_minutes') + $logs->sum('undertime_minutes');
-            $scheduledDays = 0;
-            for ($date = Carbon::parse($period->start_date); $date->lte(Carbon::parse($period->end_date)); $date->addDay()) {
-                if (AttendanceCalculator::scheduledHoursForDay($employee, $date) > 0) {
-                    $scheduledDays++;
-                }
-            }
-            $absentDays = max(0, $scheduledDays - $daysWorked);
-            $rateType = $employee->rate_type;
-            $rateAmount = (float) $employee->rate_amount;
-
-            if ($rateType === 'hourly') {
-                $grossPay = round($hoursWorked * $rateAmount, 2);
-            } else {
-                // A complete scheduled shift earns one daily rate; partial shifts are prorated by that day's schedule.
-                $grossPay = round($logs->sum(function ($log) use ($employee, $rateAmount) {
-                    $scheduledHours = AttendanceCalculator::scheduledHoursForDay($employee, $log->attendance_date);
-
-                    return $scheduledHours > 0 ? ((float) $log->total_hours / $scheduledHours) * $rateAmount : 0;
-                }), 2);
-            }
+            $computed = $payrollCalculator->calculate($employee, $period->start_date, $period->end_date);
 
             // Late, undertime, early arrival, and overtime are already reflected in payable scheduled hours.
             $deductions = 0;
-            $netPay = max(0, $grossPay);
+            $netPay = max(0, $computed['gross_pay']);
 
             $record = PayrollRecord::firstOrNew([
                 'payroll_period_id' => $period->id,
@@ -133,15 +106,15 @@ class PayrollController extends Controller
                 continue;
             }
             $record->fill([
-                    'total_days_worked' => $daysWorked,
-                    'total_hours_worked' => $hoursWorked,
-                    'gross_pay' => $grossPay,
+                    'total_days_worked' => $computed['total_days_worked'],
+                    'total_hours_worked' => $computed['total_hours_worked'],
+                    'gross_pay' => $computed['gross_pay'],
                     'overtime_pay' => 0,
-                    'late_undertime_minutes' => $lateUndertimeMinutes,
-                    'absent_days' => $absentDays,
+                    'late_undertime_minutes' => $computed['late_undertime_minutes'],
+                    'absent_days' => $computed['absent_days'],
                     'other_earnings' => 0,
                     'increase_amount' => 0,
-                    'total_earnings' => $grossPay,
+                    'total_earnings' => $computed['gross_pay'],
                     'withholding_tax' => 0,
                     'gsis_deduction' => 0,
                     'philhealth_deduction' => 0,

@@ -7,6 +7,8 @@ use App\Models\Employee;
 use App\Models\FingerprintTemplate;
 use App\Models\RfidCard;
 use App\Services\AttendanceCalculator;
+use App\Services\DtrService;
+use App\Services\SchoolCalendarService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
@@ -88,6 +90,10 @@ class AttendanceController extends Controller
             return back()->withErrors(['identifier' => $employee->full_name.' has no assigned schedule today. Attendance was not recorded.']);
         }
 
+        if ($event = SchoolCalendarService::paidEventFor($employee, Carbon::now('Asia/Manila'))) {
+            return redirect()->route('attendance.index')->with('success', "Attendance is not required today: {$event->title}. Scheduled hours are paid automatically.");
+        }
+
         $result = $this->recordAttendance($employee, $data['method']);
 
         if ($result['action'] === 'WAIT') {
@@ -111,6 +117,10 @@ class AttendanceController extends Controller
 
         if (! $this->hasScheduleOnDate($employee, $data['attendance_date'])) {
             return back()->withErrors(['attendance_date' => $employee->full_name.' has no assigned schedule on this date. Manual attendance can only be saved on a scheduled day.']);
+        }
+
+        if ($event = SchoolCalendarService::paidEventFor($employee, $data['attendance_date'])) {
+            return back()->withErrors(['attendance_date' => "Attendance is not required on this paid calendar date: {$event->title}."]);
         }
 
         $log = AttendanceLog::updateOrCreate(
@@ -154,6 +164,10 @@ class AttendanceController extends Controller
                 ->sortBy('start_time');
 
             if ($schedules->isEmpty()) {
+                continue;
+            }
+
+            if (SchoolCalendarService::paidEventFor($employee, $date)) {
                 continue;
             }
 
@@ -241,19 +255,22 @@ class AttendanceController extends Controller
         $periodStart = $now->day <= 15 ? $now->copy()->startOfMonth() : $now->copy()->day(16);
         $periodEnd = $now->day <= 15 ? $now->copy()->day(15) : $now->copy()->endOfMonth();
         $elapsedEnd = $now->lessThan($periodEnd) ? $now->copy() : $periodEnd->copy();
-        $periodLogs = AttendanceLog::where('employee_id', $employee->id)
-            ->whereBetween('attendance_date', [$periodStart->toDateString(), $periodEnd->toDateString()])
-            ->get();
-        $daysPresent = $periodLogs->filter(fn ($log) => (float) $log->total_hours > 0 || $log->time_in)->count();
-        $scheduledDays = 0;
-
-        for ($date = $periodStart->copy(); $date->lte($elapsedEnd); $date->addDay()) {
-            if (AttendanceCalculator::scheduledHoursForDay($employee, $date) > 0) {
-                $scheduledDays++;
-            }
-        }
-
-        $todayLog = $periodLogs->firstWhere('attendance_date', $now->toDateString());
+        $ledger = app(DtrService::class)->build($employee, $periodStart, $periodEnd);
+        $elapsedRows = $ledger['rows']->filter(fn ($row) => $row['date'] <= $elapsedEnd->toDateString());
+        $todayRow = $ledger['rows']->firstWhere('date', $now->toDateString());
+        $todayLog = $todayRow && ($todayRow['time_in'] || $todayRow['event']) ? [
+            'employee_id' => $employee->id,
+            'attendance_date' => $todayRow['date'],
+            'time_in' => $todayRow['time_in'],
+            'time_out' => $todayRow['time_out'],
+            'method_in' => $todayRow['method_in'],
+            'method_out' => $todayRow['method_out'],
+            'late_minutes' => $todayRow['late_minutes'],
+            'undertime_minutes' => $todayRow['undertime_minutes'],
+            'total_hours' => $todayRow['payable_hours'],
+            'status' => $todayRow['status'],
+            'calendar_event' => $todayRow['event'],
+        ] : null;
         $todaySchedules = $employee->schedules
             ->where('day_of_week', $now->dayOfWeek)
             ->sortBy('start_time')
@@ -275,12 +292,13 @@ class AttendanceController extends Controller
             'today_log' => $todayLog,
             'today_schedules' => $todaySchedules,
             'summary' => [
-                'scheduled_days' => $scheduledDays,
-                'days_present' => $daysPresent,
-                'absent_days' => max(0, $scheduledDays - $daysPresent),
-                'total_hours' => round((float) $periodLogs->sum('total_hours'), 2),
-                'late_minutes' => (int) $periodLogs->sum('late_minutes'),
-                'undertime_minutes' => (int) $periodLogs->sum('undertime_minutes'),
+                'scheduled_days' => $elapsedRows->where('has_schedule', true)->count(),
+                'days_present' => $elapsedRows->filter(fn ($row) => $row['has_schedule'] && ($row['time_in'] || $row['event']))->count(),
+                'absent_days' => max(0, $elapsedRows->where('has_schedule', true)->count()
+                    - $elapsedRows->filter(fn ($row) => $row['has_schedule'] && ($row['time_in'] || $row['event']))->count()),
+                'total_hours' => round((float) $elapsedRows->sum('payable_hours'), 2),
+                'late_minutes' => (int) $elapsedRows->sum('late_minutes'),
+                'undertime_minutes' => (int) $elapsedRows->sum('undertime_minutes'),
             ],
         ];
     }

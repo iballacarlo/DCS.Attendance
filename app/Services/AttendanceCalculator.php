@@ -55,14 +55,14 @@ class AttendanceCalculator
             $undertime = $actualOut->lessThan($scheduledOut) ? $actualOut->diffInMinutes($scheduledOut) : 0;
         }
 
-        $penaltyMinutes = self::roundedPenaltyMinutes($late) + self::roundedPenaltyMinutes($undertime);
+        $penaltyMinutes = $late + $undertime;
         $payableMinutes = $log->time_in && $log->time_out
             ? min($workedMinutes, max(0, $scheduledMinutes - $penaltyMinutes))
             : 0;
 
         $log->late_minutes = $late;
         $log->undertime_minutes = $undertime;
-        $log->total_hours = round($payableMinutes / 60, 2);
+        $log->total_hours = round($payableMinutes / 60, 4);
         $log->status = ! $log->time_in || ! $log->time_out
             ? 'incomplete'
             : ($late > 0 ? 'late' : ($undertime > 0 ? 'undertime' : 'present'));
@@ -111,11 +111,6 @@ class AttendanceCalculator
     private static function appendRemark(?string $remarks, string $message): string
     {
         return str_contains((string) $remarks, $message) ? (string) $remarks : trim((string) $remarks.' '.$message);
-    }
-
-    private static function roundedPenaltyMinutes(int $minutes): int
-    {
-        return $minutes > 0 ? (int) ceil($minutes / 60) * 60 : 0;
     }
 
     private static function scheduledMinutes(FacultySchedule $schedule, $breaks = null): int

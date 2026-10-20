@@ -85,6 +85,11 @@ class Employee extends Model
         return $this->hasMany(FacultyScheduleBreak::class);
     }
 
+    public function calendarEvents()
+    {
+        return $this->belongsToMany(CalendarEvent::class, 'calendar_event_employee');
+    }
+
     public function getFullNameAttribute(): string
     {
         $middleInitial = $this->middle_name && preg_match('/^\X/u', trim($this->middle_name), $match) ? $match[0].'.' : '';

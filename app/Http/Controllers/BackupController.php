@@ -13,6 +13,7 @@ class BackupController extends Controller
     private const TABLES = [
         'faculty_ranks', 'employees', 'users', 'rfid_cards', 'fingerprint_templates', 'employment_histories',
         'faculty_schedules', 'faculty_schedule_breaks', 'attendance_logs', 'hardware_attendance_events',
+        'calendar_events', 'calendar_event_employee', 'dtr_signatories',
         'payroll_periods', 'payroll_records', 'audit_trails', 'system_settings',
     ];
 
@@ -55,7 +56,10 @@ class BackupController extends Controller
             throw ValidationException::withMessages(['backup_file' => 'The selected file is not a valid payroll system backup.']);
         }
 
-        foreach (array_diff(self::TABLES, ['employment_histories', 'system_settings', 'hardware_attendance_events']) as $table) {
+        foreach (array_diff(self::TABLES, [
+            'employment_histories', 'system_settings', 'hardware_attendance_events',
+            'calendar_events', 'calendar_event_employee', 'dtr_signatories',
+        ]) as $table) {
             if (! isset($backup['tables'][$table]) || ! is_array($backup['tables'][$table])) {
                 throw ValidationException::withMessages(['backup_file' => "Backup data for {$table} is missing."]);
             }

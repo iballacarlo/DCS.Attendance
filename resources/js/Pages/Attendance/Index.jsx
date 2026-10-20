@@ -1,5 +1,5 @@
-import { useForm, usePage } from '@inertiajs/react';
-import { CalendarDays, CalendarRange, CheckCircle2, Clock3, LogIn, LogOut, Radio, Search, TimerReset, X } from 'lucide-react';
+import { Link, useForm, usePage } from '@inertiajs/react';
+import { CalendarDays, CalendarRange, CheckCircle2, Clock3, FileDown, LogIn, LogOut, Radio, Search, TimerReset, X } from 'lucide-react';
 import { useState } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
 import Pagination from '../../components/Pagination';
@@ -20,12 +20,14 @@ function methodLabel(value) {
 }
 
 function statusLabel(log) {
+    if (log?.calendar_event) return `Paid day · ${log.calendar_event.label}`;
     if (!log?.time_in) return 'Not timed in';
     if (!log?.time_out) return 'Currently timed in';
     return log.status === 'present' ? 'Complete' : log.status === 'late' ? 'Late' : log.status === 'undertime' ? 'Undertime' : 'Incomplete';
 }
 
 function statusClass(log) {
+    if (log?.calendar_event) return 'is-complete';
     if (!log?.time_in) return 'is-pending';
     if (!log?.time_out) return 'is-active';
     return ['late', 'undertime', 'incomplete'].includes(log.status) ? 'is-warning' : 'is-complete';
@@ -36,6 +38,7 @@ function FacultyDtr({ dtr, logs }) {
     const summary = dtr?.summary || {};
 
     return <div className="faculty-dtr">
+        <div className="dtr-page-actions"><Link className="button" href="/attendance/dtr"><FileDown size={17} />Preview / Download DTR</Link></div>
         <section className="dtr-today" aria-label="Today attendance status">
             <div className="dtr-today-heading">
                 <div><span>Today</span><h3>{readableDate(dtr?.date, { weekday: 'long' })}</h3></div>
@@ -93,6 +96,7 @@ function StaffAttendance({ employees, logs, filters, canManage }) {
     const hasFilters = Object.values(listFilters).some(Boolean);
 
     return <>
+        <div className="dtr-page-actions"><Link className="button" href="/attendance/dtr"><FileDown size={17} />Generate Faculty DTR</Link></div>
         {canManage && <section className="content-grid">
             <form className="panel compact-form" onSubmit={(e) => { e.preventDefault(); tap.post('/attendance/tap'); }}><h2>RFID / Fingerprint Tap</h2><label>Identifier<input placeholder="Scan RFID UID or fingerprint code" value={tap.data.identifier} onChange={(e) => tap.setData('identifier', e.target.value)} required autoFocus /></label><label>Method<select value={tap.data.method} onChange={(e) => tap.setData('method', e.target.value)}><option value="rfid">RFID</option><option value="fingerprint">Fingerprint</option></select></label><button type="submit" disabled={tap.processing}>Record Tap</button></form>
             <form className="panel compact-form" onSubmit={(e) => { e.preventDefault(); manual.post('/attendance/manual'); }}><h2>Manual Attendance</h2><label>Faculty<select value={manual.data.employee_id} onChange={(e) => manual.setData('employee_id', e.target.value)} required>{employees.map((employee) => <option key={employee.id} value={employee.id}>{fullName(employee)}</option>)}</select></label><label>Date<input type="date" value={manual.data.attendance_date} onChange={(e) => manual.setData('attendance_date', e.target.value)} required /></label><label>Time In<input type="time" value={manual.data.time_in} onChange={(e) => manual.setData('time_in', e.target.value)} /></label><label>Time Out<input type="time" value={manual.data.time_out} onChange={(e) => manual.setData('time_out', e.target.value)} /></label><label>Remarks<input value={manual.data.remarks} onChange={(e) => manual.setData('remarks', e.target.value)} /></label><button type="submit" disabled={manual.processing}>Save Manual Log</button></form>

@@ -18,7 +18,7 @@ class PayrollRulesTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_one_minute_late_counts_as_one_hour_deduction(): void
+    public function test_one_minute_late_deducts_only_one_minute(): void
     {
         $employee = $this->employeeWithMondaySchedule();
         $log = AttendanceLog::create([
@@ -33,10 +33,10 @@ class PayrollRulesTest extends TestCase
         $log->refresh();
         $this->assertSame(1, $log->late_minutes);
         $this->assertSame(0, $log->undertime_minutes);
-        $this->assertEquals(7.00, (float) $log->total_hours);
+        $this->assertEqualsWithDelta(7.9833, (float) $log->total_hours, 0.0001);
     }
 
-    public function test_late_and_undertime_each_round_up_to_started_hours(): void
+    public function test_late_and_undertime_are_minute_accurate(): void
     {
         $employee = $this->employeeWithMondaySchedule();
         $log = AttendanceLog::create([
@@ -51,7 +51,7 @@ class PayrollRulesTest extends TestCase
         $log->refresh();
         $this->assertSame(1, $log->late_minutes);
         $this->assertSame(1, $log->undertime_minutes);
-        $this->assertEquals(6.00, (float) $log->total_hours);
+        $this->assertEqualsWithDelta(7.9667, (float) $log->total_hours, 0.0001);
     }
 
     public function test_lunch_and_schedule_gaps_are_not_payable(): void
@@ -139,6 +139,26 @@ class PayrollRulesTest extends TestCase
         $record = PayrollRecord::where('employee_id', $employee->id)->firstOrFail();
         $this->assertSame(800.0, (float) $record->gross_pay);
         $this->assertSame(800.0, (float) $record->total_earnings);
+    }
+
+    public function test_daily_rate_payroll_prorates_one_minute_late_by_one_minute(): void
+    {
+        $employee = $this->employeeWithMondaySchedule();
+        $employee->update(['rate_type' => 'daily', 'rate_amount' => 100]);
+        $log = AttendanceLog::create([
+            'employee_id' => $employee->id, 'attendance_date' => '2026-09-07',
+            'time_in' => '08:01', 'time_out' => '17:00',
+        ]);
+        AttendanceCalculator::recalculate($log);
+        $period = PayrollPeriod::create([
+            'period_name' => 'September 1-15, 2026', 'start_date' => '2026-09-01',
+            'end_date' => '2026-09-15', 'status' => 'open',
+        ]);
+
+        $this->actingAs(User::factory()->create(['role' => 'payroll_staff']))
+            ->post(route('payroll.generate', $period))->assertSessionHasNoErrors();
+
+        $this->assertSame(99.79, (float) PayrollRecord::where('employee_id', $employee->id)->firstOrFail()->gross_pay);
     }
 
     public function test_payroll_generation_records_late_undertime_and_absences_for_payslip(): void

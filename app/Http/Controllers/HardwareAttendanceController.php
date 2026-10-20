@@ -9,6 +9,7 @@ use App\Models\HardwareAttendanceEvent;
 use App\Models\HardwareEnrollment;
 use App\Models\RfidCard;
 use App\Services\AttendanceCalculator;
+use App\Services\SchoolCalendarService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -58,6 +59,33 @@ class HardwareAttendanceController extends Controller
                 'ok' => false,
                 'message' => 'RFID/fingerprint is not registered to an active faculty member.',
             ], 404);
+        }
+
+        if (AttendanceCalculator::hasSchedule($employee, $occurredAt)
+            && ($calendarEvent = SchoolCalendarService::paidEventFor($employee, $occurredAt))) {
+            $payload = [
+                'ok' => true,
+                'message' => 'Attendance is not required on this paid calendar date.',
+                'employee' => $employee->full_name,
+                'display_name' => $this->displayName($employee),
+                'action' => 'PAID DAY',
+                'display_time' => '',
+                'time_out_available_at' => '',
+                'status' => 'present',
+                'time_in' => null,
+                'time_out' => null,
+                'calendar_event' => $calendarEvent->title,
+            ];
+
+            if (! empty($data['event_id'])) {
+                HardwareAttendanceEvent::create([
+                    'event_id' => $data['event_id'], 'employee_id' => $employee->id,
+                    'identifier' => $data['identifier'], 'method' => $data['method'],
+                    'occurred_at' => $occurredAt, 'response_payload' => $payload,
+                ]);
+            }
+
+            return response()->json($payload);
         }
 
         $responsePayload = DB::transaction(function () use ($data, $employee, $occurredAt) {
