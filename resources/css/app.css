@@ -592,20 +592,6 @@ select:focus {
 .faculty-dashboard-term,
 .faculty-dashboard-clock { min-width: 0; }
 
-.faculty-dashboard-live {
-    align-items: center;
-    background: #e8bd55;
-    color: #163c2b;
-    display: inline-flex;
-    font-size: 11px;
-    font-weight: 800;
-    gap: 6px;
-    padding: 7px 10px;
-    text-transform: uppercase;
-}
-
-.faculty-dashboard-live svg { animation: dtr-pulse 1.4s ease-in-out infinite; }
-
 .faculty-dashboard-identity h2 {
     color: #fff;
     font-size: 27px;
@@ -672,11 +658,6 @@ html[data-theme='dark'] .faculty-dashboard-overview {
     border-top-color: #8a763d;
 }
 
-html[data-theme='dark'] .faculty-dashboard-live {
-    background: #75642f;
-    color: #fff7db;
-}
-
 html[data-theme='dark'] .faculty-dashboard-identity p,
 html[data-theme='dark'] .faculty-dashboard-term small { color: #aebeb5; }
 
@@ -717,10 +698,6 @@ html[data-theme='dark'] .faculty-dashboard-clock small { color: #d8c67e; }
     .faculty-dashboard-clock { justify-items: start; }
 
     .faculty-dashboard-clock strong { font-size: 26px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .faculty-dashboard-live svg { animation: none; }
 }
 
 .logout-form {
@@ -1113,19 +1090,6 @@ html[data-theme='dark'] .faculty-dashboard-clock small { color: #d8c67e; }
     color: var(--muted);
     font-size: 12px;
     font-weight: 700;
-}
-
-.live-indicator {
-    background: #e8f7ef;
-    border-radius: 999px;
-    color: var(--green);
-    display: inline-block;
-    font-size: 11px;
-    font-weight: 800;
-    margin-left: 6px;
-    padding: 3px 7px;
-    text-transform: uppercase;
-    vertical-align: middle;
 }
 
 button.schedule-slot {
@@ -5734,7 +5698,8 @@ html[data-theme='dark'] .dashboard-academic-context > strong { color: #f1f6f3; }
 .dtr-export-toolbar { background: #fff; border: 1px solid #d4dfd8; margin-bottom: 18px; padding: 14px; }
 .dtr-export-toolbar label { min-width: 190px; }
 .dtr-cutoff-chip { color: #52625b; margin-right: auto; }
-.official-dtr { background: #fff; color: #111; font-family: Arial, Helvetica, sans-serif; margin: 0 auto; padding: 24px 30px 20px; width: min(100%, 820px); }
+.dtr-sheet-viewport { overflow-x: auto; padding-bottom: 8px; width: 100%; }
+.official-dtr { background: #fff; box-sizing: border-box; color: #111; font-family: Arial, Helvetica, sans-serif; height: 1123px; margin: 0 auto; overflow: hidden; padding: 24px 30px 20px; width: 794px; }
 .official-dtr header { display: grid; justify-items: center; margin-bottom: 14px; text-align: center; }
 .official-dtr header small { justify-self: start; font-size: 10px; }
 .official-dtr-brand { align-items: center; display: flex; gap: 8px; justify-content: center; margin-top: -8px; }
@@ -5747,14 +5712,15 @@ html[data-theme='dark'] .dashboard-academic-context > strong { color: #f1f6f3; }
 .official-dtr header span { font-size: 9px; font-weight: 700; margin-top: 3px; }
 .official-dtr-meta { font-size: 10px; margin: 0 auto 12px; width: 72%; }
 .official-dtr-meta > div { display: flex; justify-content: space-between; gap: 16px; margin-top: 4px; }
+.official-dtr-meta .dtr-period { border-bottom: 1px solid #111; padding: 0 8px 2px; }
 .official-dtr table { border-collapse: collapse; font-size: 8.5px; table-layout: fixed; width: 100%; }
 .official-dtr th,
 .official-dtr td { border: 1px solid #222; height: 22px; padding: 2px; text-align: center; }
 .official-dtr th { background: #fff; color: #111; font-weight: 700; }
-.official-dtr .margin-column { background: #fff; border-bottom-color: transparent; border-top-color: transparent; width: 66px; }
-.official-dtr th.margin-column { border-color: transparent; font-size: 8px; }
-.official-dtr .schedule-margin { border-left-color: transparent; color: #222; font-size: 8px; }
-.official-dtr .hours-margin { border-right-color: transparent; font-weight: 700; }
+.official-dtr .margin-column { background: #fff; width: 66px; }
+.official-dtr th.margin-column { font-size: 8px; }
+.official-dtr .schedule-margin { color: #222; font-size: 8px; }
+.official-dtr .hours-margin { font-weight: 700; }
 .official-dtr .event-cell { font-size: 8px; font-weight: 700; letter-spacing: 0; }
 .official-dtr .event-cell small { display: block; font-size: 7px; font-weight: 400; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .official-dtr-certification { font-size: 9px; line-height: 1.45; margin: 18px auto 0; width: 78%; }
@@ -5769,8 +5735,6 @@ html[data-theme='dark'] .official-dtr,
 html[data-theme='dark'] .official-dtr :is(h2, strong, span, p, small, td, th) { background-color: #fff; color: #111; }
 @media (max-width: 860px) {
     .calendar-management-grid { grid-template-columns: 1fr; }
-    .official-dtr { overflow-x: auto; padding: 20px 12px; }
-    .official-dtr table { min-width: 720px; }
 }
 @media (max-width: 560px) {
     .form-pair { grid-template-columns: 1fr; }

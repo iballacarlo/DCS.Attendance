@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { ArrowUpRight, CalendarCheck2, CalendarClock, CalendarDays, Clock3, GraduationCap, Radio, Wallet } from 'lucide-react';
+import { ArrowUpRight, CalendarCheck2, CalendarClock, CalendarDays, Clock3, GraduationCap, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import AppLayout from '../Layouts/AppLayout';
 import useRealtimeReload from '../hooks/useRealtimeReload';
@@ -37,7 +37,6 @@ function FacultyDashboardOverview({ academicTermLabel, user }) {
 
     return <section className="faculty-dashboard-overview" aria-label="Faculty account overview">
         <div className="faculty-dashboard-identity">
-            <span className="faculty-dashboard-live"><Radio size={13} />Live</span>
             <h2>{fullName(employee)}</h2>
             <p>{employee?.employee_no || '-'} <i></i> {employee?.department || 'Cavite State University - Imus Campus'}</p>
         </div>
@@ -81,7 +80,7 @@ export default function Dashboard({ employeeCount, presentToday, openPeriods, at
 
             <section className="bento-panel attendance-bento">
                 <header className="bento-heading">
-                    <div><span className="bento-eyebrow">{isFaculty ? 'My attendance' : 'Attendance'}</span><h2>{isFaculty ? 'My recent activity' : 'Recent activity'} <span className="live-indicator">Live</span></h2></div>
+                    <div><span className="bento-eyebrow">{isFaculty ? 'My attendance' : 'Attendance'}</span><h2>{isFaculty ? 'My recent activity' : 'Recent activity'}</h2></div>
                     <Link href="/attendance">View all <ArrowUpRight size={15} /></Link>
                 </header>
                 <div className="bento-table"><table><thead><tr>{!isFaculty && <th>Faculty</th>}<th>Date</th><th>In</th><th>Out</th><th>Status</th></tr></thead><tbody>

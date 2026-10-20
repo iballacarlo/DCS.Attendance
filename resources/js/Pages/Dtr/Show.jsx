@@ -7,12 +7,8 @@ import { fullName } from '../../lib/format';
 const displayTime = (value) => value ? new Date(`2000-01-01T${value}:00`).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' }) : '';
 const dateText = (value) => new Date(`${value}T00:00:00`).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
 const filePart = (value) => String(value || '').replace(/[^a-zA-Z0-9-]+/g, '-').replace(/^-|-$/g, '');
-const cutoffStart = (value) => {
-    const [year, month, day] = String(value).split('-').map(Number);
-    return `${year}-${String(month).padStart(2, '0')}-${day <= 15 ? '01' : '16'}`;
-};
 
-export default function DtrShow({ dtr, employees, canSelectFaculty }) {
+export default function DtrShow({ dtr, cutoffOptions, employees, canSelectFaculty }) {
     const formRef = useRef(null);
     const [pdfAction, setPdfAction] = useState(null);
     const employee = dtr.employee;
@@ -44,14 +40,14 @@ export default function DtrShow({ dtr, employees, canSelectFaculty }) {
     return <AppLayout title="Daily Time Record" subtitle="Civil Service Form No. 48 generated from verified attendance and paid calendar events.">
         <div className="dtr-export-toolbar print-hidden">
             {canSelectFaculty && <label>Faculty<select value={employee.id} onChange={(e) => reload({ employee_id: e.target.value })}>{employees.map((item) => <option value={item.id} key={item.id}>{fullName(item)} · {item.employee_no}</option>)}</select></label>}
-            <label>Cutoff date<input type="date" value={cutoff.start_date} onChange={(e) => reload({ start_date: cutoffStart(e.target.value) })} /></label>
+            <label>Cutoff period<select value={cutoff.start_date} onChange={(e) => reload({ start_date: e.target.value })}>{cutoffOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label>
             <span className="dtr-cutoff-chip">{dateText(cutoff.start_date)} – {dateText(cutoff.end_date)}</span>
             <button type="button" onClick={print} disabled={Boolean(pdfAction)}><Printer size={17} />{pdfAction === 'print' ? 'Preparing...' : 'Print'}</button>
             <button type="button" onClick={download} disabled={Boolean(pdfAction)}><Download size={17} />{pdfAction === 'download' ? 'Preparing...' : 'Download PDF'}</button>
         </div>
-        <article className="official-dtr" ref={formRef}>
+        <div className="dtr-sheet-viewport"><article className="official-dtr" ref={formRef}>
             <header><small>Civil Service Form No. 48</small><div className="official-dtr-brand"><img src="/images/cvsu-logo.png" alt="" /><div><b>CAVITE STATE UNIVERSITY</b><span>Imus Campus</span></div></div><h2>DAILY TIME RECORD</h2><strong>{fullName(employee).toUpperCase()}</strong><span>(NAME)</span></header>
-            <section className="official-dtr-meta"><div>For the period of <strong>{dateText(cutoff.start_date)} – {dateText(cutoff.end_date)}</strong></div><div>Official hours for arrival and departure <strong>Based on faculty loading</strong></div></section>
+            <section className="official-dtr-meta"><div>For the period of <strong className="dtr-period">{dateText(cutoff.start_date)} – {dateText(cutoff.end_date)}</strong></div><div>Official hours for arrival and departure</div></section>
             <table><thead><tr><th className="margin-column"></th><th rowSpan="2">Day</th><th colSpan="2">AM</th><th colSpan="2">PM</th><th colSpan="2">LATE / UNDER TIME</th><th className="margin-column"></th></tr><tr><th className="margin-column">Schedule</th><th>Arrival</th><th>Departure</th><th>Arrival</th><th>Departure</th><th>Hours</th><th>Minutes</th><th className="margin-column">Hours</th></tr></thead>
                 <tbody>{dtr.rows.map((row) => <tr key={row.date} className={row.event ? 'is-paid-event' : ''}><td className="margin-column schedule-margin">{row.schedule_label || ''}</td><td>{row.day}</td>{row.event ? <td colSpan="4" className="event-cell">{row.event.label}<small>{row.event.title}</small></td> : <><td>{displayTime(row.am_arrival)}</td><td>{displayTime(row.am_departure)}</td><td>{displayTime(row.pm_arrival)}</td><td>{displayTime(row.pm_departure)}</td></>}<td>{row.variance_hours || ''}</td><td>{row.variance_minutes || ''}</td><td className="margin-column hours-margin">{row.margin_hours === null ? '' : Number(row.margin_hours).toFixed(2)}</td></tr>)}</tbody>
             </table>
@@ -64,6 +60,6 @@ export default function DtrShow({ dtr, employees, canSelectFaculty }) {
                     <span>{dtr.signatory?.designation || 'Dean / In Charge'}</span>
                 </div>
             </section>
-        </article>
+        </article></div>
     </AppLayout>;
 }

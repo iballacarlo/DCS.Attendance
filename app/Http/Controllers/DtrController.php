@@ -27,6 +27,7 @@ class DtrController extends Controller
 
         return Inertia::render('Dtr/Show', [
             'dtr' => $dtr,
+            'cutoffOptions' => $this->cutoffOptions($employee, $start),
             'employees' => $user->role === 'faculty' ? [] : Employee::orderBy('last_name')->get(),
             'canSelectFaculty' => $user->role !== 'faculty',
         ]);
@@ -48,5 +49,30 @@ class DtrController extends Controller
         $today = Carbon::now('Asia/Manila');
 
         return $today->day <= 15 ? $today->copy()->startOfMonth() : $today->copy()->day(16);
+    }
+
+    private function cutoffOptions(Employee $employee, Carbon $selected): array
+    {
+        $firstMonth = $employee->service_start_date
+            ? Carbon::parse($employee->service_start_date, 'Asia/Manila')->startOfMonth()
+            : Carbon::now('Asia/Manila')->subYears(2)->startOfYear();
+        $firstMonth = $firstMonth->min($selected->copy()->startOfMonth());
+        $lastMonth = Carbon::now('Asia/Manila')->startOfMonth()->max($selected->copy()->startOfMonth());
+        $options = [];
+
+        for ($month = $lastMonth->copy(); $month->gte($firstMonth); $month->subMonth()) {
+            $firstStart = $month->copy()->startOfMonth();
+            $secondStart = $month->copy()->day(16);
+            $options[] = [
+                'value' => $secondStart->toDateString(),
+                'label' => $month->format('F').' 16-'.$month->daysInMonth.', '.$month->year,
+            ];
+            $options[] = [
+                'value' => $firstStart->toDateString(),
+                'label' => $month->format('F').' 1-15, '.$month->year,
+            ];
+        }
+
+        return $options;
     }
 }

@@ -111,7 +111,7 @@ export default function AttendanceIndex({ employees, logs, dtr, filters = {} }) 
     const isFaculty = auth.user.role === 'faculty';
     const canManage = auth.user.role === 'payroll_staff';
     useRealtimeReload(isFaculty ? ['logs', 'dtr'] : ['logs'], 5000);
-    return <AppLayout title="Attendance" subtitle={isFaculty ? 'Review your live time records and current cutoff totals.' : canManage ? 'Review and manage faculty attendance records.' : 'Review faculty attendance records.'}>
+    return <AppLayout title="Attendance" subtitle={isFaculty ? 'Review your time records and current cutoff totals.' : canManage ? 'Review and manage faculty attendance records.' : 'Review faculty attendance records.'}>
         {isFaculty ? <FacultyDtr dtr={dtr} logs={logs} /> : <StaffAttendance employees={employees} logs={logs} filters={filters} canManage={canManage} />}
     </AppLayout>;
 }
