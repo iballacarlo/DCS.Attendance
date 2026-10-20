@@ -10,6 +10,7 @@ use App\Models\HardwareEnrollment;
 use App\Models\RfidCard;
 use App\Services\AttendanceCalculator;
 use App\Services\SchoolCalendarService;
+use App\Services\LeaveService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -77,6 +78,32 @@ class HardwareAttendanceController extends Controller
                 'calendar_event' => $calendarEvent->title,
             ];
 
+            if (! empty($data['event_id'])) {
+                HardwareAttendanceEvent::create([
+                    'event_id' => $data['event_id'], 'employee_id' => $employee->id,
+                    'identifier' => $data['identifier'], 'method' => $data['method'],
+                    'occurred_at' => $occurredAt, 'response_payload' => $payload,
+                ]);
+            }
+
+            return response()->json($payload);
+        }
+
+        if (AttendanceCalculator::hasSchedule($employee, $occurredAt)
+            && ($leave = LeaveService::approvedLeaveFor($employee, $occurredAt))) {
+            $payload = [
+                'ok' => true,
+                'message' => 'Attendance is not required during approved leave.',
+                'employee' => $employee->full_name,
+                'display_name' => $this->displayName($employee),
+                'action' => 'ON LEAVE',
+                'display_time' => '',
+                'time_out_available_at' => '',
+                'status' => $leave->leaveType->is_paid ? 'present' : 'on_leave',
+                'time_in' => null,
+                'time_out' => null,
+                'leave_type' => $leave->leaveType->name,
+            ];
             if (! empty($data['event_id'])) {
                 HardwareAttendanceEvent::create([
                     'event_id' => $data['event_id'], 'employee_id' => $employee->id,

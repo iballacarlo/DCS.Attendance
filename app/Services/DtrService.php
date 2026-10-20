@@ -26,10 +26,15 @@ class DtrService
             // Keep unscheduled taps in the audit log, but never expose or pay
             // them through the official DTR.
             $log = $scheduledHours > 0 ? $logs->get($dateString) : null;
-            $event = $scheduledHours > 0 ? SchoolCalendarService::paidEventFor($employee, $date) : null;
-            $late = $event ? 0 : (int) ($log?->late_minutes ?? 0);
-            $undertime = $event ? 0 : (int) ($log?->undertime_minutes ?? 0);
-            $payableHours = $event ? $scheduledHours : round((float) ($log?->total_hours ?? 0), 4);
+            $calendarEvent = $scheduledHours > 0 ? SchoolCalendarService::paidEventFor($employee, $date) : null;
+            $leave = $scheduledHours > 0 && ! $calendarEvent ? LeaveService::approvedLeaveFor($employee, $date) : null;
+            $attendanceException = $calendarEvent || $leave;
+            $isPaidException = (bool) $calendarEvent || (bool) ($leave?->leaveType?->is_paid);
+            $late = $attendanceException ? 0 : (int) ($log?->late_minutes ?? 0);
+            $undertime = $attendanceException ? 0 : (int) ($log?->undertime_minutes ?? 0);
+            $payableHours = $attendanceException
+                ? ($isPaidException ? $scheduledHours : 0)
+                : round((float) ($log?->total_hours ?? 0), 4);
             $variance = $late + $undertime;
 
             $rows->push([
@@ -41,32 +46,39 @@ class DtrService
                 'schedule_label' => $schedules->isEmpty()
                     ? null
                     : $this->shortTime($schedules->first()->start_time).'-'.$this->shortTime($schedules->last()->end_time),
-                'am_arrival' => $event ? null : $this->timeForColumn($log?->time_in, 'am'),
-                'am_departure' => $event ? null : $this->timeForColumn($log?->time_out, 'am'),
-                'pm_arrival' => $event ? null : $this->timeForColumn($log?->time_in, 'pm'),
-                'pm_departure' => $event ? null : $this->timeForColumn($log?->time_out, 'pm'),
+                'am_arrival' => $attendanceException ? null : $this->timeForColumn($log?->time_in, 'am'),
+                'am_departure' => $attendanceException ? null : $this->timeForColumn($log?->time_out, 'am'),
+                'pm_arrival' => $attendanceException ? null : $this->timeForColumn($log?->time_in, 'pm'),
+                'pm_departure' => $attendanceException ? null : $this->timeForColumn($log?->time_out, 'pm'),
                 'late_minutes' => $late,
                 'undertime_minutes' => $undertime,
                 'variance_hours' => intdiv($variance, 60),
                 'variance_minutes' => $variance % 60,
                 'payable_hours' => $payableHours,
-                'margin_hours' => $late === 0 && ($log || $event) ? $payableHours : null,
-                'event' => $event ? [
-                    'id' => $event->id,
-                    'title' => $event->title,
-                    'type' => $event->type,
-                    'label' => $this->eventLabel($event->type),
-                ] : null,
-                'status' => $event ? 'paid_event' : ($log?->status ?? ($scheduledHours > 0 ? 'absent' : 'not_scheduled')),
-                'time_in' => $event ? null : $log?->time_in,
-                'time_out' => $event ? null : $log?->time_out,
-                'method_in' => $event ? null : $log?->method_in,
-                'method_out' => $event ? null : $log?->method_out,
+                'margin_hours' => $late === 0 && ($log || $isPaidException) ? $payableHours : null,
+                'event' => $calendarEvent ? [
+                    'id' => $calendarEvent->id,
+                    'title' => $calendarEvent->title,
+                    'type' => $calendarEvent->type,
+                    'label' => $this->eventLabel($calendarEvent->type),
+                    'paid' => true,
+                ] : ($leave ? [
+                    'id' => $leave->id,
+                    'title' => $leave->leaveType->name,
+                    'type' => 'leave',
+                    'label' => strtoupper($leave->leaveType->code.' - LEAVE'),
+                    'paid' => (bool) $leave->leaveType->is_paid,
+                ] : null),
+                'status' => $calendarEvent ? 'paid_event' : ($leave ? ($isPaidException ? 'paid_leave' : 'unpaid_leave') : ($log?->status ?? ($scheduledHours > 0 ? 'absent' : 'not_scheduled'))),
+                'time_in' => $attendanceException ? null : $log?->time_in,
+                'time_out' => $attendanceException ? null : $log?->time_out,
+                'method_in' => $attendanceException ? null : $log?->method_in,
+                'method_out' => $attendanceException ? null : $log?->method_out,
             ]);
         }
 
         $scheduledRows = $rows->where('has_schedule', true);
-        $presentRows = $scheduledRows->filter(fn ($row) => $row['event'] || $row['time_in']);
+        $presentRows = $scheduledRows->filter(fn ($row) => ($row['event']['paid'] ?? false) || $row['time_in']);
         $paidRows = $scheduledRows->filter(fn ($row) => $row['payable_hours'] > 0);
         $signatory = DtrSignatory::whereDate('effective_from', '<=', $end->toDateString())
             ->where(fn ($query) => $query->whereNull('effective_to')->orWhereDate('effective_to', '>=', $end->toDateString()))
@@ -81,7 +93,7 @@ class DtrService
                 'scheduled_days' => $scheduledRows->count(),
                 'days_present' => $presentRows->count(),
                 'paid_days' => $paidRows->count(),
-                'absent_days' => max(0, $scheduledRows->count() - $paidRows->count()),
+                'absent_days' => $scheduledRows->where('status', 'absent')->count(),
                 'total_hours' => round($rows->sum('payable_hours'), 4),
                 'late_minutes' => (int) $rows->sum('late_minutes'),
                 'undertime_minutes' => (int) $rows->sum('undertime_minutes'),

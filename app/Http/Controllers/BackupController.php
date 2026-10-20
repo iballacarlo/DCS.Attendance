@@ -14,6 +14,7 @@ class BackupController extends Controller
         'faculty_ranks', 'employees', 'users', 'rfid_cards', 'fingerprint_templates', 'employment_histories',
         'faculty_schedules', 'faculty_schedule_breaks', 'attendance_logs', 'hardware_attendance_events',
         'calendar_events', 'calendar_event_employee', 'dtr_signatories',
+        'leave_types', 'leave_requests',
         'payroll_periods', 'payroll_records', 'audit_trails', 'system_settings',
     ];
 
@@ -59,6 +60,7 @@ class BackupController extends Controller
         foreach (array_diff(self::TABLES, [
             'employment_histories', 'system_settings', 'hardware_attendance_events',
             'calendar_events', 'calendar_event_employee', 'dtr_signatories',
+            'leave_types', 'leave_requests',
         ]) as $table) {
             if (! isset($backup['tables'][$table]) || ! is_array($backup['tables'][$table])) {
                 throw ValidationException::withMessages(['backup_file' => "Backup data for {$table} is missing."]);

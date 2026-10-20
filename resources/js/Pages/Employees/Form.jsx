@@ -89,7 +89,9 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
                 const { data } = await axios.get(`/employees/${employee.id}/credentials/enrollments/${enrollment.id}`);
                 setEnrollment(data);
                 if (data.status === 'completed') {
-                    if (data.method === 'rfid') {
+                    if (data.operation === 'unlink') {
+                        form.setData(data.method === 'rfid' ? 'rfid_uid' : 'fingerprint_code', '');
+                    } else if (data.method === 'rfid') {
                         form.setData('rfid_uid', data.identifier);
                     } else {
                         form.setData('fingerprint_code', data.identifier);
@@ -149,8 +151,8 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
                 current_identifier: identifier,
             });
             setEnrollment(data);
-            if (method === 'rfid') {
-                form.setData('rfid_uid', '');
+            if (data.status === 'completed') {
+                form.setData(method === 'rfid' ? 'rfid_uid' : 'fingerprint_code', '');
             }
         } catch (error) {
             setEnrollmentError(error.response?.data?.message || `Could not unlink the ${method} credential.`);

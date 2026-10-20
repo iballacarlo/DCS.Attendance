@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\CalendarEvent;
-use App\Models\DtrSignatory;
 use App\Models\Employee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,7 +13,9 @@ class CalendarController extends Controller
 {
     public function index(Request $request)
     {
-        $year = (int) $request->integer('year', now('Asia/Manila')->year);
+        $month = $request->input('month', now('Asia/Manila')->format('Y-m'));
+        abort_unless(preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month), 422, 'Invalid calendar month.');
+        $year = (int) substr($month, 0, 4);
         $year = max(2000, min(2100, $year));
         $canManage = in_array($request->user()->role, ['admin', 'payroll_staff'], true);
         $employee = $request->user()->employee;
@@ -33,10 +34,10 @@ class CalendarController extends Controller
 
         return Inertia::render('Calendar/Index', [
             'year' => $year,
+            'month' => $month,
             'events' => $events->orderBy('start_date')->orderBy('id')->get(),
             'employees' => $canManage ? Employee::where('status', 'active')->orderBy('last_name')->get() : [],
             'departments' => $canManage ? Employee::whereNotNull('department')->distinct()->orderBy('department')->pluck('department') : [],
-            'signatories' => DtrSignatory::orderByDesc('effective_from')->get(),
             'canManage' => $canManage,
         ]);
     }

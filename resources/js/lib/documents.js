@@ -20,8 +20,6 @@ export function documentFilename(facultyName, documentType, startDate, endDate, 
 export function openPdfPrintWindow() {
     const popup = window.open('', '_blank');
     if (!popup) return null;
-    popup.document.title = 'Preparing document';
-    popup.document.body.innerHTML = '<p style="font:16px Arial,sans-serif;padding:24px">Preparing document for printing...</p>';
     return popup;
 }
 

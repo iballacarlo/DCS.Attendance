@@ -9,6 +9,7 @@ use App\Models\RfidCard;
 use App\Services\AttendanceCalculator;
 use App\Services\DtrService;
 use App\Services\SchoolCalendarService;
+use App\Services\LeaveService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
@@ -93,6 +94,9 @@ class AttendanceController extends Controller
         if ($event = SchoolCalendarService::paidEventFor($employee, Carbon::now('Asia/Manila'))) {
             return redirect()->route('attendance.index')->with('success', "Attendance is not required today: {$event->title}. Scheduled hours are paid automatically.");
         }
+        if ($leave = LeaveService::approvedLeaveFor($employee, Carbon::now('Asia/Manila'))) {
+            return redirect()->route('attendance.index')->with('success', "Attendance is not required today: approved {$leave->leaveType->name}.");
+        }
 
         $result = $this->recordAttendance($employee, $data['method']);
 
@@ -121,6 +125,9 @@ class AttendanceController extends Controller
 
         if ($event = SchoolCalendarService::paidEventFor($employee, $data['attendance_date'])) {
             return back()->withErrors(['attendance_date' => "Attendance is not required on this paid calendar date: {$event->title}."]);
+        }
+        if ($leave = LeaveService::approvedLeaveFor($employee, $data['attendance_date'])) {
+            return back()->withErrors(['attendance_date' => "Attendance is not required during approved {$leave->leaveType->name}."]);
         }
 
         $log = AttendanceLog::updateOrCreate(
@@ -168,6 +175,9 @@ class AttendanceController extends Controller
             }
 
             if (SchoolCalendarService::paidEventFor($employee, $date)) {
+                continue;
+            }
+            if (LeaveService::approvedLeaveFor($employee, $date)) {
                 continue;
             }
 

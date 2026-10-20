@@ -12,6 +12,7 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeCredentialController;
 use App\Http\Controllers\FacultyRankController;
 use App\Http\Controllers\GeneralSettingsController;
+use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ProfileController;
@@ -65,6 +66,10 @@ Route::middleware('auth')->group(function () {
     Route::get('settings/backup', [BackupController::class, 'index'])->name('settings.backup.index')->middleware('role:admin');
     Route::get('settings/backup/download', [BackupController::class, 'download'])->name('settings.backup.download')->middleware('role:admin');
     Route::post('settings/backup/restore', [BackupController::class, 'restore'])->name('settings.backup.restore')->middleware('role:admin');
+    Route::get('settings/dtr-signatories', [DtrSignatoryController::class, 'index'])->name('settings.dtr-signatories.index')->middleware('role:admin,payroll_staff');
+    Route::post('settings/dtr-signatories', [DtrSignatoryController::class, 'store'])->name('settings.dtr-signatories.store')->middleware('role:admin,payroll_staff');
+    Route::put('settings/dtr-signatories/{dtrSignatory}', [DtrSignatoryController::class, 'update'])->name('settings.dtr-signatories.update')->middleware('role:admin,payroll_staff');
+    Route::delete('settings/dtr-signatories/{dtrSignatory}', [DtrSignatoryController::class, 'destroy'])->name('settings.dtr-signatories.destroy')->middleware('role:admin,payroll_staff');
 
     Route::get('attendance', [AttendanceController::class, 'index'])->name('attendance.index');
     Route::post('attendance/tap', [AttendanceController::class, 'tap'])->name('attendance.tap')->middleware('role:payroll_staff');
@@ -76,9 +81,10 @@ Route::middleware('auth')->group(function () {
     Route::post('school-calendar/events', [CalendarController::class, 'store'])->name('calendar.events.store')->middleware('role:admin,payroll_staff');
     Route::put('school-calendar/events/{calendarEvent}', [CalendarController::class, 'update'])->name('calendar.events.update')->middleware('role:admin,payroll_staff');
     Route::delete('school-calendar/events/{calendarEvent}', [CalendarController::class, 'destroy'])->name('calendar.events.destroy')->middleware('role:admin,payroll_staff');
-    Route::post('school-calendar/signatories', [DtrSignatoryController::class, 'store'])->name('calendar.signatories.store')->middleware('role:admin,payroll_staff');
-    Route::put('school-calendar/signatories/{dtrSignatory}', [DtrSignatoryController::class, 'update'])->name('calendar.signatories.update')->middleware('role:admin,payroll_staff');
-    Route::delete('school-calendar/signatories/{dtrSignatory}', [DtrSignatoryController::class, 'destroy'])->name('calendar.signatories.destroy')->middleware('role:admin,payroll_staff');
+    Route::get('leave', [LeaveController::class, 'index'])->name('leave.index');
+    Route::post('leave', [LeaveController::class, 'store'])->name('leave.store')->middleware('role:faculty');
+    Route::post('leave/{leaveRequest}/cancel', [LeaveController::class, 'cancel'])->name('leave.cancel')->middleware('role:faculty');
+    Route::put('leave/{leaveRequest}/review', [LeaveController::class, 'review'])->name('leave.review')->middleware('role:admin,payroll_staff');
 
     Route::get('payroll', [PayrollController::class, 'index'])->name('payroll.index');
     Route::post('payroll/periods', [PayrollController::class, 'storePeriod'])->name('payroll.periods.store')->middleware('role:payroll_staff');

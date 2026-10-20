@@ -6,9 +6,17 @@ use App\Models\DtrSignatory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
 
 class DtrSignatoryController extends Controller
 {
+    public function index()
+    {
+        return Inertia::render('Settings/DtrSignatories', [
+            'signatories' => DtrSignatory::orderByDesc('effective_from')->get(),
+        ]);
+    }
+
     public function store(Request $request)
     {
         $data = $this->validated($request);
