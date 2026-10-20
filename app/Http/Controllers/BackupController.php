@@ -40,7 +40,7 @@ class BackupController extends Controller
             )->all(),
         ];
 
-        $filename = 'payroll-backup-'.now()->format('Y-m-d-His').'.json';
+        $filename = 'SYSTEM_BACKUP_'.now('Asia/Manila')->format('Y-m-d_His').'.json';
 
         return response()->streamDownload(function () use ($backup) {
             echo json_encode($backup, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);

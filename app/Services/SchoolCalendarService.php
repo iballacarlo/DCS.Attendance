@@ -13,7 +13,7 @@ class SchoolCalendarService
         $day = ($date instanceof Carbon ? $date : Carbon::parse($date, 'Asia/Manila'))->toDateString();
 
         return CalendarEvent::query()
-            ->where('is_paid', true)
+            ->where(fn ($event) => $event->where('is_paid', true)->orWhere('type', 'regular_holiday'))
             ->whereDate('start_date', '<=', $day)
             ->whereDate('end_date', '>=', $day)
             ->where(function ($query) use ($employee) {

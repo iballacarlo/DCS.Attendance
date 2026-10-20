@@ -5713,10 +5713,11 @@ html[data-theme='dark'] .dashboard-academic-context > strong { color: #f1f6f3; }
 .official-dtr-meta { font-size: 10px; margin: 0 auto 12px; width: 72%; }
 .official-dtr-meta > div { display: flex; justify-content: space-between; gap: 16px; margin-top: 4px; }
 .official-dtr-meta .dtr-period { border-bottom: 1px solid #111; padding: 0 8px 2px; }
-.official-dtr table { border-collapse: collapse; font-size: 8.5px; table-layout: fixed; width: 100%; }
+.official-dtr table { border: 1px solid #222; border-collapse: collapse; font-size: 8.5px; table-layout: fixed; width: 100%; }
 .official-dtr th,
 .official-dtr td { border: 1px solid #222; height: 22px; padding: 2px; text-align: center; }
-.official-dtr th { background: #fff; color: #111; font-weight: 700; }
+.official-dtr th { background: #fff; color: #111; font-weight: 700; vertical-align: middle; }
+.official-dtr tbody tr:last-child td { border-bottom: 2px solid #222; }
 .official-dtr .margin-column { background: #fff; width: 66px; }
 .official-dtr th.margin-column { font-size: 8px; }
 .official-dtr .schedule-margin { color: #222; font-size: 8px; }

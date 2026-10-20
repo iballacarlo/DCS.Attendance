@@ -3,6 +3,7 @@ import axios from 'axios';
 import { BriefcaseBusiness, Check, CircleCheck, CircleHelp, Copy, Fingerprint, KeyRound, Link2Off, LoaderCircle, Plus, Radio, RefreshCw, Trash2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
+import useConfirmDialog from '../../hooks/useConfirmDialog';
 
 const attainmentOptions = [
     "Bachelor's Degree",
@@ -57,6 +58,7 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
     const [enrollment, setEnrollment] = useState(null);
     const [enrollmentError, setEnrollmentError] = useState('');
     const [credentialsCopied, setCredentialsCopied] = useState(false);
+    const { ask, dialog } = useConfirmDialog();
     const form = useForm({
         employee_no: employee.employee_no || nextEmployeeNumber || '', first_name: employee.first_name || '', middle_name: employee.middle_name || '', last_name: employee.last_name || '', suffix: employee.suffix || '', email: employee.email || '', contact_no: localPhoneNumber(employee.contact_no), highest_educational_attainment: employee.highest_educational_attainment || '', service_start_date: employee.service_start_date?.slice(0, 7) || '', faculty_rank_id: employee.faculty_rank_id || '', rate_amount: employee.rate_amount ?? '', status: employee.status || 'active', contract_start: employee.contract_start || '', contract_end: employee.contract_end || '', employment_history: (employee.employment_histories || []).map((history) => ({ ...history, started_on: history.started_on?.slice(0, 7) || '', ended_on: history.ended_on?.slice(0, 7) || '' })), rfid_uid: employee.rfid_cards?.[0]?.rfid_uid || '', fingerprint_code: employee.fingerprint_templates?.[0]?.fingerprint_code || '', finger_label: employee.fingerprint_templates?.[0]?.finger_label || '', rfid_reregister: false, fingerprint_reregister: false,
     });
@@ -105,7 +107,13 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
     const startHardwareRegistration = async (method) => {
         if (isNew) return;
         const existingIdentifier = method === 'rfid' ? form.data.rfid_uid : form.data.fingerprint_code;
-        if (existingIdentifier && !window.confirm(`Replace this faculty member's existing ${method === 'rfid' ? 'RFID card' : 'fingerprint'}? The old credential remains active until the new registration succeeds.`)) return;
+        const credentialLabel = method === 'rfid' ? 'RFID card' : 'fingerprint';
+        if (existingIdentifier && !await ask({
+            title: `Replace ${credentialLabel}?`,
+            message: `Register a new ${credentialLabel} for this faculty member? The existing credential remains active until the replacement succeeds.`,
+            confirmLabel: 'Start Replacement',
+            tone: 'warning',
+        })) return;
         setEnrollmentError('');
         setEnrollment({ method, status: 'starting' });
         try {
@@ -126,13 +134,18 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
     };
     const unlinkCredential = async (method) => {
         const identifier = method === 'rfid' ? form.data.rfid_uid : form.data.fingerprint_code;
-        const confirmation = window.prompt(`Type UNLINK to remove this ${method === 'rfid' ? 'RFID card' : 'fingerprint'} from this faculty member.`);
-        if (confirmation !== 'UNLINK') return;
+        const credentialLabel = method === 'rfid' ? 'RFID card' : 'fingerprint';
+        if (!await ask({
+            title: `Unlink ${credentialLabel}?`,
+            message: `Permanently remove this ${credentialLabel} from the faculty member? It can no longer be used for attendance after unlinking.`,
+            confirmLabel: 'Unlink Credential',
+            tone: 'danger',
+        })) return;
 
         setEnrollmentError('');
         try {
             const { data } = await axios.post(`/employees/${employee.id}/credentials/${method}/unlink`, {
-                confirmation,
+                confirmation: 'UNLINK',
                 current_identifier: identifier,
             });
             setEnrollment(data);
@@ -224,5 +237,6 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
             </div>
             <div className="form-actions"><Link href="/employees">Cancel</Link><button type="submit" disabled={form.processing}>{form.processing ? 'Saving...' : isNew ? 'Create & Continue to Device Registration' : 'Save Faculty'}</button></div>
         </form>
+        {dialog}
     </AppLayout>;
 }

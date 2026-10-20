@@ -44,6 +44,7 @@ class CalendarController extends Controller
     public function store(Request $request)
     {
         $data = $this->validateEvent($request);
+        $data['is_paid'] = $data['type'] === 'regular_holiday' ? true : $data['is_paid'];
         $event = DB::transaction(function () use ($request, $data) {
             $event = CalendarEvent::create([
                 ...collect($data)->except('employee_ids')->all(),
@@ -62,6 +63,7 @@ class CalendarController extends Controller
     public function update(Request $request, CalendarEvent $calendarEvent)
     {
         $data = $this->validateEvent($request);
+        $data['is_paid'] = $data['type'] === 'regular_holiday' ? true : $data['is_paid'];
         DB::transaction(function () use ($request, $calendarEvent, $data) {
             $calendarEvent->update([
                 ...collect($data)->except('employee_ids')->all(),

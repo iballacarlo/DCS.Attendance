@@ -96,7 +96,7 @@ class SchoolCalendarDtrTest extends TestCase
         CalendarEvent::create([
             'title' => 'Regular Holiday', 'type' => 'regular_holiday',
             'start_date' => '2026-10-05', 'end_date' => '2026-10-05',
-            'is_paid' => true, 'scope_type' => 'campus',
+            'is_paid' => false, 'scope_type' => 'campus',
         ]);
 
         $this->withHeader('X-Hardware-Key', 'test-hardware-key')->postJson('/api/hardware/tap', [
@@ -107,6 +107,26 @@ class SchoolCalendarDtrTest extends TestCase
         $this->assertDatabaseCount('attendance_logs', 0);
         $this->assertDatabaseHas('hardware_attendance_events', ['event_id' => 'PAID-EVENT-1']);
         Carbon::setTestNow();
+    }
+
+    public function test_regular_holiday_credits_scheduled_hours_and_appears_in_dtr(): void
+    {
+        $employee = $this->employee('EMP-001', 'Ada');
+        FacultySchedule::create(['employee_id' => $employee->id, 'day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '17:00', 'break_minutes' => 60]);
+        CalendarEvent::create([
+            'title' => 'Founders Day', 'type' => 'regular_holiday',
+            'start_date' => '2026-10-05', 'end_date' => '2026-10-05',
+            'is_paid' => true, 'scope_type' => 'campus',
+        ]);
+
+        $dtr = app(DtrService::class)->build($employee, '2026-10-01', '2026-10-15');
+        $row = $dtr['rows']->firstWhere('date', '2026-10-05');
+
+        $this->assertSame('REGULAR HOLIDAY', $row['event']['label']);
+        $this->assertSame(8.0, $row['payable_hours']);
+        $this->assertSame(8.0, $row['margin_hours']);
+        $this->assertNull($row['time_in']);
+        $this->assertNull($row['time_out']);
     }
 
     public function test_faculty_dtr_forces_linked_employee_and_uses_historical_signatory(): void

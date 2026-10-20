@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
 import useRealtimeReload from '../../hooks/useRealtimeReload';
 import useConfirmDialog from '../../hooks/useConfirmDialog';
+import { documentFilename, openPdfPrintWindow, sendPdfToPrint } from '../../lib/documents';
 import { fullName } from '../../lib/format';
 
 const earningFields = [
@@ -47,14 +48,6 @@ function amount(value, zeroAsDash = true) {
     const number = Number(value || 0);
     if (zeroAsDash && number === 0) return '-';
     return number.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function filenamePart(value) {
-    return String(value || '')
-        .normalize('NFKD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-zA-Z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
 }
 
 function PayslipRow({ label, value, emphasis = false, subrow = false }) {
@@ -116,7 +109,7 @@ export default function PayrollShow({ record }) {
     };
 
     const printPayslip = async () => {
-        const printWindow = window.open('', '_blank');
+        const printWindow = openPdfPrintWindow();
         if (!printWindow) {
             await ask({ title: 'Print window blocked', message: 'Allow pop-ups for this site, then select Print again.', confirmLabel: 'Got It', cancelLabel: null });
             return;
@@ -124,11 +117,10 @@ export default function PayrollShow({ record }) {
         setPdfAction('print');
         try {
             const pdf = await createPayslipPdf();
-            pdf.autoPrint();
-            printWindow.location.href = pdf.output('bloburl');
+            sendPdfToPrint(pdf, printWindow);
         } catch (error) {
             printWindow.close();
-            throw error;
+            await ask({ title: 'Could not print payslip', message: 'The print document could not be prepared. Please try again.', confirmLabel: 'Close', cancelLabel: null, tone: 'danger' });
         } finally {
             setPdfAction(null);
         }
@@ -138,9 +130,7 @@ export default function PayrollShow({ record }) {
         setPdfAction('download');
         try {
             const pdf = await createPayslipPdf();
-            const facultyName = filenamePart(fullName(employee)) || 'faculty';
-            const periodStart = filenamePart(dateLabel(period?.start_date)) || 'period';
-            pdf.save(`payslip-${facultyName}-${periodStart}.pdf`);
+            pdf.save(documentFilename(fullName(employee), 'PAYSLIP', period?.start_date, period?.end_date));
         } finally {
             setPdfAction(null);
         }
