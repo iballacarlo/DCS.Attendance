@@ -1213,6 +1213,39 @@ button.schedule-slot.is-range-anchor:hover {
     grid-template-columns: minmax(180px, 1.2fr) minmax(220px, 1.2fr) auto;
 }
 
+.random-attendance-panel { align-items: start; }
+.test-attendance-intro { align-items: flex-start; display: flex; gap: 11px; }
+.test-attendance-intro h2 { margin: 0; }
+.test-attendance-icon { align-items: center; background: #e3f0e9; color: #176b46; display: flex; flex: 0 0 38px; height: 38px; justify-content: center; }
+.random-attendance-form { align-items: end; grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr); }
+.test-target-control { display: grid; gap: 6px; }
+.test-target-control > span { color: #35463e; font-size: 12px; font-weight: 700; }
+.test-target-segments { background: #edf2ef; display: grid; grid-template-columns: 1fr 1fr; padding: 3px; }
+.test-target-segments button { background: transparent !important; border: 0 !important; color: #52625b !important; min-height: 36px; padding: 7px 10px; }
+.test-target-segments button.active { background: #176b46 !important; color: #fff !important; }
+.test-faculty-picker { border: 1px solid #cbd8d0; display: grid; gap: 10px; grid-column: 1 / -1; padding: 12px; }
+.test-faculty-picker-heading { align-items: center; display: flex; justify-content: space-between; }
+.test-faculty-picker-heading strong { font-size: 12px; }
+.test-faculty-picker-heading span { color: #607168; font-size: 11px; font-weight: 700; }
+.test-faculty-search { position: relative; }
+.test-faculty-search svg { color: #718078; left: 10px; pointer-events: none; position: absolute; top: 50%; transform: translateY(-50%); }
+.test-faculty-search input { padding-left: 34px; width: 100%; }
+.test-faculty-options { display: grid; gap: 2px; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 190px; overflow-y: auto; padding-right: 4px; }
+.test-faculty-options label { align-items: center; border: 1px solid transparent; cursor: pointer; display: flex; gap: 9px; min-width: 0; padding: 7px 8px; }
+.test-faculty-options label:hover { background: #f3f7f5; border-color: #dce6e0; }
+.test-faculty-options input { flex: 0 0 auto; min-height: auto; width: auto; }
+.test-faculty-options span { display: grid; min-width: 0; }
+.test-faculty-options strong { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.test-faculty-options small { color: #718078; font-size: 9px; }
+.random-attendance-form > button[type='submit'] { grid-column: 1 / -1; justify-self: end; }
+
+html[data-theme='dark'] .test-attendance-icon { background: #29483a; color: #8bc5a8; }
+html[data-theme='dark'] .test-target-control > span { color: #d7e4dd; }
+html[data-theme='dark'] .test-target-segments { background: #203129; }
+html[data-theme='dark'] .test-target-segments button { color: #c9d9d0 !important; }
+html[data-theme='dark'] .test-faculty-picker { border-color: #3a4d43; }
+html[data-theme='dark'] .test-faculty-options label:hover { background: #203129; border-color: #3a4d43; }
+
 @media (max-width: 900px) {
     .test-attendance-panel,
     .test-attendance-form,
@@ -1220,6 +1253,9 @@ button.schedule-slot.is-range-anchor:hover {
     .add-rank-form {
         grid-template-columns: 1fr;
     }
+
+    .random-attendance-form > *,
+    .random-attendance-form > button[type='submit'] { grid-column: 1; width: 100%; }
 
     .schedule-heading {
         align-items: flex-start;
@@ -1239,6 +1275,10 @@ button.schedule-slot.is-range-anchor:hover {
         right: 14px;
         width: calc(100% - 28px);
     }
+}
+
+@media (max-width: 600px) {
+    .test-faculty-options { grid-template-columns: 1fr; }
 }
 
 .topbar-meta {
