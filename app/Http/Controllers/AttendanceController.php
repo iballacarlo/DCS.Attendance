@@ -152,6 +152,7 @@ class AttendanceController extends Controller
             'target_mode' => ['required', Rule::in(['all', 'selected'])],
             'employee_ids' => [Rule::requiredIf($request->input('target_mode') === 'selected'), 'array', 'min:1'],
             'employee_ids.*' => ['integer', 'distinct', 'exists:employees,id'],
+            'generation_mode' => ['required', Rule::in(['fill_missing', 'overwrite'])],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
         ]);
@@ -162,6 +163,11 @@ class AttendanceController extends Controller
         if ($start->diffInDays($end) > 31) {
             return back()->withErrors(['end_date' => 'Test attendance can cover up to 31 days at a time.']);
         }
+        $today = Carbon::today('Asia/Manila');
+        if ($start->greaterThan($today)) {
+            return back()->withErrors(['start_date' => 'Future attendance cannot be generated. Select a cutoff that has already started.']);
+        }
+        $effectiveEnd = $end->lessThan($today) ? $end->copy() : $today;
 
         $employees = Employee::with('schedules')
             ->where('status', 'active')
@@ -174,6 +180,7 @@ class AttendanceController extends Controller
         $created = 0;
         $overwritten = 0;
         $removed = 0;
+        $skipped = 0;
         $generated = [
             'clean' => 0,
             'late' => 0,
@@ -184,7 +191,7 @@ class AttendanceController extends Controller
         ];
 
         foreach ($employees as $employee) {
-            for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
+            for ($date = $start->copy(); $date->lte($effectiveEnd); $date->addDay()) {
                 $schedules = $employee->schedules
                     ->where('day_of_week', $date->dayOfWeek)
                     ->sortBy('start_time');
@@ -197,6 +204,15 @@ class AttendanceController extends Controller
                     continue;
                 }
                 if (LeaveService::approvedLeaveFor($employee, $date)) {
+                    continue;
+                }
+
+                $existingLog = AttendanceLog::where('employee_id', $employee->id)
+                    ->whereDate('attendance_date', $date->toDateString())
+                    ->first();
+                if ($data['generation_mode'] === 'fill_missing' && $existingLog) {
+                    $skipped++;
+
                     continue;
                 }
 
@@ -215,9 +231,10 @@ class AttendanceController extends Controller
                 // An absent day intentionally has no attendance record, which is
                 // how the DTR distinguishes absence from an incomplete tap.
                 if ($scenario === 'absent') {
-                    $removed += AttendanceLog::where('employee_id', $employee->id)
-                        ->whereDate('attendance_date', $date->toDateString())
-                        ->delete();
+                    if ($data['generation_mode'] === 'overwrite' && $existingLog) {
+                        $existingLog->delete();
+                        $removed++;
+                    }
                     $generated['absent']++;
 
                     continue;
@@ -269,7 +286,11 @@ class AttendanceController extends Controller
             ->map(fn ($count, $scenario) => str_replace('_', ' ', $scenario).": {$count}")
             ->implode(', ');
 
-        return redirect()->route('attendance.index')->with('success', "Generated random attendance for {$employees->count()} faculty ({$breakdown}). Created {$created}, overwritten {$overwritten}, and removed {$removed} existing log(s) for absent days.");
+        $modeSummary = $data['generation_mode'] === 'overwrite'
+            ? "Created {$created}, overwritten {$overwritten}, and removed {$removed} existing log(s) for absent days."
+            : "Created {$created} and preserved {$skipped} existing log(s).";
+
+        return redirect()->route('attendance.index')->with('success', "Generated random attendance through {$effectiveEnd->format('M j, Y')} for {$employees->count()} faculty ({$breakdown}). {$modeSummary}");
     }
 
     private function recordAttendance(Employee $employee, string $method): array

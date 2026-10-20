@@ -1223,6 +1223,15 @@ button.schedule-slot.is-range-anchor:hover {
 .test-target-segments { background: #edf2ef; display: grid; grid-template-columns: 1fr 1fr; padding: 3px; }
 .test-target-segments button { background: transparent !important; border: 0 !important; color: #52625b !important; min-height: 36px; padding: 7px 10px; }
 .test-target-segments button.active { background: #176b46 !important; color: #fff !important; }
+.test-generation-mode { display: grid; gap: 7px; grid-column: 1 / -1; }
+.test-generation-mode > span { color: #35463e; font-size: 12px; font-weight: 700; }
+.test-generation-mode > label { align-items: flex-start; border: 1px solid #d5e0da; cursor: pointer; display: flex; gap: 9px; padding: 10px 11px; }
+.test-generation-mode > label:has(input:checked) { background: #edf6f1; border-color: #78a98f; }
+.test-generation-mode > label.is-destructive:has(input:checked) { background: #fff3f1; border-color: #c97973; }
+.test-generation-mode input { flex: 0 0 auto; margin-top: 3px; min-height: auto; width: auto; }
+.test-generation-mode label > span { display: grid; gap: 2px; }
+.test-generation-mode strong { font-size: 12px; }
+.test-generation-mode small { color: #68776f; font-size: 10px; font-weight: 500; line-height: 1.4; }
 .test-faculty-picker { border: 1px solid #cbd8d0; display: grid; gap: 10px; grid-column: 1 / -1; padding: 12px; }
 .test-faculty-picker-heading { align-items: center; display: flex; justify-content: space-between; }
 .test-faculty-picker-heading strong { font-size: 12px; }
@@ -1243,6 +1252,11 @@ html[data-theme='dark'] .test-attendance-icon { background: #29483a; color: #8bc
 html[data-theme='dark'] .test-target-control > span { color: #d7e4dd; }
 html[data-theme='dark'] .test-target-segments { background: #203129; }
 html[data-theme='dark'] .test-target-segments button { color: #c9d9d0 !important; }
+html[data-theme='dark'] .test-generation-mode > span { color: #d7e4dd; }
+html[data-theme='dark'] .test-generation-mode > label { border-color: #3a4d43; }
+html[data-theme='dark'] .test-generation-mode > label:has(input:checked) { background: #203a2d; border-color: #527f68; }
+html[data-theme='dark'] .test-generation-mode > label.is-destructive:has(input:checked) { background: #402526; border-color: #8e5555; }
+html[data-theme='dark'] .test-generation-mode small { color: #aebfb6; }
 html[data-theme='dark'] .test-faculty-picker { border-color: #3a4d43; }
 html[data-theme='dark'] .test-faculty-options label:hover { background: #203129; border-color: #3a4d43; }
 
