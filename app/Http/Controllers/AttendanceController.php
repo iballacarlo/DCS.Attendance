@@ -272,6 +272,13 @@ class AttendanceController extends Controller
 
                 $log->setRelation('employee', $employee);
                 $this->recalculate($log);
+                $log->status = match ($scenario) {
+                    'clean' => 'present',
+                    'late', 'late_and_undertime' => 'late',
+                    'undertime' => 'undertime',
+                    default => 'incomplete',
+                };
+                $log->save();
                 if ($log->wasRecentlyCreated) {
                     $created++;
                 } else {
