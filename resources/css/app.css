@@ -5329,6 +5329,11 @@ html[data-theme='dark'] .main .table-actions > .link-danger {
 .mobile-date-label { display: none !important; }
 
 @media (max-width: 600px) {
+    .topbar .topbar-meta {
+        border-top: 0;
+        padding-top: 0;
+    }
+
     .topbar .date-chip {
         align-items: flex-start;
         display: inline-flex;
@@ -5724,6 +5729,14 @@ html[data-theme='dark'] .dashboard-academic-context > strong { color: #f1f6f3; }
 .calendar-event-form label,
 .calendar-signatory-form label,
 .dtr-export-toolbar label { display: grid; gap: 6px; }
+.calendar-event-form .check-label {
+    align-items: center;
+    display: inline-flex;
+    gap: 8px;
+    justify-self: start;
+    width: auto;
+}
+.calendar-event-form .check-label input { flex: 0 0 auto; margin: 0; }
 .calendar-event-form textarea { resize: vertical; }
 .calendar-faculty-select { min-height: 128px; }
 .calendar-event-list,
