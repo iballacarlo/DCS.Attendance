@@ -164,6 +164,14 @@ class AttendanceController extends Controller
         $employee = Employee::with('schedules')->where('status', 'active')->findOrFail($data['employee_id']);
         $created = 0;
         $skipped = 0;
+        $generated = [
+            'clean' => 0,
+            'late' => 0,
+            'undertime' => 0,
+            'late_and_undertime' => 0,
+            'incomplete' => 0,
+            'absent' => 0,
+        ];
 
         for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
             $schedules = $employee->schedules
@@ -181,29 +189,74 @@ class AttendanceController extends Controller
                 continue;
             }
 
-            $log = AttendanceLog::firstOrCreate(
-                ['employee_id' => $employee->id, 'attendance_date' => $date->toDateString()],
-                [
-                    'time_in' => $schedules->first()->start_time,
-                    'time_out' => $schedules->last()->end_time,
-                    'method_in' => 'manual',
-                    'method_out' => 'manual',
-                    'remarks' => 'Generated test attendance from assigned schedule.',
-                ]
-            );
-
-            if (! $log->wasRecentlyCreated) {
+            if (AttendanceLog::where('employee_id', $employee->id)
+                ->whereDate('attendance_date', $date->toDateString())->exists()) {
                 $skipped++;
 
                 continue;
             }
 
+            $scheduledIn = Carbon::parse($date->toDateString().' '.$schedules->first()->start_time, 'Asia/Manila');
+            $scheduledOut = Carbon::parse($date->toDateString().' '.$schedules->last()->end_time, 'Asia/Manila');
+            $roll = random_int(1, 100);
+            $scenario = match (true) {
+                $roll <= 40 => 'clean',
+                $roll <= 60 => 'late',
+                $roll <= 75 => 'undertime',
+                $roll <= 87 => 'late_and_undertime',
+                $roll <= 95 => 'incomplete',
+                default => 'absent',
+            };
+
+            // An absent day intentionally has no attendance record, which is
+            // how the DTR distinguishes absence from an incomplete tap.
+            if ($scenario === 'absent') {
+                $generated['absent']++;
+
+                continue;
+            }
+
+            $timeIn = $scheduledIn->copy()->subMinutes(random_int(0, 10));
+            $timeOut = $scheduledOut->copy()->addMinutes(random_int(0, 10));
+            if (in_array($scenario, ['late', 'late_and_undertime'], true)) {
+                $timeIn = $scheduledIn->copy()->addMinutes(random_int(1, 35));
+            }
+            if (in_array($scenario, ['undertime', 'late_and_undertime'], true)) {
+                $timeOut = $scheduledOut->copy()->subMinutes(random_int(1, 50));
+            }
+
+            $timeInValue = $timeIn->format('H:i:s');
+            $timeOutValue = $timeOut->format('H:i:s');
+            if ($scenario === 'incomplete') {
+                if (random_int(0, 1) === 0) {
+                    $timeOutValue = null;
+                } else {
+                    $timeInValue = null;
+                }
+            }
+
+            $log = AttendanceLog::create([
+                'employee_id' => $employee->id,
+                'attendance_date' => $date->toDateString(),
+                'time_in' => $timeInValue,
+                'time_out' => $timeOutValue,
+                'method_in' => $timeInValue ? 'manual' : null,
+                'method_out' => $timeOutValue ? 'manual' : null,
+                'remarks' => 'Random test attendance: '.str_replace('_', ' ', $scenario).'.',
+            ]);
+
             $log->setRelation('employee', $employee);
             $this->recalculate($log);
             $created++;
+            $generated[$scenario]++;
         }
 
-        return redirect()->route('attendance.index')->with('success', "Created {$created} scheduled test attendance log(s). Skipped {$skipped} existing log(s).");
+        $breakdown = collect($generated)
+            ->filter()
+            ->map(fn ($count, $scenario) => str_replace('_', ' ', $scenario).": {$count}")
+            ->implode(', ');
+
+        return redirect()->route('attendance.index')->with('success', "Generated {$created} random test log(s) ({$breakdown}). Skipped {$skipped} existing log(s).");
     }
 
     private function recordAttendance(Employee $employee, string $method): array
