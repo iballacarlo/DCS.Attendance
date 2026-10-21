@@ -26,7 +26,7 @@ export default function GeneralSettings({ academicTerm }) {
             {form.data.mode === 'manual' && <div className="academic-term-fields"><label>Semester<select value={form.data.semester} onChange={(event) => form.setData('semester', event.target.value)}><option>First Semester</option><option>Second Semester</option><option>Midyear Term</option></select></label><label>School Year<input placeholder="2026-2027" value={form.data.school_year} onChange={(event) => form.setData('school_year', event.target.value)} /></label></div>}
             {form.errors.school_year && <div className="form-note">{form.errors.school_year}</div>}
             <div className="academic-term-preview"><span>Displayed term</span><strong>{preview}</strong></div>
-            <button type="submit" disabled={form.processing}><Save size={17} />{form.processing ? 'Saving...' : 'Save Academic Term'}</button>
+            <button className="ui-control ui-action ui-primary" type="submit" disabled={form.processing}><Save size={17} />{form.processing ? 'Saving...' : 'Save Academic Term'}</button>
         </form>
     </AppLayout>;
 }

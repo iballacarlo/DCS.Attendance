@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\AttendanceLog;
 use App\Models\Employee;
 use App\Models\FacultyRank;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -81,7 +80,7 @@ class HardwareAttendanceTest extends TestCase
         ])->assertNotFound();
     }
 
-    public function test_hardware_records_an_unscheduled_tap_without_counting_payable_hours(): void
+    public function test_hardware_rejects_unscheduled_tap_without_counting_payable_hours(): void
     {
         config(['services.hardware.api_key' => 'device-secret']);
         Carbon::setTestNow(Carbon::parse('2026-09-20 08:00:00', 'Asia/Manila'));
@@ -106,12 +105,9 @@ class HardwareAttendanceTest extends TestCase
                 'method' => 'rfid',
             ])
             ->assertOk()
-            ->assertJsonPath('action', 'IN');
+            ->assertJsonPath('action', 'NO CLASS');
 
-        $log = AttendanceLog::whereBelongsTo($employee)->firstOrFail();
-        $this->assertSame(0.0, (float) $log->total_hours);
-        $this->assertStringContainsString('no payable hours counted', $log->remarks);
-
+        $this->assertDatabaseCount('attendance_logs', 0);
         Carbon::setTestNow();
     }
 
@@ -130,6 +126,7 @@ class HardwareAttendanceTest extends TestCase
             'rate_amount' => $rank->rate_amount,
             'status' => 'active',
         ]);
+        $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'break_minutes' => 0]);
         $employee->rfidCards()->create([
             'rfid_uid' => 'THREE-MINUTE-CARD',
             'status' => 'active',
@@ -163,6 +160,7 @@ class HardwareAttendanceTest extends TestCase
             'rate_amount' => $rank->rate_amount,
             'status' => 'active',
         ]);
+        $employee->schedules()->create(['day_of_week' => 2, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'break_minutes' => 0]);
         $employee->rfidCards()->create([
             'rfid_uid' => 'OFFLINE-CARD',
             'status' => 'active',

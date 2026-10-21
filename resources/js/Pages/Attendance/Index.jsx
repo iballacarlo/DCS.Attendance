@@ -1,157 +1,48 @@
 import { Link, useForm, usePage } from '@inertiajs/react';
-import { CalendarDays, CalendarRange, CheckCircle2, Clock3, FileDown, LogIn, LogOut, Radio, Search, TimerReset, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
 import Pagination from '../../components/Pagination';
+import DateInput from '../../components/DateInput';
 import useDebouncedFilters from '../../hooks/useDebouncedFilters';
 import useRealtimeReload from '../../hooks/useRealtimeReload';
-import { dateToday, fullName, time12 } from '../../lib/format';
+import { dateToday, formatDate, fullName, time12 } from '../../lib/format';
 
-function readableDate(value, options = {}) {
-    if (!value) return '-';
-    return new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString('en-PH', {
-        month: 'short', day: 'numeric', year: 'numeric', ...options,
-    });
-}
+const Errors = ({ errors }) => Object.entries(errors).map(([key, message]) => <p key={key} className="field-error" role="alert">{message}</p>);
 
-function methodLabel(value) {
-    if (!value) return '-';
-    return value === 'rfid' ? 'RFID' : value === 'fingerprint' ? 'Fingerprint' : 'Manual';
-}
-
-function statusLabel(log) {
-    if (log?.calendar_event) return `Paid day · ${log.calendar_event.label}`;
-    if (!log?.time_in) return 'Not timed in';
-    if (!log?.time_out) return 'Currently timed in';
-    return log.status === 'present' ? 'Complete' : log.status === 'late' ? 'Late' : log.status === 'undertime' ? 'Undertime' : 'Incomplete';
-}
-
-function statusClass(log) {
-    if (log?.calendar_event) return 'is-complete';
-    if (!log?.time_in) return 'is-pending';
-    if (!log?.time_out) return 'is-active';
-    return ['late', 'undertime', 'incomplete'].includes(log.status) ? 'is-warning' : 'is-complete';
-}
-
-function testCutoffOptions() {
-    const today = new Date(`${dateToday()}T00:00:00`);
-    const options = [];
-    for (let offset = 0; offset < 24; offset += 1) {
-        const month = new Date(today.getFullYear(), today.getMonth() - offset, 1);
-        const year = month.getFullYear();
-        const monthIndex = month.getMonth();
-        const monthNumber = String(monthIndex + 1).padStart(2, '0');
-        const monthName = month.toLocaleDateString('en-PH', { month: 'long' });
-        const lastDay = new Date(year, monthIndex + 1, 0).getDate();
-        options.push({ value: `${year}-${monthNumber}-16|${year}-${monthNumber}-${lastDay}`, label: `${monthName} 16-${lastDay}, ${year}` });
-        options.push({ value: `${year}-${monthNumber}-01|${year}-${monthNumber}-15`, label: `${monthName} 1-15, ${year}` });
-    }
-    return options;
-}
-
-function FacultyDtr({ dtr, logs }) {
-    const today = dtr?.today_log;
-    const summary = dtr?.summary || {};
-
-    return <div className="faculty-dtr">
-        <div className="dtr-page-actions"><Link className="button" href="/attendance/dtr"><FileDown size={17} />Preview / Download DTR</Link></div>
-        <section className="dtr-today" aria-label="Today attendance status">
-            <div className="dtr-today-heading">
-                <div><span>Today</span><h3>{readableDate(dtr?.date, { weekday: 'long' })}</h3></div>
-                <strong className={`dtr-state ${statusClass(today)}`}>{today?.time_out ? <CheckCircle2 size={17} /> : <Radio size={17} />}{statusLabel(today)}</strong>
-            </div>
-            <div className="dtr-time-grid">
-                <div><span className="dtr-time-icon is-in"><LogIn size={20} /></span><p>Time In</p><strong>{time12(today?.time_in)}</strong><small>{methodLabel(today?.method_in)}</small></div>
-                <div><span className="dtr-time-icon is-out"><LogOut size={20} /></span><p>Time Out</p><strong>{time12(today?.time_out)}</strong><small>{methodLabel(today?.method_out)}</small></div>
-                <div><span className="dtr-time-icon is-hours"><Clock3 size={20} /></span><p>Payable Hours</p><strong>{Number(today?.total_hours || 0).toFixed(2)}</strong><small>Computed from schedule</small></div>
-                <div><span className="dtr-time-icon is-variance"><TimerReset size={20} /></span><p>Late / Undertime</p><strong>{today?.late_minutes || 0} / {today?.undertime_minutes || 0}</strong><small>Minutes</small></div>
-            </div>
-            <div className="dtr-schedule-strip">
-                <span><CalendarDays size={16} />Today's assigned schedule</span>
-                <div>{dtr?.today_schedules?.length ? dtr.today_schedules.map((schedule) => <strong key={schedule.id}>{time12(schedule.start_time)} - {time12(schedule.end_time)}<small>{schedule.type}</small></strong>) : <em>No assigned schedule today</em>}</div>
-            </div>
-        </section>
-
-        <section className="dtr-cutoff-section">
-            <div className="dtr-section-heading"><div><span>Current cutoff</span><h3>{readableDate(dtr?.cutoff?.start_date)} - {readableDate(dtr?.cutoff?.end_date)}</h3></div><CalendarRange size={23} /></div>
-            <div className="dtr-summary-grid">
-                <div><span>Payable hours</span><strong>{Number(summary.total_hours || 0).toFixed(2)}</strong></div>
-                <div><span>Days present</span><strong>{summary.days_present || 0}<small> / {summary.scheduled_days || 0}</small></strong></div>
-                <div><span>Absent days</span><strong>{summary.absent_days || 0}</strong></div>
-                <div><span>Late minutes</span><strong>{summary.late_minutes || 0}</strong></div>
-                <div><span>Undertime minutes</span><strong>{summary.undertime_minutes || 0}</strong></div>
-            </div>
-        </section>
-
-        <section className="dtr-history">
-            <div className="dtr-section-heading"><div><span>Attendance history</span><h3>My Daily Time Record</h3></div><small>Newest records appear first</small></div>
-            <div className="table-wrap"><table className="dtr-table"><thead><tr><th>Date</th><th>Time In</th><th>Time Out</th><th>Method</th><th>Hours</th><th>Late</th><th>Undertime</th><th>Status</th></tr></thead><tbody>{logs.data.length ? logs.data.map((log) => <tr key={log.id}><td><strong>{readableDate(log.attendance_date, { weekday: 'short' })}</strong></td><td>{time12(log.time_in)}</td><td>{time12(log.time_out)}</td><td>{methodLabel(log.method_in)} / {methodLabel(log.method_out)}</td><td>{Number(log.total_hours || 0).toFixed(2)}</td><td>{log.late_minutes} min</td><td>{log.undertime_minutes} min</td><td><span className={`dtr-table-status ${statusClass(log)}`}>{statusLabel(log)}</span></td></tr>) : <tr><td colSpan="8" className="empty-row">No attendance records yet.</td></tr>}</tbody></table></div>
-            <Pagination links={logs.links} />
-        </section>
-    </div>;
-}
-
-function StaffAttendance({ employees, logs, filters, canManage }) {
-    const firstEmployee = employees[0]?.id || '';
-    const cutoffOptions = testCutoffOptions();
-    const today = dateToday();
-    const currentCutoff = cutoffOptions.find((option) => {
-        const [start, end] = option.value.split('|');
-        return today >= start && today <= end;
-    }) || cutoffOptions[0];
-    const [defaultStart, defaultEnd] = currentCutoff.value.split('|');
-    const tap = useForm({ identifier: '', method: 'rfid' });
-    const manual = useForm({ employee_id: firstEmployee, attendance_date: dateToday(), time_in: '', time_out: '', remarks: '' });
-    const testLogs = useForm({ target_mode: 'selected', employee_ids: firstEmployee ? [String(firstEmployee)] : [], generation_mode: 'overwrite', start_date: defaultStart, end_date: defaultEnd });
-    const [facultyPickerSearch, setFacultyPickerSearch] = useState('');
-    const [listFilters, setListFilters] = useState({
-        search: filters.search || '',
-        date_from: filters.date_from || '',
-        date_to: filters.date_to || '',
-        status: filters.status || '',
-        method: filters.method || '',
-    });
-    useDebouncedFilters('/attendance', listFilters);
-    const changeFilter = (key, value) => setListFilters((current) => {
-        const next = { ...current, [key]: value };
-        if (key === 'date_from' && next.date_to && value > next.date_to) next.date_to = '';
-        return next;
-    });
-    const hasFilters = Object.values(listFilters).some(Boolean);
-    const visibleFaculty = employees.filter((employee) => `${fullName(employee)} ${employee.employee_no}`.toLowerCase().includes(facultyPickerSearch.toLowerCase()));
-    const toggleTestFaculty = (employeeId) => {
-        const id = String(employeeId);
-        testLogs.setData('employee_ids', testLogs.data.employee_ids.includes(id)
-            ? testLogs.data.employee_ids.filter((value) => value !== id)
-            : [...testLogs.data.employee_ids, id]);
-    };
-
-    return <>
-        <div className="dtr-page-actions"><Link className="button" href="/attendance/dtr"><FileDown size={17} />Generate Faculty DTR</Link></div>
-        {canManage && <section className="content-grid">
-            <form className="panel compact-form" onSubmit={(e) => { e.preventDefault(); tap.post('/attendance/tap'); }}><h2>RFID / Fingerprint Tap</h2><label>Identifier<input placeholder="Scan RFID UID or fingerprint code" value={tap.data.identifier} onChange={(e) => tap.setData('identifier', e.target.value)} required autoFocus /></label><label>Method<select value={tap.data.method} onChange={(e) => tap.setData('method', e.target.value)}><option value="rfid">RFID</option><option value="fingerprint">Fingerprint</option></select></label><button type="submit" disabled={tap.processing}>Record Tap</button></form>
-            <form className="panel compact-form" onSubmit={(e) => { e.preventDefault(); manual.post('/attendance/manual'); }}><h2>Manual Attendance</h2><label>Faculty<select value={manual.data.employee_id} onChange={(e) => manual.setData('employee_id', e.target.value)} required>{employees.map((employee) => <option key={employee.id} value={employee.id}>{fullName(employee)}</option>)}</select></label><label>Date<input type="date" value={manual.data.attendance_date} onChange={(e) => manual.setData('attendance_date', e.target.value)} required /></label><label>Time In<input type="time" value={manual.data.time_in} onChange={(e) => manual.setData('time_in', e.target.value)} /></label><label>Time Out<input type="time" value={manual.data.time_out} onChange={(e) => manual.setData('time_out', e.target.value)} /></label><label>Remarks<input value={manual.data.remarks} onChange={(e) => manual.setData('remarks', e.target.value)} /></label><button type="submit" disabled={manual.processing}>Save Manual Log</button></form>
-        </section>}
-        {canManage && <section className="panel test-attendance-panel random-attendance-panel">
-            <div className="test-attendance-intro"><span className="test-attendance-icon"><Users size={20} /></span><div><h2>Generate Random Test Attendance</h2><p>Creates different outcomes only through today's date. Choose whether to preserve existing logs or intentionally replace them; holidays, calendar events, and approved leave remain protected.</p></div></div>
-            <form className="test-attendance-form random-attendance-form" onSubmit={(e) => { e.preventDefault(); testLogs.post('/attendance/generate-test'); }}>
-                <div className="test-target-control"><span>Generate for</span><div className="test-target-segments"><button type="button" className={testLogs.data.target_mode === 'all' ? 'active' : ''} onClick={() => testLogs.setData('target_mode', 'all')}>All faculty</button><button type="button" className={testLogs.data.target_mode === 'selected' ? 'active' : ''} onClick={() => testLogs.setData('target_mode', 'selected')}>Selected faculty</button></div></div>
-                <label>Cutoff Period<select value={`${testLogs.data.start_date}|${testLogs.data.end_date}`} onChange={(e) => { const [start_date, end_date] = e.target.value.split('|'); testLogs.setData({ ...testLogs.data, start_date, end_date }); }}>{cutoffOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label>
-                <div className="test-generation-mode"><span>Existing logs</span><label><input type="radio" name="generation_mode" value="fill_missing" checked={testLogs.data.generation_mode === 'fill_missing'} onChange={(event) => testLogs.setData('generation_mode', event.target.value)} /><span><strong>Fill missing only</strong><small>Keep all existing RFID, fingerprint, and test logs.</small></span></label><label className="is-destructive"><input type="radio" name="generation_mode" value="overwrite" checked={testLogs.data.generation_mode === 'overwrite'} onChange={(event) => testLogs.setData('generation_mode', event.target.value)} /><span><strong>Regenerate and overwrite</strong><small>Delete existing logs through today, then create new RFID/fingerprint test results on scheduled dates.</small></span></label></div>
-                {testLogs.data.target_mode === 'selected' && <div className="test-faculty-picker"><div className="test-faculty-picker-heading"><strong>Select faculty</strong><span>{testLogs.data.employee_ids.length} selected</span></div><span className="test-faculty-search"><Search size={15} /><input type="search" value={facultyPickerSearch} onChange={(event) => setFacultyPickerSearch(event.target.value)} placeholder="Search name or employee number" /></span><div className="test-faculty-options">{visibleFaculty.map((employee) => <label key={employee.id}><input type="checkbox" checked={testLogs.data.employee_ids.includes(String(employee.id))} onChange={() => toggleTestFaculty(employee.id)} /><span><strong>{fullName(employee)}</strong><small>{employee.employee_no}</small></span></label>)}</div>{testLogs.errors.employee_ids && <small className="field-error">{testLogs.errors.employee_ids}</small>}</div>}
-                <button type="submit" disabled={testLogs.processing || (testLogs.data.target_mode === 'selected' && testLogs.data.employee_ids.length === 0)}>{testLogs.processing ? 'Generating...' : `Generate for ${testLogs.data.target_mode === 'all' ? 'All Faculty' : `${testLogs.data.employee_ids.length} Selected`}`}</button>
-            </form>
-        </section>}
-        <div className="panel"><div className="panel-heading"><h2>Attendance Logs</h2></div><div className="list-filters attendance-log-filters"><label className="filter-search">Search Faculty<span className="search-control"><Search size={16} /><input placeholder="Name, employee number, or email" value={listFilters.search} onChange={(event) => changeFilter('search', event.target.value)} /></span></label><label>From<input type="date" value={listFilters.date_from} onChange={(event) => changeFilter('date_from', event.target.value)} /></label><label>To<input type="date" min={listFilters.date_from || undefined} value={listFilters.date_to} onChange={(event) => changeFilter('date_to', event.target.value)} /></label><label>Status<select value={listFilters.status} onChange={(event) => changeFilter('status', event.target.value)}><option value="">All statuses</option><option value="present">Present</option><option value="late">Late</option><option value="undertime">Undertime</option><option value="incomplete">Incomplete</option><option value="absent">Absent</option></select></label><label>Method<select value={listFilters.method} onChange={(event) => changeFilter('method', event.target.value)}><option value="">All methods</option><option value="rfid">RFID</option><option value="fingerprint">Fingerprint</option><option value="manual">Manual</option></select></label>{hasFilters && <button className="clear-filters" type="button" onClick={() => setListFilters({ search: '', date_from: '', date_to: '', status: '', method: '' })}><X size={15} />Clear</button>}</div><div className="table-wrap"><table><thead><tr><th>Faculty</th><th>Date</th><th>Time In</th><th>Time Out</th><th>Method</th><th>Hours</th><th>Late</th><th>Undertime</th><th>Status</th></tr></thead><tbody>{logs.data.length ? logs.data.map((log) => <tr key={log.id}><td>{fullName(log.employee)}</td><td>{log.attendance_date}</td><td>{time12(log.time_in)}</td><td>{time12(log.time_out)}</td><td>{methodLabel(log.method_in)} / {methodLabel(log.method_out)}</td><td>{log.total_hours}</td><td>{log.late_minutes} min</td><td>{log.undertime_minutes} min</td><td><span className="badge">{log.status}</span></td></tr>) : <tr><td colSpan="9">No attendance logs match the selected filters.</td></tr>}</tbody></table></div><Pagination links={logs.links} /></div>
-    </>;
-}
-
-export default function AttendanceIndex({ employees, logs, dtr, filters = {} }) {
+export default function AttendanceIndex({ employees, logs, dtr, filters, cutoffOptions }) {
     const { auth } = usePage().props;
-    const isFaculty = auth.user.role === 'faculty';
+    const faculty = auth.user.role === 'faculty';
     const canManage = auth.user.role === 'payroll_staff';
-    useRealtimeReload(isFaculty ? ['logs', 'dtr'] : ['logs'], 5000);
-    return <AppLayout title="Attendance" subtitle={isFaculty ? 'Review your time records and current cutoff totals.' : canManage ? 'Review and manage faculty attendance records.' : 'Review faculty attendance records.'}>
-        {isFaculty ? <FacultyDtr dtr={dtr} logs={logs} /> : <StaffAttendance employees={employees} logs={logs} filters={filters} canManage={canManage} />}
+    const [listFilters, setListFilters] = useState(filters);
+    useDebouncedFilters('/attendance', listFilters);
+    useRealtimeReload(faculty ? ['logs', 'dtr'] : ['logs'], 5000);
+    const change = (key, value) => setListFilters((f) => ({ ...f, [key]: value }));
+    const tap = useForm({ identifier: '', method: 'rfid' });
+    const manual = useForm({ employee_id: employees[0]?.id || '', faculty_schedule_id: '', attendance_date: dateToday(), time_in: '', time_out: '', remarks: '' });
+    const day = new Date(`${manual.data.attendance_date}T12:00:00`).getDay();
+    const selected = employees.find((e) => String(e.id) === String(manual.data.employee_id));
+    const available = (selected?.schedules || []).filter((s) => s.schedule_type === 'class' && Number(s.day_of_week) === day);
+    const editing = logs.data.find((log) => String(log.employee_id) === String(manual.data.employee_id) && log.attendance_date === manual.data.attendance_date && String(log.faculty_schedule_id) === String(manual.data.faculty_schedule_id));
+    const manualOptions = [...available];
+    if (editing && !manualOptions.some((s) => s.id === editing.faculty_schedule_id)) manualOptions.push({ id: editing.faculty_schedule_id, subject: editing.subject, section: editing.section, start_time: editing.scheduled_start, end_time: editing.scheduled_end });
+    const cutoffEnd = dtr?.cutoff.end_date || (() => { const d = new Date(`${filters.cutoff_start}T12:00:00`); return filters.cutoff_start.slice(0, 8) + (d.getDate() === 1 ? '15' : String(new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); })();
+    const test = useForm({ target_mode: 'selected', employee_ids: employees[0] ? [String(employees[0].id)] : [], generation_mode: 'fill_missing', start_date: filters.cutoff_start, end_date: cutoffEnd });
+    const summary = dtr?.summary;
+    return <AppLayout title="Attendance" subtitle="Class attendance and actual worked hours per cutoff.">
+        <div className="dtr-page-actions"><Link className="button ui-control ui-action ui-primary" href={`/attendance/dtr?start_date=${listFilters.cutoff_start}`}>Preview / Download DTR</Link>{faculty && <Link className="button ui-control ui-action ui-primary" href="/my-schedule">My Schedule</Link>}</div>
+        <div className="panel list-filters attendance-log-filters">
+            <label>Cutoff<select value={listFilters.cutoff_start} onChange={(e) => change('cutoff_start', e.target.value)}>{cutoffOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
+            {!faculty && <label>Search Faculty<input value={listFilters.search} onChange={(e) => change('search', e.target.value)} placeholder="Name, employee number, email" /></label>}
+            <label>Status<select value={listFilters.status} onChange={(e) => change('status', e.target.value)}><option value="">All statuses</option><option value="present">Complete</option><option value="incomplete">Incomplete</option></select></label>
+            <label>Method<select value={listFilters.method} onChange={(e) => change('method', e.target.value)}><option value="">All methods</option><option value="rfid">RFID</option><option value="fingerprint">Fingerprint</option><option value="manual">Manual</option></select></label>
+            <button className="ui-control ui-action ui-secondary" type="button" onClick={() => setListFilters({ ...listFilters, search: '', status: '', method: '' })}>Clear Filters</button>
+        </div>
+        {summary && <section className="panel"><h2>{formatDate(dtr.cutoff.start_date)} – {formatDate(dtr.cutoff.end_date)}</h2><div className="dtr-summary-grid"><div><span>Worked hours</span><strong>{Number(summary.total_hours).toFixed(2)}</strong></div><div><span>Days present</span><strong>{summary.days_present}</strong></div><div><span>Absent days</span><strong>{summary.absent_days}</strong></div></div><p>Only completed class taps count toward pay. Consultation, breaks, and calendar/leave entries do not add paid hours.</p></section>}
+        {canManage && <section className="content-grid">
+            <form className="panel compact-form" onSubmit={(e) => { e.preventDefault(); tap.post('/attendance/tap'); }}><h2>RFID / Fingerprint Tap</h2><label>Identifier<input value={tap.data.identifier} onChange={(e) => tap.setData('identifier', e.target.value)} required /></label><label>Method<select value={tap.data.method} onChange={(e) => tap.setData('method', e.target.value)}><option value="rfid">RFID</option><option value="fingerprint">Fingerprint</option></select></label><Errors errors={tap.errors} /><button className="ui-control ui-action ui-primary" disabled={tap.processing}>Record Tap</button></form>
+            <form className="panel compact-form" onSubmit={(e) => { e.preventDefault(); manual.post('/attendance/manual'); }}><h2>Manual Class Attendance</h2><label>Faculty<select value={manual.data.employee_id} onChange={(e) => manual.setData({ ...manual.data, employee_id: e.target.value, faculty_schedule_id: '' })}>{employees.map((employee) => <option key={employee.id} value={employee.id}>{fullName(employee)}</option>)}</select></label><label>Date<DateInput value={manual.data.attendance_date} onChange={(e) => manual.setData({ ...manual.data, attendance_date: e.target.value, faculty_schedule_id: '' })} required /></label><label>Class<select value={manual.data.faculty_schedule_id} onChange={(e) => manual.setData('faculty_schedule_id', e.target.value)} required><option value="">Select class</option>{manualOptions.map((s) => <option key={s.id} value={s.id}>{s.subject || 'Not specified'} · {s.section || 'Not specified'} · {time12(s.start_time)}–{time12(s.end_time)}</option>)}</select></label><label>Time In<input type="time" value={manual.data.time_in} onChange={(e) => manual.setData('time_in', e.target.value)} /></label><label>Time Out<input type="time" value={manual.data.time_out} onChange={(e) => manual.setData('time_out', e.target.value)} /></label><label>Remarks<input value={manual.data.remarks} onChange={(e) => manual.setData('remarks', e.target.value)} /></label><Errors errors={manual.errors} /><button className="ui-control ui-action ui-primary" disabled={manual.processing}>Save Class Attendance</button></form>
+        </section>}
+        {canManage && <form className="panel compact-form" onSubmit={(e) => { e.preventDefault(); test.post('/attendance/generate-test'); }}><h2>Generate Test Class Attendance</h2><label>Cutoff<select value={test.data.start_date} onChange={(e) => { const date = new Date(`${e.target.value}T12:00:00`); const end = e.target.value.slice(0, 8) + (date.getDate() === 1 ? '15' : new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()); test.setData({ ...test.data, start_date: e.target.value, end_date: end }); }}>{cutoffOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label><label>Generate for<select value={test.data.target_mode} onChange={(e) => test.setData('target_mode', e.target.value)}><option value="selected">Selected faculty</option><option value="all">All faculty</option></select></label>{test.data.target_mode === 'selected' && <label>Faculty<select multiple value={test.data.employee_ids} onChange={(e) => test.setData('employee_ids', Array.from(e.target.selectedOptions, (o) => o.value))}>{employees.map((employee) => <option key={employee.id} value={employee.id}>{fullName(employee)}</option>)}</select></label>}<label>Existing sessions<select value={test.data.generation_mode} onChange={(e) => test.setData('generation_mode', e.target.value)}><option value="fill_missing">Keep existing; fill missing</option><option value="overwrite">Overwrite existing test range</option></select></label><Errors errors={test.errors} /><button className="ui-control ui-action ui-primary" disabled={test.processing}>Generate Test Sessions</button></form>}
+        <section className="panel"><h2>{faculty ? 'My Class Attendance' : 'Class Attendance Logs'}</h2><div className="table-wrap"><table><thead><tr>{!faculty && <th>Faculty</th>}<th>Date</th><th>Subject</th><th>Section</th><th>Schedule</th><th>Time In</th><th>Time Out</th><th>Method</th><th>Hours</th><th>Status</th>{canManage && <th>Action</th>}</tr></thead><tbody>{logs.data.length ? logs.data.map((log) => <tr key={log.id}>{!faculty && <td>{fullName(log.employee)}</td>}<td>{formatDate(log.attendance_date)}</td><td>{log.subject || 'Not specified'}{log.class_mode && <small>{log.class_mode === 'lecture' ? 'Lecture' : 'Laboratory'}</small>}{log.legacy_source_id && <small>Reconstructed from legacy daily attendance</small>}</td><td>{log.section || 'Not specified'}</td><td>{time12(log.scheduled_start)}–{time12(log.scheduled_end)}</td><td>{time12(log.time_in)}</td><td>{time12(log.time_out)}</td><td>{log.method_in || '-'} / {log.method_out || '-'}</td><td>{Number(log.total_hours).toFixed(2)}</td><td>{log.status === 'present' ? 'Complete' : 'Incomplete'}</td>{canManage && <td><button className="ui-control ui-action ui-secondary" type="button" onClick={() => { manual.setData({ employee_id: log.employee_id, faculty_schedule_id: log.faculty_schedule_id, attendance_date: log.attendance_date, time_in: log.time_in?.slice(0, 5) || '', time_out: log.time_out?.slice(0, 5) || '', remarks: log.remarks || '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Edit</button></td>}</tr>) : <tr><td colSpan={12} className="empty-row">No class attendance matches these filters.</td></tr>}</tbody></table></div><Pagination links={logs.links} /></section>
     </AppLayout>;
 }

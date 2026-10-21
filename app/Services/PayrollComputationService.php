@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Employee;
+use App\Models\PayrollRecord;
 
 class PayrollComputationService
 {
@@ -12,19 +13,7 @@ class PayrollComputationService
         $hoursWorked = (float) $dtr['summary']['total_hours'];
         $rateAmount = (float) $employee->rate_amount;
 
-        if ($employee->rate_type === 'hourly') {
-            $grossPay = round($hoursWorked * $rateAmount, 2);
-        } else {
-            $grossPay = round($dtr['rows']->sum(function ($row) use ($rateAmount) {
-                if (! $row['has_schedule'] || $row['payable_hours'] <= 0) {
-                    return 0;
-                }
-
-                $scheduledHours = $row['scheduled_hours'];
-
-                return $scheduledHours > 0 ? ($row['payable_hours'] / $scheduledHours) * $rateAmount : 0;
-            }), 2);
-        }
+        $grossPay = round(($dtr['summary']['worked_seconds'] / 3600) * $rateAmount, 2);
 
         return [
             'total_days_worked' => $dtr['summary']['paid_days'],
@@ -33,5 +22,15 @@ class PayrollComputationService
             'absent_days' => $dtr['summary']['absent_days'],
             'gross_pay' => $grossPay,
         ];
+    }
+
+    public function updateDraft(PayrollRecord $record, array $computed): void
+    {
+        $earnings = $computed['gross_pay'] + (float) $record->overtime_pay + (float) $record->other_earnings + (float) $record->increase_amount;
+        $record->fill($computed);
+        $record->total_earnings = round($earnings, 2);
+        $record->net_pay = max(0, round($earnings - (float) $record->total_deductions, 2));
+        $record->status = 'draft';
+        $record->save();
     }
 }

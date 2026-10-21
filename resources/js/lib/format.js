@@ -17,7 +17,14 @@ export const time12 = (value) => {
     return `${String(hour).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${suffix}`;
 };
 
-export const dateToday = () => new Date().toISOString().slice(0, 10);
+export const dateToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+
+export const formatDate = (value) => {
+    if (!value) return '-';
+    const iso = value instanceof Date ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(value) : String(value).slice(0, 10);
+    const [year, month, day] = iso.split('-');
+    return `${month}/${day}/${year}`;
+};
 
 export const roleLabel = (role) => ({
     admin: 'Administrator',
@@ -25,9 +32,7 @@ export const roleLabel = (role) => ({
     faculty: 'Faculty',
 }[role] || role);
 
-export const dateLabel = (date = new Date()) => new Intl.DateTimeFormat('en-PH', {
-    weekday: 'long', month: 'short', day: 'numeric', year: 'numeric',
-}).format(date);
+export const dateLabel = (date = new Date()) => formatDate(date);
 
 export const clockLabel = (date = new Date()) => new Intl.DateTimeFormat('en-PH', {
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,

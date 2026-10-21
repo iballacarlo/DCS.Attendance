@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 
 class Employee extends Model
 {
@@ -34,6 +36,22 @@ class Employee extends Model
         'contract_end',
         'status',
     ];
+
+    protected function casts(): array
+    {
+        return ['archived_at' => 'datetime'];
+    }
+
+    protected static function booted(): void
+    {
+        static::addGlobalScope('not_archived', function (Builder $query) {
+            // Earlier historical migrations run before the archive column exists.
+            if (app()->runningInConsole() && ! Schema::hasColumn('employees', 'archived_at')) {
+                return;
+            }
+            $query->whereNull($query->getModel()->qualifyColumn('archived_at'));
+        });
+    }
 
     public function rfidCards()
     {

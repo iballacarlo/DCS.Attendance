@@ -1,3 +1,4 @@
+import DateInput from '../../components/DateInput';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
 import { BadgeCheck, Calculator, Search, Send, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -6,7 +7,7 @@ import Pagination from '../../components/Pagination';
 import useDebouncedFilters from '../../hooks/useDebouncedFilters';
 import useConfirmDialog from '../../hooks/useConfirmDialog';
 import useRealtimeReload from '../../hooks/useRealtimeReload';
-import { dateToday, fullName, money } from '../../lib/format';
+import { formatDate, dateToday, fullName, money } from '../../lib/format';
 
 function payrollCutoffOptions() {
     const today = new Date(`${dateToday()}T00:00:00`);
@@ -22,12 +23,12 @@ function payrollCutoffOptions() {
         const first = {
             start: `${year}-${monthNumber}-01`,
             end: `${year}-${monthNumber}-15`,
-            label: `${monthName} 1-15, ${year}`,
+            label: `${monthNumber}/01/${year} - ${monthNumber}/15/${year}`,
         };
         const second = {
             start: `${year}-${monthNumber}-16`,
             end: `${year}-${monthNumber}-${lastDay}`,
-            label: `${monthName} 16-${lastDay}, ${year}`,
+            label: `${monthNumber}/16/${year} - ${monthNumber}/${lastDay}/${year}`,
         };
 
         options.push(today.getDate() <= 15 ? first : second);
@@ -67,7 +68,7 @@ function PeriodRow({ period, ask, canManage }) {
     const generate = async () => {
         if (await ask({
             title: 'Generate payroll?',
-            message: `Generate or recalculate draft payroll records for ${period.period_name}?`,
+            message: `Generate or recalculate draft payroll records for ${formatDate(period.start_date)} – ${formatDate(period.end_date)}?`,
             confirmLabel: 'Generate Payroll',
             tone: 'warning',
         })) {
@@ -77,12 +78,12 @@ function PeriodRow({ period, ask, canManage }) {
 
     return (
         <tr>
-            <td>{period.period_name}</td>
-            <td>{period.start_date} to {period.end_date}</td>
-            <td>{period.pay_date || '-'}</td>
+            <td>{formatDate(period.start_date)} – {formatDate(period.end_date)}</td>
+            <td>{formatDate(period.start_date)} to {formatDate(period.end_date)}</td>
+            <td>{formatDate(period.pay_date)}</td>
             <td>{period.records_count}</td>
-            <td><span className="badge">{period.status}</span></td>
-            {canManage && <td className="actions"><div className="table-actions"><button className="primary-table-action generate-payroll-button" type="button" onClick={generate}><Calculator size={16} />Generate Payroll</button></div></td>}
+            <td><span data-status={period.status} className="badge">{period.status}</span></td>
+            {canManage && <td className="actions"><div className="table-actions"><button className="primary-table-action generate-payroll-button ui-control ui-action ui-primary" type="button" onClick={generate}><Calculator size={16} />Generate Payroll</button></div></td>}
         </tr>
     );
 }
@@ -163,7 +164,7 @@ export default function PayrollIndex({ periods, records, filters = {} }) {
         const verb = action === 'approve' ? 'Approve' : 'Release';
         const confirmed = await ask({
             title: `${verb} selected payslips?`,
-            message: `${verb} ${eligibleCount} selected payslip${eligibleCount === 1 ? '' : 's'} for ${periods.find((period) => String(period.id) === String(activePeriodId))?.period_name || 'this payroll period'}? Records with a different status will be skipped.`,
+            message: `${verb} ${eligibleCount} selected payslip${eligibleCount === 1 ? '' : 's'} for ${(() => { const period = periods.find((period) => String(period.id) === String(activePeriodId)); return period ? `${formatDate(period.start_date)} - ${formatDate(period.end_date)}` : 'this payroll period'; })()}? Records with a different status will be skipped.`,
             confirmLabel: `${verb} Selected`,
             tone: action === 'release' ? 'warning' : 'default',
         });
@@ -188,12 +189,12 @@ export default function PayrollIndex({ periods, records, filters = {} }) {
                         </label>
                         <label>
                             Pay Date
-                            <input type="date" value={payDate} readOnly />
+                            <DateInput value={payDate} readOnly />
                         </label>
                         {(form.errors.period_name || form.errors.start_date || form.errors.end_date) && (
                             <div className="form-note">{form.errors.period_name || form.errors.start_date || form.errors.end_date}</div>
                         )}
-                        <button type="submit" disabled={form.processing}>Create Period</button>
+                        <button className="ui-control ui-action ui-primary" type="submit" disabled={form.processing}>Create Period</button>
                     </form>}
 
                     <div className="panel">
@@ -225,10 +226,10 @@ export default function PayrollIndex({ periods, records, filters = {} }) {
 
             <div className="panel">
                 <div className="panel-heading"><h2>{isFaculty ? 'My Payroll Records' : 'Payroll Records'}</h2></div>
-                {canReview && <div className="list-filters payroll-record-filters"><label className="filter-search">Search Payroll<span className="search-control"><Search size={16} /><input placeholder="Faculty, employee number, or period" value={listFilters.search} onChange={(event) => changeListFilter('search', event.target.value)} /></span></label><label>Payroll Period<select value={listFilters.period} onChange={(event) => changeListFilter('period', event.target.value)}><option value="">All periods</option>{periods.map((period) => <option key={period.id} value={period.id}>{period.period_name}</option>)}</select></label><label>Status<select value={listFilters.status} onChange={(event) => changeListFilter('status', event.target.value)}><option value="">All statuses</option><option value="draft">Draft</option><option value="approved">Approved</option><option value="released">Released</option></select></label>{Object.values(listFilters).some(Boolean) && <button className="clear-filters" type="button" onClick={() => { setSelectedRecordIds([]); setListFilters({ search: '', period: '', status: '' }); }}><X size={15} />Clear</button>}</div>}
+                {canReview && <div className="list-filters payroll-record-filters"><label className="filter-search">Search Payroll<span className="search-control"><Search size={16} /><input placeholder="Faculty, employee number, or period" value={listFilters.search} onChange={(event) => changeListFilter('search', event.target.value)} /></span></label><label>Payroll Period<select value={listFilters.period} onChange={(event) => changeListFilter('period', event.target.value)}><option value="">All periods</option>{periods.map((period) => <option key={period.id} value={period.id}>{formatDate(period.start_date)} – {formatDate(period.end_date)}</option>)}</select></label><label>Status<select value={listFilters.status} onChange={(event) => changeListFilter('status', event.target.value)}><option value="">All statuses</option><option value="draft">Draft</option><option value="approved">Approved</option><option value="released">Released</option></select></label>{Object.values(listFilters).some(Boolean) && <button className="clear-filters ui-control ui-action ui-secondary" type="button" onClick={() => { setSelectedRecordIds([]); setListFilters({ search: '', period: '', status: '' }); }}><X size={15} />Clear</button>}</div>}
                 {canManage && <div className={`payroll-bulk-bar${activePeriodId ? ' is-ready' : ''}`}>
                     <div><strong>{selectedRecordIds.length ? `${selectedRecordIds.length} selected` : 'Select payslips'}</strong><span>{activePeriodId ? 'Selection is limited to one payroll period.' : 'Choose records below, or filter by cutoff for faster selection.'}</span></div>
-                    <div className="payroll-bulk-actions"><button type="button" disabled={!selectedDrafts} onClick={() => bulkStatus('approve')}><BadgeCheck size={16} />Approve Selected{selectedDrafts ? ` (${selectedDrafts})` : ''}</button><button className="is-release" type="button" disabled={!selectedApproved} onClick={() => bulkStatus('release')}><Send size={16} />Release Selected{selectedApproved ? ` (${selectedApproved})` : ''}</button></div>
+                    <div className="payroll-bulk-actions"><button className="ui-control ui-action ui-primary" type="button" disabled={!selectedDrafts} onClick={() => bulkStatus('approve')}><BadgeCheck size={16} />Approve Selected{selectedDrafts ? ` (${selectedDrafts})` : ''}</button><button className="is-release ui-control ui-action ui-primary" type="button" disabled={!selectedApproved} onClick={() => bulkStatus('release')}><Send size={16} />Release Selected{selectedApproved ? ` (${selectedApproved})` : ''}</button></div>
                 </div>}
                 <div className="table-wrap">
                     <table className="payroll-actions-table">
@@ -251,14 +252,14 @@ export default function PayrollIndex({ periods, records, filters = {} }) {
                                 <tr key={record.id}>
                                     {canManage && <td className="payroll-select-cell"><input type="checkbox" aria-label={`Select payslip for ${fullName(record.employee)}`} checked={selectedRecordIds.includes(record.id)} disabled={!selectableIds.includes(record.id)} onChange={() => toggleRecord(record.id)} /></td>}
                                     <td>{fullName(record.employee)}</td>
-                                    <td>{record.payroll_period?.period_name}</td>
+                                    <td>{formatDate(record.payroll_period?.start_date)} – {formatDate(record.payroll_period?.end_date)}</td>
                                     <td>{record.total_days_worked}</td>
-                                    <td>{record.total_hours_worked}</td>
+                                    <td>{Number(record.total_hours_worked || 0).toFixed(2)}</td>
                                     <td>{money(record.gross_pay)}</td>
                                     <td>{money(record.total_deductions)}</td>
                                     <td><strong>{money(record.net_pay)}</strong></td>
-                                    {canReview && <td><span className={`badge payroll-status is-${record.status}`}>{record.status}</span></td>}
-                                    <td className="actions"><div className="table-actions"><Link href={`/payroll/records/${record.id}`}>View</Link>{canManage && record.status === 'draft' && <button className="table-action-primary" type="button" onClick={() => approveRecord(record)}><BadgeCheck size={14} />Approve</button>}{canManage && record.status === 'approved' && <button className="table-action-primary is-release" type="button" onClick={() => releaseRecord(record)}><Send size={14} />Release</button>}</div></td>
+                                    {canReview && <td><span data-status={record.status} className={`badge payroll-status is-${record.status}`}>{record.status}</span></td>}
+                                    <td className="actions"><div className="table-actions"><Link className="ui-control ui-action ui-secondary" href={`/payroll/records/${record.id}`}>View</Link>{canManage && record.status === 'draft' && <button className="table-action-primary ui-control ui-action ui-primary" type="button" onClick={() => approveRecord(record)}><BadgeCheck size={14} />Approve</button>}{canManage && record.status === 'approved' && <button className="table-action-primary is-release ui-control ui-action ui-primary" type="button" onClick={() => releaseRecord(record)}><Send size={14} />Release</button>}</div></td>
                                 </tr>
                             )) : (
                                 <tr>

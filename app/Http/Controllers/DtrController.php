@@ -3,10 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Employee;
+use App\Services\CutoffService;
 use App\Services\DtrService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class DtrController extends Controller
@@ -15,7 +15,7 @@ class DtrController extends Controller
     {
         $data = $request->validate([
             'employee_id' => ['nullable', 'integer', 'exists:employees,id'],
-            'start_date' => ['nullable', 'date'],
+            'start_date' => ['nullable', 'date_format:Y-m-d'],
         ]);
         $user = $request->user();
         $employeeId = $user->role === 'faculty' ? $user->employee_id : ($data['employee_id'] ?? Employee::orderBy('last_name')->value('id'));
@@ -35,13 +35,7 @@ class DtrController extends Controller
 
     private function cutoff(Carbon $start): array
     {
-        if (! in_array($start->day, [1, 16], true)) {
-            throw ValidationException::withMessages(['start_date' => 'DTR cutoff must start on day 1 or day 16.']);
-        }
-
-        $end = $start->day === 1 ? $start->copy()->day(15) : $start->copy()->endOfMonth();
-
-        return [$start->copy()->startOfDay(), $end->startOfDay()];
+        return CutoffService::range($start->toDateString());
     }
 
     private function currentCutoffStart(): Carbon
@@ -53,26 +47,6 @@ class DtrController extends Controller
 
     private function cutoffOptions(Employee $employee, Carbon $selected): array
     {
-        $firstMonth = $employee->service_start_date
-            ? Carbon::parse($employee->service_start_date, 'Asia/Manila')->startOfMonth()
-            : Carbon::now('Asia/Manila')->subYears(2)->startOfYear();
-        $firstMonth = $firstMonth->min($selected->copy()->startOfMonth());
-        $lastMonth = Carbon::now('Asia/Manila')->startOfMonth()->max($selected->copy()->startOfMonth());
-        $options = [];
-
-        for ($month = $lastMonth->copy(); $month->gte($firstMonth); $month->subMonth()) {
-            $firstStart = $month->copy()->startOfMonth();
-            $secondStart = $month->copy()->day(16);
-            $options[] = [
-                'value' => $secondStart->toDateString(),
-                'label' => $month->format('F').' 16-'.$month->daysInMonth.', '.$month->year,
-            ];
-            $options[] = [
-                'value' => $firstStart->toDateString(),
-                'label' => $month->format('F').' 1-15, '.$month->year,
-            ];
-        }
-
-        return $options;
+        return CutoffService::options($employee->service_start_date ?: Carbon::today('Asia/Manila')->subYears(2)->toDateString(), $selected);
     }
 }

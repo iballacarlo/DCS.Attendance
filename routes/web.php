@@ -10,6 +10,7 @@ use App\Http\Controllers\DtrSignatoryController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeCredentialController;
+use App\Http\Controllers\FacultyArchiveController;
 use App\Http\Controllers\FacultyRankController;
 use App\Http\Controllers\GeneralSettingsController;
 use App\Http\Controllers\LeaveController;
@@ -45,6 +46,9 @@ Route::middleware('auth')->group(function () {
         ->middleware('throttle:3,10')
         ->name('verification.send');
 
+    Route::get('archived-faculty', [FacultyArchiveController::class, 'index'])->name('faculty.archive.index')->middleware('role:admin');
+    Route::post('employees/archive', [FacultyArchiveController::class, 'store'])->name('faculty.archive.store')->middleware('role:admin');
+    Route::post('archived-faculty/{archivedId}/restore', [FacultyArchiveController::class, 'restore'])->whereNumber('archivedId')->name('faculty.archive.restore')->middleware('role:admin');
     Route::resource('employees', EmployeeController::class)->except(['show'])->middleware('role:admin');
     Route::post('employees/{employee}/credentials/enrollments', [EmployeeCredentialController::class, 'store'])->name('employees.credentials.enrollments.store')->middleware('role:admin');
     Route::post('employees/{employee}/credentials/{method}/unlink', [EmployeeCredentialController::class, 'unlink'])->name('employees.credentials.unlink')->middleware('role:admin');
@@ -71,6 +75,7 @@ Route::middleware('auth')->group(function () {
     Route::put('settings/dtr-signatories/{dtrSignatory}', [DtrSignatoryController::class, 'update'])->name('settings.dtr-signatories.update')->middleware('role:admin,payroll_staff');
     Route::delete('settings/dtr-signatories/{dtrSignatory}', [DtrSignatoryController::class, 'destroy'])->name('settings.dtr-signatories.destroy')->middleware('role:admin,payroll_staff');
 
+    Route::get('my-schedule', [EmployeeController::class, 'mySchedule'])->name('faculty.schedule')->middleware('role:faculty');
     Route::get('attendance', [AttendanceController::class, 'index'])->name('attendance.index');
     Route::post('attendance/tap', [AttendanceController::class, 'tap'])->name('attendance.tap')->middleware('role:payroll_staff');
     Route::post('attendance/manual', [AttendanceController::class, 'manual'])->name('attendance.manual')->middleware('role:payroll_staff');

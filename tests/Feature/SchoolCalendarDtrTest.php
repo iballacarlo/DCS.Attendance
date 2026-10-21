@@ -17,9 +17,9 @@ use Tests\TestCase;
 
 class SchoolCalendarDtrTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, \Tests\CreatesClassSessions;
 
-    public function test_paid_faculty_event_credits_schedule_without_fabricating_taps(): void
+    public function test_calendar_event_does_not_credit_hours_without_taps(): void
     {
         $employee = $this->employee('EMP-001', 'Ada');
         $other = $this->employee('EMP-002', 'Grace');
@@ -36,18 +36,18 @@ class SchoolCalendarDtrTest extends TestCase
         $otherRow = app(DtrService::class)->build($other, '2026-10-01', '2026-10-15')['rows']->firstWhere('date', '2026-10-05');
 
         $this->assertSame('ASYNCHRONOUS', $row['event']['label']);
-        $this->assertSame(8.0, $row['payable_hours']);
+        $this->assertSame(0.0, $row['payable_hours']);
         $this->assertNull($row['time_in']);
         $this->assertNull($row['time_out']);
         $this->assertNull($otherRow['event']);
         $this->assertSame(0.0, $otherRow['payable_hours']);
     }
 
-    public function test_existing_tap_is_excluded_when_paid_event_is_added_later(): void
+    public function test_calendar_event_does_not_replace_existing_class_hours(): void
     {
         $employee = $this->employee('EMP-001', 'Ada');
         $this->mondaySchedule($employee);
-        AttendanceLog::create([
+        $this->classLog([
             'employee_id' => $employee->id, 'attendance_date' => '2026-10-05',
             'time_in' => '09:00', 'time_out' => '16:00', 'late_minutes' => 60,
             'undertime_minutes' => 60, 'total_hours' => 6, 'status' => 'late',
@@ -60,17 +60,17 @@ class SchoolCalendarDtrTest extends TestCase
 
         $row = app(DtrService::class)->build($employee, '2026-10-01', '2026-10-15')['rows']->firstWhere('date', '2026-10-05');
 
-        $this->assertSame(8.0, $row['payable_hours']);
+        $this->assertSame(7.0, $row['payable_hours']);
         $this->assertSame(0, $row['late_minutes']);
-        $this->assertNull($row['time_in']);
+        $this->assertSame('09:00', $row['time_in']);
         $this->assertDatabaseHas('attendance_logs', ['employee_id' => $employee->id, 'time_in' => '09:00']);
     }
 
-    public function test_dtr_hides_margin_hours_when_attendance_has_undertime(): void
+    public function test_dtr_shows_worked_hours_without_undertime_penalty(): void
     {
         $employee = $this->employee('EMP-001', 'Ada');
         $this->mondaySchedule($employee);
-        AttendanceLog::create([
+        $this->classLog([
             'employee_id' => $employee->id,
             'attendance_date' => '2026-10-05',
             'time_in' => '08:00',
@@ -83,9 +83,9 @@ class SchoolCalendarDtrTest extends TestCase
 
         $row = app(DtrService::class)->build($employee, '2026-10-01', '2026-10-15')['rows']->firstWhere('date', '2026-10-05');
 
-        $this->assertSame(48, $row['undertime_minutes']);
-        $this->assertSame(7.2, $row['payable_hours']);
-        $this->assertNull($row['margin_hours']);
+        $this->assertSame(0, $row['undertime_minutes']);
+        $this->assertSame(8.2, $row['payable_hours']);
+        $this->assertSame(8.2, $row['margin_hours']);
     }
 
     public function test_unscheduled_tap_is_retained_for_audit_but_hidden_from_dtr(): void
@@ -108,7 +108,7 @@ class SchoolCalendarDtrTest extends TestCase
         $this->assertDatabaseHas('attendance_logs', ['employee_id' => $employee->id, 'attendance_date' => '2026-10-06']);
     }
 
-    public function test_hardware_tap_on_paid_event_is_acknowledged_without_attendance_log(): void
+    public function test_hardware_accepts_class_taps_on_calendar_event(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-10-05 08:00:00', 'Asia/Manila'));
         config(['services.hardware.api_key' => 'test-hardware-key']);
@@ -124,14 +124,14 @@ class SchoolCalendarDtrTest extends TestCase
         $this->withHeader('X-Hardware-Key', 'test-hardware-key')->postJson('/api/hardware/tap', [
             'identifier' => 'AABBCCDD', 'method' => 'rfid',
             'event_id' => 'PAID-EVENT-1', 'occurred_at' => '2026-10-05 08:00:00',
-        ])->assertOk()->assertJsonPath('action', 'PAID DAY');
+        ])->assertOk()->assertJsonPath('action', 'IN');
 
-        $this->assertDatabaseCount('attendance_logs', 0);
+        $this->assertDatabaseCount('attendance_logs', 1);
         $this->assertDatabaseHas('hardware_attendance_events', ['event_id' => 'PAID-EVENT-1']);
         Carbon::setTestNow();
     }
 
-    public function test_regular_holiday_credits_scheduled_hours_and_appears_in_dtr(): void
+    public function test_regular_holiday_is_informational_without_paid_hours(): void
     {
         $employee = $this->employee('EMP-001', 'Ada');
         FacultySchedule::create(['employee_id' => $employee->id, 'day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '17:00', 'break_minutes' => 60]);
@@ -145,13 +145,13 @@ class SchoolCalendarDtrTest extends TestCase
         $row = $dtr['rows']->firstWhere('date', '2026-10-05');
 
         $this->assertSame('REGULAR HOLIDAY', $row['event']['label']);
-        $this->assertSame(8.0, $row['payable_hours']);
-        $this->assertSame(8.0, $row['margin_hours']);
+        $this->assertSame(0.0, $row['payable_hours']);
+        $this->assertSame(0.0, $row['margin_hours']);
         $this->assertNull($row['time_in']);
         $this->assertNull($row['time_out']);
     }
 
-    public function test_official_school_activity_is_paid_and_appears_in_dtr(): void
+    public function test_official_school_activity_does_not_credit_hours_without_taps(): void
     {
         $employee = $this->employee('EMP-001', 'Ada');
         $this->mondaySchedule($employee);
@@ -178,8 +178,8 @@ class SchoolCalendarDtrTest extends TestCase
             ->firstWhere('date', '2026-10-05');
 
         $this->assertSame('OFFICIAL SCHOOL ACTIVITY', $row['event']['label']);
-        $this->assertSame(8.0, $row['payable_hours']);
-        $this->assertSame(8.0, $row['margin_hours']);
+        $this->assertSame(0.0, $row['payable_hours']);
+        $this->assertSame(0.0, $row['margin_hours']);
         $this->assertNull($row['time_in']);
         $this->assertNull($row['time_out']);
     }
@@ -196,12 +196,12 @@ class SchoolCalendarDtrTest extends TestCase
 
         $this->actingAs($user)->get('/attendance/dtr?employee_id='.$other->id.'&start_date=2026-10-01')
             ->assertOk()->assertInertia(fn (Assert $page) => $page
-                ->component('Dtr/Show')
-                ->where('dtr.employee.id', $employee->id)
-                ->where('dtr.cutoff.end_date', '2026-10-15')
-                ->where('dtr.signatory.name', 'DR. HISTORICAL DEAN')
-                ->where('dtr.signatory.designation', 'In Charge')
-                ->has('dtr.rows', 15)
+            ->component('Dtr/Show')
+            ->where('dtr.employee.id', $employee->id)
+            ->where('dtr.cutoff.end_date', '2026-10-15')
+            ->where('dtr.signatory.name', 'DR. HISTORICAL DEAN')
+            ->where('dtr.signatory.designation', 'In Charge')
+            ->has('dtr.rows', 15)
             );
     }
 

@@ -5,14 +5,20 @@ use App\Models\PayrollRecord;
 use App\Services\AttendanceCalculator;
 use App\Services\PayrollComputationService;
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
     {
+        // Legacy daily records are audit sources for the explicit class conversion.
+        // Fresh installations run this migration before the class-session schema exists.
+        if (! Schema::hasColumn('attendance_logs', 'faculty_schedule_id')) {
+            return;
+        }
         AttendanceLog::with('employee')->orderBy('id')->chunkById(100, function ($logs) {
             foreach ($logs as $log) {
-                if ($log->employee) {
+                if ($log->employee && ! $log->is_legacy) {
                     AttendanceCalculator::recalculate($log);
                 }
             }

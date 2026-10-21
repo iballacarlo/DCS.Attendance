@@ -74,7 +74,17 @@ class CalendarController extends Controller
                 ...collect($data)->except('employee_ids')->all(),
                 'department' => $data['scope_type'] === 'department' ? $data['department'] : null,
             ]);
-            $calendarEvent->employees()->sync($data['scope_type'] === 'faculty' ? $data['employee_ids'] : []);
+            $employeeIds = [];
+            if ($data['scope_type'] === 'faculty') {
+                // Hidden memberships must survive edits made while faculty are archived.
+                $archivedIds = DB::table('calendar_event_employee')
+                    ->join('employees', 'employees.id', '=', 'calendar_event_employee.employee_id')
+                    ->where('calendar_event_id', $calendarEvent->id)
+                    ->whereNotNull('employees.archived_at')
+                    ->pluck('employees.id')->all();
+                $employeeIds = array_values(array_unique([...$data['employee_ids'], ...$archivedIds]));
+            }
+            $calendarEvent->employees()->sync($employeeIds);
             $this->audit($request, 'calendar.updated', $calendarEvent, "Updated {$calendarEvent->title}.");
         });
 
@@ -107,7 +117,7 @@ class CalendarController extends Controller
             'scope_type' => ['required', Rule::in(['campus', 'department', 'faculty'])],
             'department' => [Rule::requiredIf($request->scope_type === 'department'), 'nullable', 'string', 'max:150'],
             'employee_ids' => [Rule::requiredIf($request->scope_type === 'faculty'), 'array'],
-            'employee_ids.*' => ['integer', 'exists:employees,id'],
+            'employee_ids.*' => ['integer', Rule::exists('employees', 'id')->whereNull('archived_at')],
             'remarks' => ['nullable', 'string', 'max:1000'],
         ]);
     }

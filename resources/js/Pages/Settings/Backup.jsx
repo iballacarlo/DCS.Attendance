@@ -19,7 +19,7 @@ export default function Backup() {
             <article className="settings-tool">
                 <span className="settings-tool-icon"><DatabaseBackup size={22} /></span>
                 <div><span className="bento-eyebrow">Backup</span><h2>Download system data</h2><p>Save faculty, attendance, schedules, accounts, and payroll records in one backup file.</p></div>
-                <a className="button" href="/settings/backup/download"><Download size={17} />Download backup</a>
+                <a className="button ui-control ui-action ui-secondary" href="/settings/backup/download"><Download size={17} />Download backup</a>
             </article>
             <article className="settings-tool recovery-tool">
                 <span className="settings-tool-icon"><RotateCcw size={22} /></span>
@@ -34,7 +34,7 @@ export default function Backup() {
                         </span>
                     </label>
                     {form.errors.backup_file && <div className="form-note">{form.errors.backup_file}</div>}
-                    <button type="submit" disabled={form.processing || !form.data.backup_file}><RotateCcw size={17} />{form.processing ? 'Restoring...' : 'Restore backup'}</button>
+                    <button className="ui-control ui-action ui-danger" type="submit" disabled={form.processing || !form.data.backup_file}><RotateCcw size={17} />{form.processing ? 'Restoring...' : 'Restore backup'}</button>
                 </form>
             </article>
         </section>

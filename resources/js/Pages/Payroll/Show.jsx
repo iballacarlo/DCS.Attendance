@@ -5,7 +5,7 @@ import AppLayout from '../../Layouts/AppLayout';
 import useRealtimeReload from '../../hooks/useRealtimeReload';
 import useConfirmDialog from '../../hooks/useConfirmDialog';
 import { documentFilename, openPdfPrintWindow, sendPdfToPrint } from '../../lib/documents';
-import { fullName } from '../../lib/format';
+import { formatDate, fullName } from '../../lib/format';
 
 const earningFields = [
     ['overtime_pay', 'Overtime Pay'],
@@ -26,23 +26,8 @@ const deductionFields = [
     ['cra_deduction', 'CRA'],
 ];
 
-function dateLabel(value) {
-    if (!value) return '-';
-    return new Date(`${value.slice(0, 10)}T00:00:00`).toLocaleDateString('en-PH', {
-        month: 'short', day: 'numeric', year: 'numeric',
-    });
-}
-
-function cutoffLabel(startValue, endValue) {
-    if (!startValue || !endValue) return '-';
-    const start = new Date(`${startValue.slice(0, 10)}T00:00:00`);
-    const end = new Date(`${endValue.slice(0, 10)}T00:00:00`);
-    const month = start.toLocaleDateString('en-PH', { month: 'long' }).toUpperCase();
-    if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
-        return `${month} ${start.getDate()}-${end.getDate()}, ${end.getFullYear()}`;
-    }
-    return `${dateLabel(startValue)} - ${dateLabel(endValue)}`.toUpperCase();
-}
+const dateLabel = formatDate;
+const cutoffLabel = (start, end) => `${formatDate(start)} - ${formatDate(end)}`;
 
 function amount(value, zeroAsDash = true) {
     const number = Number(value || 0);
@@ -138,17 +123,17 @@ export default function PayrollShow({ record }) {
 
     return <AppLayout title="Payslip" subtitle={`${period?.period_name || 'Payroll statement'} | Pay date: ${dateLabel(period?.pay_date)}`}>
         <div className="payslip-toolbar print-hidden">
-            <span className={`badge payroll-status is-${record.status}`}>{record.status}</span>
-            {canEdit && <button type="button" className="payslip-edit-button" onClick={() => setEditing((value) => !value)}><FilePenLine size={17} />{editing ? 'Close editor' : 'Edit details'}</button>}
-            <button type="button" onClick={printPayslip} disabled={Boolean(pdfAction)}><Printer size={17} />{pdfAction === 'print' ? 'Preparing...' : 'Print'}</button>
-            <button type="button" onClick={download} disabled={Boolean(pdfAction)}><Download size={17} />{pdfAction === 'download' ? 'Preparing...' : 'Download PDF'}</button>
+            <span data-status={record.status} className={`badge payroll-status is-${record.status}`}>{record.status}</span>
+            {canEdit && <button type="button" className="payslip-edit-button ui-control ui-action ui-secondary" onClick={() => setEditing((value) => !value)}><FilePenLine size={17} />{editing ? 'Close editor' : 'Edit details'}</button>}
+            <button className="ui-control ui-action ui-secondary" type="button" onClick={printPayslip} disabled={Boolean(pdfAction)}><Printer size={17} />{pdfAction === 'print' ? 'Preparing...' : 'Print'}</button>
+            <button className="ui-control ui-action ui-secondary" type="button" onClick={download} disabled={Boolean(pdfAction)}><Download size={17} />{pdfAction === 'download' ? 'Preparing...' : 'Download PDF'}</button>
         </div>
 
         {canEdit && editing && <form className="payroll-adjustment-editor print-hidden" onSubmit={submit}>
             <div className="payroll-editor-heading"><div><span>Payroll details</span><h2>Earnings and deductions</h2></div><p>Hours and regular pay come from attendance. Enter only applicable additions and deductions.</p></div>
             <fieldset><legend>Additional earnings</legend><div className="payroll-editor-grid">{earningFields.map(([field, label]) => <label key={field}>{label}<div className="currency-input"><span>PHP</span><input type="number" min="0" max="99999999.99" step="0.01" value={form.data[field]} onChange={(event) => form.setData(field, event.target.value)} required /></div></label>)}</div></fieldset>
             <fieldset><legend>Deductions</legend><div className="payroll-editor-grid">{deductionFields.map(([field, label]) => <label key={field}>{label}<div className="currency-input"><span>PHP</span><input type="number" min="0" max="99999999.99" step="0.01" value={form.data[field]} onChange={(event) => form.setData(field, event.target.value)} required /></div></label>)}</div></fieldset>
-            <div className="form-actions"><button type="submit" disabled={form.processing}><Save size={17} />{form.processing ? 'Saving...' : 'Save Payslip Details'}</button></div>
+            <div className="form-actions"><button className="ui-control ui-action ui-primary" type="submit" disabled={form.processing}><Save size={17} />{form.processing ? 'Saving...' : 'Save Payslip Details'}</button></div>
         </form>}
 
         <article className="official-payslip" ref={payslipRef}>

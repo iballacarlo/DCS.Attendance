@@ -1,3 +1,4 @@
+import { formatDate } from '../lib/format';
 import { Link, usePage } from '@inertiajs/react';
 import { ArrowUpRight, CalendarCheck2, CalendarClock, CalendarDays, Clock3, GraduationCap, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -78,16 +79,18 @@ export default function Dashboard({ employeeCount, presentToday, openPeriods, at
                 <MetricTile href="/payroll" icon={Wallet} label="Open payroll periods" value={openPeriods} tone="metric-blue" />
             </>}
 
+            <div className="dashboard-panels">
             <section className="bento-panel attendance-bento">
                 <header className="bento-heading">
                     <div><span className="bento-eyebrow">{isFaculty ? 'My attendance' : 'Attendance'}</span><h2>{isFaculty ? 'My recent activity' : 'Recent activity'}</h2></div>
                     <Link href="/attendance">View all <ArrowUpRight size={15} /></Link>
                 </header>
-                <div className="bento-table"><table><thead><tr>{!isFaculty && <th>Faculty</th>}<th>Date</th><th>In</th><th>Out</th><th>Status</th></tr></thead><tbody>
-                    {recentAttendance.length ? recentAttendance.map((log) => <tr key={log.id}>{!isFaculty && <td><strong>{fullName(log.employee)}</strong></td>}<td>{log.attendance_date}</td><td>{time12(log.time_in)}</td><td>{time12(log.time_out)}</td><td><span className="badge">{log.status}</span></td></tr>) : <tr><td colSpan={isFaculty ? 4 : 5} className="empty-row">No attendance logs yet.</td></tr>}
+                <div className="bento-table" tabIndex={0} role="region" aria-label="Recent attendance records"><table><thead><tr>{!isFaculty && <th>Faculty</th>}<th>Date</th><th>In</th><th>Out</th><th>Status</th></tr></thead><tbody>
+                    {recentAttendance.length ? recentAttendance.map((log) => <tr key={log.id}>{!isFaculty && <td><strong>{fullName(log.employee)}</strong></td>}<td>{formatDate(log.attendance_date)}</td><td>{time12(log.time_in)}</td><td>{time12(log.time_out)}</td><td><span data-status={log.status} className="badge">{log.status}</span></td></tr>) : <tr><td colSpan={isFaculty ? 4 : 5} className="empty-row">No attendance logs yet.</td></tr>}
                 </tbody></table></div>
             </section>
 
+                <div className="dashboard-side-panels">
             {!isFaculty && <section className="trend-bento">
                 <header className="bento-heading">
                     <div><span className="bento-eyebrow">Seven-day view</span><h2>Attendance pulse</h2></div>
@@ -111,13 +114,15 @@ export default function Dashboard({ employeeCount, presentToday, openPeriods, at
                     <div><span className="bento-eyebrow">{isFaculty ? 'My payroll' : 'Payroll'}</span><h2>{isFaculty ? 'My latest payslips' : 'Latest records'}</h2></div>
                     <Link href="/payroll">{isFaculty ? 'View all' : 'Manage'} <ArrowUpRight size={15} /></Link>
                 </header>
-                <div className="payroll-stack">
+                <div className="payroll-stack" tabIndex={0} role="region" aria-label="Latest payroll records">
                     {latestPayrolls.length ? latestPayrolls.map((record) => <Link href={`/payroll/records/${record.id}`} className="payroll-item" key={record.id}>
-                        <span><strong>{fullName(record.employee)}</strong><small>{record.payroll_period?.period_name}</small></span>
+                        <span><strong>{fullName(record.employee)}</strong><small>{formatDate(record.payroll_period?.start_date)} – {formatDate(record.payroll_period?.end_date)}</small></span>
                         <strong className="payroll-amount">{money(record.net_pay)}</strong>
                     </Link>) : <div className="bento-empty">No payroll records yet.</div>}
                 </div>
             </section>
+                </div>
+            </div>
         </section>
     </AppLayout>;
 }

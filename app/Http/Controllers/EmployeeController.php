@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\FacultyRank;
 use App\Models\User;
 use App\Services\GoogleAppsScriptMailer;
+use App\Support\ScheduleOptions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -169,14 +170,21 @@ class EmployeeController extends Controller
     {
         $employee->load(['schedules', 'scheduleBreaks']);
 
-        return Inertia::render('Employees/Schedule', ['employee' => $employee]);
+        return Inertia::render('Employees/Schedule', ['employee' => $employee, 'scheduleOptions' => ScheduleOptions::all()]);
+    }
+
+    public function mySchedule(Request $request)
+    {
+        $employee = Employee::with(['schedules', 'scheduleBreaks'])->findOrFail($request->user()->employee_id);
+
+        return Inertia::render('Employees/Schedule', ['employee' => $employee, 'readOnly' => true, 'scheduleOptions' => ScheduleOptions::all()]);
     }
 
     public function updateSchedule(Request $request, Employee $employee)
     {
         $this->saveSchedules($request, $employee);
 
-        return redirect()->route('employees.index')->with('success', 'Faculty schedule updated.');
+        return redirect()->route('employees.schedule.edit', $employee)->with('success', 'Faculty schedule updated.');
     }
 
     public function destroy(Employee $employee)
@@ -309,79 +317,78 @@ class EmployeeController extends Controller
 
     private function saveSchedules(Request $request, Employee $employee): void
     {
-        if (! $request->has('schedule')) {
+        if (! $request->has('blocks')) {
             return;
         }
-
         $data = $request->validate([
-            'schedule' => ['nullable', 'array'],
-            'schedule.*.slots' => ['nullable', 'array'],
-            'schedule.*.slots.*' => ['date_format:H:i'],
-            'schedule.*.break_slots' => ['nullable', 'array'],
-            'schedule.*.break_slots.*' => ['date_format:H:i'],
-            'schedule.*.consultation_slots' => ['nullable', 'array'],
-            'schedule.*.consultation_slots.*' => ['date_format:H:i'],
+            'blocks' => ['present', 'array'], 'blocks.*.id' => ['nullable', 'integer'],
+            'blocks.*.day_of_week' => ['required', 'integer', 'between:1,6'],
+            'blocks.*.schedule_type' => ['required', 'in:class,consultation,lunch_break'],
+            'blocks.*.start_time' => ['required', 'date_format:H:i'], 'blocks.*.end_time' => ['required', 'date_format:H:i'],
+            'blocks.*.subject' => ['nullable', 'string', 'max:255'], 'blocks.*.section' => ['nullable', 'string', 'max:100'],
+            'blocks.*.class_mode' => ['nullable', Rule::in(['lecture', 'laboratory'])],
         ]);
-
-        $employee->schedules()->delete();
-        $employee->scheduleBreaks()->delete();
-
-        foreach ($data['schedule'] ?? [] as $day => $schedule) {
-            if (! in_array((int) $day, [1, 2, 3, 4, 5, 6], true)) {
-                continue;
+        $blocks = $data['blocks'];
+        $ids = [];
+        foreach ($blocks as $i => $block) {
+            if ($block['end_time'] <= $block['start_time']) {
+                throw ValidationException::withMessages(["blocks.$i.end_time" => 'End time must be after start time.']);
             }
-
-            $this->saveSlotBlocks($employee, (int) $day, $schedule['slots'] ?? [], 'class');
-            $this->saveSlotBlocks($employee, (int) $day, $schedule['break_slots'] ?? [], 'lunch_break');
-            $this->saveSlotBlocks($employee, (int) $day, $schedule['consultation_slots'] ?? [], 'consultation');
-        }
-    }
-
-    private function saveSlotBlocks(Employee $employee, int $day, array $slotValues, string $type): void
-    {
-        $slots = collect($slotValues)->unique()->sort()->values();
-
-        if ($slots->isEmpty()) {
-            return;
-        }
-
-        $start = null;
-        $previous = null;
-
-        foreach ($slots as $slot) {
-            if ($start === null) {
-                $start = $slot;
-                $previous = $slot;
-
-                continue;
+            $relation = $block['schedule_type'] === 'lunch_break' ? $employee->scheduleBreaks() : $employee->schedules();
+            $existing = ! empty($block['id']) ? $relation->find($block['id']) : null;
+            if (! empty($block['id']) && ! $existing) {
+                throw ValidationException::withMessages(["blocks.$i.id" => 'Invalid schedule block.']);
             }
-
-            $expected = Carbon::createFromFormat('H:i', $previous)->addMinutes(30)->format('H:i');
-
-            if ($slot !== $expected) {
-                $this->createScheduleBlock($employee, $day, $start, $previous, $type);
-                $start = $slot;
+            $key = ($block['schedule_type'] === 'lunch_break' ? 'break:' : 'schedule:').($block['id'] ?? "new:$i");
+            if (in_array($key, $ids, true)) {
+                throw ValidationException::withMessages(['blocks' => 'Duplicate schedule block.']);
             }
-
-            $previous = $slot;
+            $ids[] = $key;
+            if ($block['schedule_type'] === 'class') {
+                foreach (['subject' => ScheduleOptions::SUBJECTS, 'section' => ScheduleOptions::sections(), 'class_mode' => array_keys(ScheduleOptions::CLASS_MODES)] as $field => $allowed) {
+                    $value = $block[$field] ?? null;
+                    // Preserve existing legacy values; new/changed selections must use the catalog.
+                    if ((! $existing || $value !== $existing->$field) && ! in_array($value, $allowed, true)) {
+                        throw ValidationException::withMessages(["blocks.$i.$field" => 'Select a valid '.str_replace('_', ' ', $field).'.']);
+                    }
+                }
+                foreach (['subject', 'section'] as $field) {
+                    // Existing unnamed blocks can be retained until the administrator completes them.
+                    if (empty(trim($block[$field] ?? '')) && (! $existing || $existing->$field)) {
+                        throw ValidationException::withMessages(["blocks.$i.$field" => ucfirst($field).' is required for a class.']);
+                    }
+                }
+            }
+            foreach (array_slice($blocks, 0, $i) as $other) {
+                if ($block['day_of_week'] == $other['day_of_week'] && $block['start_time'] < $other['end_time'] && $block['end_time'] > $other['start_time']) {
+                    throw ValidationException::withMessages(["blocks.$i.start_time" => 'Class, consultation, and break blocks cannot overlap.']);
+                }
+            }
         }
-
-        $this->createScheduleBlock($employee, $day, $start, $previous, $type);
-    }
-
-    private function createScheduleBlock(Employee $employee, int $day, string $start, string $lastSlot, string $type): void
-    {
-        $end = Carbon::createFromFormat('H:i', $lastSlot)->addMinutes(30)->format('H:i');
-        $isLunchBreak = $type === 'lunch_break';
-
-        $relation = $isLunchBreak ? $employee->scheduleBreaks() : $employee->schedules();
-        $relation->create([
-            'day_of_week' => $day,
-            'schedule_type' => $type,
-            'start_time' => $start,
-            'end_time' => $end,
-            ...($isLunchBreak ? [] : ['break_minutes' => 0]),
-        ]);
+        DB::transaction(function () use ($employee, $blocks) {
+            Employee::whereKey($employee->id)->lockForUpdate()->firstOrFail();
+            $kept = [];
+            $keptBreaks = [];
+            foreach ($blocks as $block) {
+                $isBreak = $block['schedule_type'] === 'lunch_break';
+                $relation = $isBreak ? $employee->scheduleBreaks() : $employee->schedules();
+                $values = collect($block)->except('id')->all();
+                if ($isBreak) {
+                    unset($values['subject'], $values['section'], $values['class_mode']);
+                } else {
+                    $values['break_minutes'] = 0;
+                    $values['class_mode'] = $block['schedule_type'] === 'class' ? ($block['class_mode'] ?? null) : null;
+                }
+                $record = $relation->updateOrCreate(['id' => $block['id'] ?? null], $values);
+                if ($isBreak) {
+                    $keptBreaks[] = $record->id;
+                } else {
+                    $kept[] = $record->id;
+                }
+            }
+            $employee->schedules()->whereNotIn('id', $kept)->delete();
+            $employee->scheduleBreaks()->whereNotIn('id', $keptBreaks)->delete();
+        });
     }
 
     private function standardRanks()
@@ -394,7 +401,7 @@ class EmployeeController extends Controller
 
     private function nextEmployeeNumber(): string
     {
-        $usedNumbers = Employee::query()
+        $usedNumbers = Employee::withoutGlobalScope('not_archived')
             ->pluck('employee_no')
             ->map(fn (string $employeeNo) => (int) preg_replace('/\D/', '', $employeeNo))
             ->filter()

@@ -2,23 +2,20 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AttendanceLog;
 use App\Models\Employee;
 use App\Models\FingerprintTemplate;
 use App\Models\HardwareAttendanceEvent;
 use App\Models\HardwareEnrollment;
 use App\Models\RfidCard;
-use App\Services\AttendanceCalculator;
-use App\Services\SchoolCalendarService;
-use App\Services\LeaveService;
+use App\Services\ClassAttendanceService;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class HardwareAttendanceController extends Controller
 {
-    private const TIME_OUT_COOLDOWN_MINUTES = 3;
-
     public function tap(Request $request)
     {
         if ($unauthorized = $this->authorizeHardware($request)) {
@@ -62,87 +59,55 @@ class HardwareAttendanceController extends Controller
             ], 404);
         }
 
-        if (AttendanceCalculator::hasSchedule($employee, $occurredAt)
-            && ($calendarEvent = SchoolCalendarService::paidEventFor($employee, $occurredAt))) {
-            $payload = [
-                'ok' => true,
-                'message' => 'Attendance is not required on this paid calendar date.',
-                'employee' => $employee->full_name,
-                'display_name' => $this->displayName($employee),
-                'action' => 'PAID DAY',
-                'display_time' => '',
-                'time_out_available_at' => '',
-                'status' => 'present',
-                'time_in' => null,
-                'time_out' => null,
-                'calendar_event' => $calendarEvent->title,
-            ];
+        try {
+            $responsePayload = DB::transaction(function () use ($data, $employee, $occurredAt) {
+                Employee::whereKey($employee->id)->lockForUpdate()->firstOrFail();
+                if (! empty($data['event_id']) && ($event = HardwareAttendanceEvent::where('event_id', $data['event_id'])->first())) {
+                    if ($event->identifier !== $data['identifier'] || $event->method !== $data['method']) {
+                        throw new HttpResponseException(response()->json(['ok' => false, 'message' => 'Event ID was already used by a different tap.'], 409));
+                    }
 
-            if (! empty($data['event_id'])) {
-                HardwareAttendanceEvent::create([
-                    'event_id' => $data['event_id'], 'employee_id' => $employee->id,
-                    'identifier' => $data['identifier'], 'method' => $data['method'],
-                    'occurred_at' => $occurredAt, 'response_payload' => $payload,
-                ]);
+                    return $event->response_payload;
+                }
+                $result = $this->recordAttendance($employee->id, $data['method'], $occurredAt);
+                $payload = [
+                    'ok' => true,
+                    'message' => $result['message'],
+                    'employee' => $employee->full_name,
+                    'display_name' => $this->displayName($employee),
+                    'action' => $result['action'],
+                    'display_time' => $result['time'],
+                    'time_out_available_at' => $result['time_out_available_at'] ?? '',
+                    'status' => $result['log']?->status,
+                    'time_in' => $result['log']?->time_in,
+                    'time_out' => $result['log']?->time_out,
+                ];
+
+                if (! empty($data['event_id'])) {
+                    HardwareAttendanceEvent::create([
+                        'event_id' => $data['event_id'],
+                        'employee_id' => $employee->id,
+                        'identifier' => $data['identifier'],
+                        'method' => $data['method'],
+                        'occurred_at' => $occurredAt,
+                        'response_payload' => $payload,
+                    ]);
+                }
+
+                return $payload;
+            });
+        } catch (UniqueConstraintViolationException $exception) {
+            // Two different faculty can race for the same device event identifier.
+            // The failed transaction has rolled back its attendance write.
+            $event = ! empty($data['event_id']) ? HardwareAttendanceEvent::where('event_id', $data['event_id'])->first() : null;
+            if (! $event) {
+                throw $exception;
             }
-
-            return response()->json($payload);
+            if ($event->identifier !== $data['identifier'] || $event->method !== $data['method']) {
+                return response()->json(['ok' => false, 'message' => 'Event ID was already used by a different tap.'], 409);
+            }
+            $responsePayload = $event->response_payload;
         }
-
-        if (AttendanceCalculator::hasSchedule($employee, $occurredAt)
-            && ($leave = LeaveService::approvedLeaveFor($employee, $occurredAt))) {
-            $payload = [
-                'ok' => true,
-                'message' => 'Attendance is not required during approved leave.',
-                'employee' => $employee->full_name,
-                'display_name' => $this->displayName($employee),
-                'action' => 'ON LEAVE',
-                'display_time' => '',
-                'time_out_available_at' => '',
-                'status' => $leave->leaveType->is_paid ? 'present' : 'on_leave',
-                'time_in' => null,
-                'time_out' => null,
-                'leave_type' => $leave->leaveType->name,
-            ];
-            if (! empty($data['event_id'])) {
-                HardwareAttendanceEvent::create([
-                    'event_id' => $data['event_id'], 'employee_id' => $employee->id,
-                    'identifier' => $data['identifier'], 'method' => $data['method'],
-                    'occurred_at' => $occurredAt, 'response_payload' => $payload,
-                ]);
-            }
-
-            return response()->json($payload);
-        }
-
-        $responsePayload = DB::transaction(function () use ($data, $employee, $occurredAt) {
-            $result = $this->recordAttendance($employee->id, $data['method'], $occurredAt);
-            $payload = [
-                'ok' => true,
-                'message' => $result['message'],
-                'employee' => $employee->full_name,
-                'display_name' => $this->displayName($employee),
-                'action' => $result['action'],
-                'display_time' => $result['time'],
-                'time_out_available_at' => $result['time_out_available_at'] ?? '',
-                'status' => $result['log']->status,
-                'time_in' => $result['log']->time_in,
-                'time_out' => $result['log']->time_out,
-            ];
-
-            if (! empty($data['event_id'])) {
-                HardwareAttendanceEvent::create([
-                    'event_id' => $data['event_id'],
-                    'employee_id' => $employee->id,
-                    'identifier' => $data['identifier'],
-                    'method' => $data['method'],
-                    'occurred_at' => $occurredAt,
-                    'response_payload' => $payload,
-                ]);
-            }
-
-            return $payload;
-        });
 
         return response()->json($responsePayload);
     }
@@ -401,46 +366,7 @@ class HardwareAttendanceController extends Controller
 
     private function recordAttendance(int $employeeId, string $method, Carbon $occurredAt): array
     {
-        $now = $occurredAt->copy()->setTimezone('Asia/Manila');
-        $log = AttendanceLog::firstOrNew([
-            'employee_id' => $employeeId,
-            'attendance_date' => $now->toDateString(),
-        ]);
-
-        if (! $log->time_in) {
-            $log->time_in = $now->format('H:i:s');
-            $log->method_in = $method;
-            $message = 'Time in recorded.';
-            $action = 'IN';
-            $time = $now->format('h:i A');
-        } elseif (! $log->time_out) {
-            $timeIn = Carbon::parse($log->attendance_date.' '.$log->time_in, 'Asia/Manila');
-            $canTimeOutAt = $timeIn->copy()->addMinutes(self::TIME_OUT_COOLDOWN_MINUTES);
-
-            if ($now->lessThan($canTimeOutAt)) {
-                $message = 'Please wait before recording time out.';
-                $action = 'WAIT';
-                $time = $canTimeOutAt->format('h:i A');
-
-                return ['message' => $message, 'action' => $action, 'time' => $time, 'log' => $log,
-                    'time_out_available_at' => (string) $canTimeOutAt->timestamp];
-            }
-
-            $log->time_out = $now->format('H:i:s');
-            $log->method_out = $method;
-            $message = 'Time out recorded.';
-            $action = 'OUT';
-            $time = $now->format('h:i A');
-        } else {
-            $message = 'Attendance already has time in and time out for today.';
-            $action = 'ALREADY OUT';
-            $time = Carbon::parse($log->attendance_date.' '.$log->time_out, 'Asia/Manila')->format('h:i A');
-        }
-
-        $log->save();
-        $this->recalculate($log);
-
-        return ['message' => $message, 'action' => $action, 'time' => $time, 'log' => $log->fresh()];
+        return app(ClassAttendanceService::class)->record(Employee::findOrFail($employeeId), $method, $occurredAt);
     }
 
     private function displayName(Employee $employee): string
@@ -470,10 +396,5 @@ class HardwareAttendanceController extends Controller
         ]);
 
         return preg_replace('/[^\x20-\x7E]/', '', $value) ?? '';
-    }
-
-    private function recalculate(AttendanceLog $log): void
-    {
-        AttendanceCalculator::recalculate($log);
     }
 }

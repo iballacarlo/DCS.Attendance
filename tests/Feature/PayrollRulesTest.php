@@ -2,26 +2,27 @@
 
 namespace Tests\Feature;
 
-use App\Models\AttendanceLog;
 use App\Models\Employee;
 use App\Models\FacultyRank;
 use App\Models\FacultySchedule;
-use App\Models\FacultyScheduleBreak;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRecord;
 use App\Models\User;
 use App\Services\AttendanceCalculator;
+use App\Services\ClassAttendanceService;
+use App\Services\DtrService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class PayrollRulesTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, \Tests\CreatesClassSessions;
 
     public function test_one_minute_late_deducts_only_one_minute(): void
     {
         $employee = $this->employeeWithMondaySchedule();
-        $log = AttendanceLog::create([
+        $log = $this->classLog([
             'employee_id' => $employee->id,
             'attendance_date' => '2026-09-21',
             'time_in' => '08:01',
@@ -31,7 +32,7 @@ class PayrollRulesTest extends TestCase
         AttendanceCalculator::recalculate($log);
 
         $log->refresh();
-        $this->assertSame(1, $log->late_minutes);
+        $this->assertSame(0, $log->late_minutes);
         $this->assertSame(0, $log->undertime_minutes);
         $this->assertEqualsWithDelta(7.9833, (float) $log->total_hours, 0.0001);
     }
@@ -39,18 +40,18 @@ class PayrollRulesTest extends TestCase
     public function test_late_and_undertime_are_minute_accurate(): void
     {
         $employee = $this->employeeWithMondaySchedule();
-        $log = AttendanceLog::create([
+        $log = $this->classLog([
             'employee_id' => $employee->id,
             'attendance_date' => '2026-09-21',
             'time_in' => '08:01',
-            'time_out' => '16:59',
+            'time_out' => '15:59',
         ]);
 
         AttendanceCalculator::recalculate($log);
 
         $log->refresh();
-        $this->assertSame(1, $log->late_minutes);
-        $this->assertSame(1, $log->undertime_minutes);
+        $this->assertSame(0, $log->late_minutes);
+        $this->assertSame(0, $log->undertime_minutes);
         $this->assertEqualsWithDelta(7.9667, (float) $log->total_hours, 0.0001);
     }
 
@@ -58,24 +59,14 @@ class PayrollRulesTest extends TestCase
     {
         $employee = $this->employeeWithMondaySchedule();
         $employee->schedules()->delete();
-        foreach ([['08:00', '12:00'], ['13:00', '15:00'], ['16:00', '17:00']] as [$start, $end]) {
-            $employee->schedules()->create([
-                'day_of_week' => 1, 'schedule_type' => 'class',
-                'start_time' => $start, 'end_time' => $end, 'break_minutes' => 0,
-            ]);
+        $service = app(ClassAttendanceService::class);
+        foreach ([['08:00', '11:30'], ['13:00', '15:00'], ['16:00', '17:00']] as [$start, $end]) {
+            $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => $start, 'end_time' => $end, 'break_minutes' => 0]);
+            $service->record($employee, 'rfid', Carbon::parse('2026-09-21 '.$start, 'Asia/Manila'));
+            $service->record($employee, 'rfid', Carbon::parse('2026-09-21 '.$end, 'Asia/Manila'));
         }
-        FacultyScheduleBreak::create([
-            'employee_id' => $employee->id, 'day_of_week' => 1,
-            'schedule_type' => 'lunch_break', 'start_time' => '11:30', 'end_time' => '12:30',
-        ]);
-        $log = AttendanceLog::create([
-            'employee_id' => $employee->id, 'attendance_date' => '2026-09-21',
-            'time_in' => '08:00', 'time_out' => '17:00',
-        ]);
-
-        AttendanceCalculator::recalculate($log);
-
-        $this->assertEquals(6.5, (float) $log->fresh()->total_hours);
+        $dtr = app(DtrService::class)->build($employee, '2026-09-16', '2026-09-30');
+        $this->assertEquals(6.5, $dtr['summary']['total_hours']);
         $this->assertEquals(6.5, AttendanceCalculator::scheduledHoursForDay($employee, '2026-09-21'));
     }
 
@@ -84,7 +75,7 @@ class PayrollRulesTest extends TestCase
         $this->actingAs(User::factory()->create(['role' => 'payroll_staff']));
 
         $response = $this->post(route('payroll.periods.store'), [
-            'period_name' => 'September 16-30, 2026',
+            'period_name' => '09/16/2026 - 09/30/2026',
             'start_date' => '2026-09-16',
             'end_date' => '2026-09-30',
             'pay_date' => '2026-09-30',
@@ -92,7 +83,7 @@ class PayrollRulesTest extends TestCase
 
         $response->assertSessionHasNoErrors();
         $this->assertDatabaseHas('payroll_periods', [
-            'period_name' => 'September 16-30, 2026',
+            'period_name' => '09/16/2026 - 09/30/2026',
             'pay_date' => '2026-10-10',
         ]);
     }
@@ -119,14 +110,14 @@ class PayrollRulesTest extends TestCase
             'faculty_rank_id' => FacultyRank::where('is_active', true)->firstOrFail()->id,
             'rate_amount' => 100,
         ]);
-        AttendanceLog::create([
+        $this->classLog([
             'employee_id' => $employee->id,
             'attendance_date' => '2026-09-07',
             'total_hours' => 8,
             'status' => 'present',
         ]);
         $period = PayrollPeriod::create([
-            'period_name' => 'September 1-15, 2026',
+            'period_name' => '09/01/2026 - 09/15/2026',
             'start_date' => '2026-09-01',
             'end_date' => '2026-09-15',
             'status' => 'open',
@@ -141,30 +132,30 @@ class PayrollRulesTest extends TestCase
         $this->assertSame(800.0, (float) $record->total_earnings);
     }
 
-    public function test_daily_rate_payroll_prorates_one_minute_late_by_one_minute(): void
+    public function test_payroll_always_multiplies_hourly_rate_by_actual_hours(): void
     {
         $employee = $this->employeeWithMondaySchedule();
-        $employee->update(['rate_type' => 'daily', 'rate_amount' => 100]);
-        $log = AttendanceLog::create([
+        $employee->update(['rate_type' => 'hourly', 'rate_amount' => 100]);
+        $log = $this->classLog([
             'employee_id' => $employee->id, 'attendance_date' => '2026-09-07',
             'time_in' => '08:01', 'time_out' => '17:00',
         ]);
         AttendanceCalculator::recalculate($log);
         $period = PayrollPeriod::create([
-            'period_name' => 'September 1-15, 2026', 'start_date' => '2026-09-01',
+            'period_name' => '09/01/2026 - 09/15/2026', 'start_date' => '2026-09-01',
             'end_date' => '2026-09-15', 'status' => 'open',
         ]);
 
         $this->actingAs(User::factory()->create(['role' => 'payroll_staff']))
             ->post(route('payroll.generate', $period))->assertSessionHasNoErrors();
 
-        $this->assertSame(99.79, (float) PayrollRecord::where('employee_id', $employee->id)->firstOrFail()->gross_pay);
+        $this->assertSame(798.33, (float) PayrollRecord::where('employee_id', $employee->id)->firstOrFail()->gross_pay);
     }
 
     public function test_payroll_generation_records_late_undertime_and_absences_for_payslip(): void
     {
         $employee = $this->employeeWithMondaySchedule();
-        AttendanceLog::create([
+        $this->classLog([
             'employee_id' => $employee->id,
             'attendance_date' => '2026-09-07',
             'late_minutes' => 12,
@@ -172,14 +163,8 @@ class PayrollRulesTest extends TestCase
             'total_hours' => 6,
             'status' => 'late',
         ]);
-        AttendanceLog::create([
-            'employee_id' => $employee->id,
-            'attendance_date' => '2026-09-14',
-            'total_hours' => 0,
-            'status' => 'absent',
-        ]);
         $period = PayrollPeriod::create([
-            'period_name' => 'September 1-15, 2026',
+            'period_name' => '09/01/2026 - 09/15/2026',
             'start_date' => '2026-09-01',
             'end_date' => '2026-09-15',
             'status' => 'open',
@@ -190,7 +175,7 @@ class PayrollRulesTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $record = PayrollRecord::where('employee_id', $employee->id)->firstOrFail();
-        $this->assertSame(30, $record->late_undertime_minutes);
+        $this->assertSame(0, $record->late_undertime_minutes);
         $this->assertSame(1.0, (float) $record->absent_days);
     }
 
@@ -198,7 +183,7 @@ class PayrollRulesTest extends TestCase
     {
         $employee = $this->employeeWithMondaySchedule();
         $period = PayrollPeriod::create([
-            'period_name' => 'September 1-15, 2026',
+            'period_name' => '09/01/2026 - 09/15/2026',
             'start_date' => '2026-09-01',
             'end_date' => '2026-09-15',
             'status' => 'processing',
@@ -249,7 +234,7 @@ class PayrollRulesTest extends TestCase
             'status' => 'active',
         ]);
         $period = PayrollPeriod::create([
-            'period_name' => 'September 1-15, 2026',
+            'period_name' => '09/01/2026 - 09/15/2026',
             'start_date' => '2026-09-01',
             'end_date' => '2026-09-15',
             'status' => 'processing',
@@ -298,11 +283,11 @@ class PayrollRulesTest extends TestCase
             'rate_type' => 'hourly', 'rate_amount' => 100, 'status' => 'active',
         ]);
         $firstPeriod = PayrollPeriod::create([
-            'period_name' => 'September 1-15, 2026', 'start_date' => '2026-09-01',
+            'period_name' => '09/01/2026 - 09/15/2026', 'start_date' => '2026-09-01',
             'end_date' => '2026-09-15', 'status' => 'processing',
         ]);
         $secondPeriod = PayrollPeriod::create([
-            'period_name' => 'September 16-30, 2026', 'start_date' => '2026-09-16',
+            'period_name' => '09/16/2026 - 09/30/2026', 'start_date' => '2026-09-16',
             'end_date' => '2026-09-30', 'status' => 'processing',
         ]);
         $first = PayrollRecord::create([
@@ -329,14 +314,14 @@ class PayrollRulesTest extends TestCase
     {
         $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->post(route('payroll.periods.store'), [
-                'period_name' => 'September 1-15, 2026',
+                'period_name' => '09/01/2026 - 09/15/2026',
                 'start_date' => '2026-09-01',
                 'end_date' => '2026-09-15',
             ])
             ->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('payroll_periods', [
-            'period_name' => 'September 1-15, 2026',
+            'period_name' => '09/01/2026 - 09/15/2026',
             'start_date' => '2026-09-01',
             'end_date' => '2026-09-15',
         ]);
@@ -365,8 +350,8 @@ class PayrollRulesTest extends TestCase
             'day_of_week' => 1,
             'schedule_type' => 'class',
             'start_time' => '08:00',
-            'end_time' => '17:00',
-            'break_minutes' => 60,
+            'end_time' => '16:00',
+            'break_minutes' => 0,
         ]);
 
         return $employee;

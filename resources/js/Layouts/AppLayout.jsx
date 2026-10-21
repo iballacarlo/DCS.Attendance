@@ -1,13 +1,15 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { CalendarDays, ChartNoAxesCombined, ChevronLeft, ChevronRight, Clock3, FileCheck2, GraduationCap, KeyRound, LayoutDashboard, LogOut, MailWarning, Moon, Settings2, ShieldCheck, Sun, UserRound, Wallet } from 'lucide-react';
+import { Archive, CalendarDays, ChartNoAxesCombined, ChevronLeft, ChevronRight, Clock3, FileCheck2, GraduationCap, KeyRound, LayoutDashboard, LogOut, MailWarning, Moon, Settings2, ShieldCheck, Sun, UserRound, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { dateLabel, fullName, roleLabel } from '../lib/format';
 
 const navigation = [
     { label: 'Dashboard', group: 'Overview', href: '/', icon: LayoutDashboard, tone: 'nav-dashboard', active: (url) => url === '/' },
     { label: 'Faculty', group: 'Faculty Management', href: '/employees', icon: GraduationCap, tone: 'nav-faculty', roles: ['admin'], active: (url) => url.startsWith('/employees') },
+    { label: 'Archived Faculty', group: 'Faculty Management', href: '/archived-faculty', icon: Archive, tone: 'nav-faculty', roles: ['admin'], active: (url) => url.startsWith('/archived-faculty') },
     { label: 'Ranks', group: 'Faculty Management', href: '/faculty-ranks', icon: ChartNoAxesCombined, tone: 'nav-ranks', roles: ['admin'], active: (url) => url.startsWith('/faculty-ranks') },
     { label: 'Attendance', group: 'Operations', href: '/attendance', icon: Clock3, tone: 'nav-attendance', active: (url) => url.startsWith('/attendance') },
+    { label: 'My Schedule', group: 'Operations', href: '/my-schedule', icon: CalendarDays, tone: 'nav-calendar', roles: ['faculty'], active: (url) => url.startsWith('/my-schedule') },
     { label: 'Payroll', group: 'Operations', href: '/payroll', icon: Wallet, tone: 'nav-payroll', active: (url) => url.startsWith('/payroll') },
     { label: 'Leave', group: 'Operations', href: '/leave', icon: FileCheck2, tone: 'nav-leave', active: (url) => url.startsWith('/leave') },
     { label: 'School Calendar', group: 'Operations', href: '/school-calendar', icon: CalendarDays, tone: 'nav-calendar', active: (url) => url.startsWith('/school-calendar') },
@@ -44,10 +46,8 @@ export default function AppLayout({ title, subtitle, children }) {
     const availableNavigation = navigation.filter((item) => !item.roles || item.roles.includes(user.role));
     const navigationGroups = [...new Set(availableNavigation.map((item) => item.group))];
     const mobileWeekday = new Intl.DateTimeFormat('en-PH', { weekday: 'long' }).format(clock);
-    const mobileDate = new Intl.DateTimeFormat('en-PH', {
-        month: 'short', day: 'numeric', year: 'numeric',
-    }).format(clock);
-    const module = url.startsWith('/employees') ? 'faculty'
+    const mobileDate = dateLabel(clock);
+    const module = (url.startsWith('/employees') || url.startsWith('/archived-faculty')) ? 'faculty'
         : url.startsWith('/faculty-ranks') ? 'ranks'
             : url.startsWith('/settings') ? 'settings'
                 : url.startsWith('/leave') ? 'leave'
@@ -104,7 +104,7 @@ export default function AppLayout({ title, subtitle, children }) {
                 </div>
             </div>
             <button className={`sidebar-toggle${sidebarCollapsed ? ' is-collapsed' : ''}`} type="button" onClick={toggleSidebar} aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Minimize sidebar'} title={sidebarCollapsed ? 'Expand sidebar' : 'Minimize sidebar'}>{sidebarCollapsed ? <ChevronRight size={18} strokeWidth={2.5} aria-hidden="true" /> : <ChevronLeft size={18} strokeWidth={2.5} aria-hidden="true" />}</button>
-            <main className={`main module-${module}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+            <main id="workspace" className={`main module-${module}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
                 <nav className="mobile-navigation" aria-label="Mobile navigation" style={{ '--mobile-nav-count': availableNavigation.length }}>
                     {availableNavigation.map((item) => (
                         <Link key={item.href} href={item.href} className={`${item.tone}${item.active(url) ? ' active' : ''}`} aria-label={item.label} title={item.label} aria-current={item.active(url) ? 'page' : undefined}>

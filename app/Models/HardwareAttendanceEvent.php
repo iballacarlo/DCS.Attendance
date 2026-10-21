@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HidesArchivedFaculty;
 use Illuminate\Database\Eloquent\Model;
 
 class HardwareAttendanceEvent extends Model
 {
+    use HidesArchivedFaculty;
+
     protected $fillable = [
         'event_id',
         'employee_id',

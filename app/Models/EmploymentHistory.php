@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HidesArchivedFaculty;
 use Illuminate\Database\Eloquent\Model;
 
 class EmploymentHistory extends Model
 {
+    use HidesArchivedFaculty;
+
     protected $fillable = ['employee_id', 'employer', 'position', 'started_on', 'ended_on'];
 
     protected function casts(): array

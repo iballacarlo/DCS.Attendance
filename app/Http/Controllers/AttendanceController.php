@@ -7,416 +7,143 @@ use App\Models\Employee;
 use App\Models\FingerprintTemplate;
 use App\Models\RfidCard;
 use App\Services\AttendanceCalculator;
+use App\Services\ClassAttendanceService;
+use App\Services\CutoffService;
 use App\Services\DtrService;
-use App\Services\SchoolCalendarService;
-use App\Services\LeaveService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class AttendanceController extends Controller
 {
-    private const TIME_OUT_COOLDOWN_MINUTES = 3;
-
     public function index(Request $request)
     {
-        $user = $request->user();
-        $isFaculty = $user->role === 'faculty';
+        $faculty = $request->user()->role === 'faculty';
         $filters = $request->validate([
-            'search' => ['nullable', 'string', 'max:100'],
-            'date_from' => ['nullable', 'date'],
-            'date_to' => ['nullable', 'date', Rule::when($request->filled('date_from'), 'after_or_equal:date_from')],
-            'status' => ['nullable', 'in:present,late,undertime,incomplete,absent'],
-            'method' => ['nullable', 'in:rfid,fingerprint,manual'],
+            'search' => ['nullable', 'string', 'max:100'], 'cutoff_start' => ['nullable', 'date_format:Y-m-d'],
+            'status' => ['nullable', 'in:present,incomplete'], 'method' => ['nullable', 'in:rfid,fingerprint,manual'],
         ]);
-        $query = AttendanceLog::with('employee')
-            ->orderByDesc('attendance_date')
-            ->orderByDesc('time_in')
-            ->orderByDesc('id');
-
-        if ($isFaculty) {
-            $query->where('employee_id', $user->employee_id);
+        [$start, $end] = CutoffService::range($filters['cutoff_start'] ?? null);
+        $filters = array_merge(['search' => '', 'status' => '', 'method' => ''], $filters, ['cutoff_start' => $start->toDateString()]);
+        $query = AttendanceLog::with('employee')->where('is_legacy', false)->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()]);
+        if ($faculty) {
+            $query->where('employee_id', $request->user()->employee_id ?? 0);
         } else {
-            $terms = preg_split('/\s+/', trim($filters['search'] ?? ''), -1, PREG_SPLIT_NO_EMPTY);
-            foreach ($terms as $term) {
-                $query->whereHas('employee', function ($employeeQuery) use ($term) {
-                    $employeeQuery->where(function ($nameQuery) use ($term) {
-                        $nameQuery->where('employee_no', 'like', "%{$term}%")
-                            ->orWhere('first_name', 'like', "%{$term}%")
-                            ->orWhere('middle_name', 'like', "%{$term}%")
-                            ->orWhere('last_name', 'like', "%{$term}%")
-                            ->orWhere('suffix', 'like', "%{$term}%")
-                            ->orWhere('email', 'like', "%{$term}%");
-                    });
-                });
+            foreach (preg_split('/\s+/', trim($filters['search']), -1, PREG_SPLIT_NO_EMPTY) as $term) {
+                $query->whereHas('employee', fn ($q) => $q->where(function ($q) use ($term) {
+                    foreach (['employee_no', 'first_name', 'middle_name', 'last_name', 'email'] as $field) {
+                        $q->orWhere($field, 'like', "%{$term}%");
+                    }
+                }));
             }
-            $query->when($filters['date_from'] ?? null, fn ($logs, $date) => $logs->whereDate('attendance_date', '>=', $date))
-                ->when($filters['date_to'] ?? null, fn ($logs, $date) => $logs->whereDate('attendance_date', '<=', $date))
-                ->when($filters['status'] ?? null, fn ($logs, $status) => $logs->where('status', $status))
-                ->when($filters['method'] ?? null, function ($logs, $method) {
-                    $logs->where(fn ($methods) => $methods->where('method_in', $method)->orWhere('method_out', $method));
-                });
         }
+        $query->when($filters['status'], fn ($q, $status) => $q->where('status', $status))
+            ->when($filters['method'], fn ($q, $method) => $q->where(fn ($q) => $q->where('method_in', $method)->orWhere('method_out', $method)));
+        $employee = $faculty ? Employee::with(['schedules', 'scheduleBreaks'])->find($request->user()->employee_id) : null;
 
         return Inertia::render('Attendance/Index', [
-            'employees' => $isFaculty ? [] : Employee::where('status', 'active')->orderBy('last_name')->get(),
-            'logs' => $query->paginate(15)->withQueryString(),
-            'dtr' => $isFaculty ? $this->facultyDtr($user->employee_id) : null,
-            'filters' => $isFaculty ? [] : [
-                'search' => $filters['search'] ?? '',
-                'date_from' => $filters['date_from'] ?? '',
-                'date_to' => $filters['date_to'] ?? '',
-                'status' => $filters['status'] ?? '',
-                'method' => $filters['method'] ?? '',
-            ],
+            'employees' => $faculty ? [] : Employee::with('schedules')->where('status', 'active')->orderBy('last_name')->get(),
+            'logs' => $query->orderByDesc('attendance_date')->orderBy('scheduled_start')->paginate(15)->withQueryString(),
+            'filters' => $filters,
+            'cutoffOptions' => CutoffService::options(AttendanceLog::min('attendance_date') ?: $start->copy()->subYears(2)->toDateString(), $start),
+            'dtr' => $employee ? app(DtrService::class)->build($employee, $start, $end) : null,
         ]);
     }
 
-    public function tap(Request $request)
+    public function tap(Request $request, ClassAttendanceService $service)
     {
-        $data = $request->validate([
-            'identifier' => ['required', 'max:100'],
-            'method' => ['required', 'in:rfid,fingerprint'],
-        ]);
-
-        $employee = $data['method'] === 'rfid'
-            ? optional(RfidCard::where('rfid_uid', $data['identifier'])->where('status', 'active')->first())->employee
-            : optional(FingerprintTemplate::where('fingerprint_code', $data['identifier'])->where('status', 'active')->first())->employee;
-
-        if (! $employee) {
-            return back()->withErrors(['identifier' => 'No active faculty record found for that RFID/fingerprint code.']);
+        $data = $request->validate(['identifier' => ['required', 'max:100'], 'method' => ['required', 'in:rfid,fingerprint']]);
+        $credential = $data['method'] === 'rfid' ? RfidCard::where('rfid_uid', $data['identifier'])->where('status', 'active')->first()
+            : FingerprintTemplate::where('fingerprint_code', $data['identifier'])->where('status', 'active')->first();
+        $employee = $credential?->employee;
+        if (! $employee || $employee->status !== 'active') {
+            return back()->withErrors(['identifier' => 'No active faculty found for this credential.']);
+        }
+        $result = $service->record($employee, $data['method'], Carbon::now('Asia/Manila'));
+        if (in_array($result['action'], ['WAIT', 'NO CLASS'], true)) {
+            return back()->withErrors(['identifier' => $result['message']]);
         }
 
-        if (! AttendanceCalculator::hasSchedule($employee, Carbon::now('Asia/Manila'))) {
-            return back()->withErrors(['identifier' => $employee->full_name.' has no assigned schedule today. Attendance was not recorded.']);
-        }
-
-        if ($event = SchoolCalendarService::paidEventFor($employee, Carbon::now('Asia/Manila'))) {
-            return redirect()->route('attendance.index')->with('success', "Attendance is not required today: {$event->title}. Scheduled hours are paid automatically.");
-        }
-        if ($leave = LeaveService::approvedLeaveFor($employee, Carbon::now('Asia/Manila'))) {
-            return redirect()->route('attendance.index')->with('success', "Attendance is not required today: approved {$leave->leaveType->name}.");
-        }
-
-        $result = $this->recordAttendance($employee, $data['method']);
-
-        if ($result['action'] === 'WAIT') {
-            return back()->withErrors(['identifier' => 'Please wait until '.$result['available_at'].' before recording Time Out for '.$employee->full_name.'.']);
-        }
-
-        return redirect()->route('attendance.index')->with('success', $result['action'].' recorded for '.$employee->full_name.'.');
+        return back()->with('success', $result['message'].' '.$employee->full_name);
     }
 
     public function manual(Request $request)
     {
         $data = $request->validate([
-            'employee_id' => ['required', 'exists:employees,id'],
-            'attendance_date' => ['required', 'date'],
-            'time_in' => ['nullable', 'date_format:H:i'],
-            'time_out' => ['nullable', 'date_format:H:i'],
-            'remarks' => ['nullable', 'max:500'],
+            'employee_id' => ['required', 'exists:employees,id'], 'faculty_schedule_id' => ['required', 'integer'],
+            'attendance_date' => ['required', 'date_format:Y-m-d'], 'time_in' => ['nullable', 'date_format:H:i'],
+            'time_out' => ['nullable', 'date_format:H:i', Rule::when($request->filled('time_in'), 'after:time_in')], 'remarks' => ['nullable', 'max:500'],
         ]);
-
-        $employee = Employee::with('schedules')->findOrFail($data['employee_id']);
-
-        if (! $this->hasScheduleOnDate($employee, $data['attendance_date'])) {
-            return back()->withErrors(['attendance_date' => $employee->full_name.' has no assigned schedule on this date. Manual attendance can only be saved on a scheduled day.']);
+        $employee = Employee::findOrFail($data['employee_id']);
+        $existing = AttendanceLog::where('employee_id', $employee->id)->where('attendance_date', $data['attendance_date'])
+            ->where('faculty_schedule_id', $data['faculty_schedule_id'])->where('is_legacy', false)->first();
+        $schedule = $employee->schedules()->whereKey($data['faculty_schedule_id'])
+            ->where('day_of_week', Carbon::parse($data['attendance_date'], 'Asia/Manila')->dayOfWeek)->where('schedule_type', 'class')->first();
+        if (! $existing && ! $schedule) {
+            return back()->withErrors(['faculty_schedule_id' => 'Select a class assigned to this faculty on this date.']);
         }
+        DB::transaction(function () use ($employee, $data, $schedule) {
+            Employee::whereKey($employee->id)->lockForUpdate()->firstOrFail();
+            $log = AttendanceLog::firstOrNew(['employee_id' => $employee->id, 'attendance_date' => $data['attendance_date'], 'faculty_schedule_id' => $data['faculty_schedule_id']]);
+            if (! $log->exists) {
+                $conflict = AttendanceLog::where('employee_id', $employee->id)->where('attendance_date', $data['attendance_date'])->where('is_legacy', false)
+                    ->where('scheduled_start', '<', $schedule->end_time)->where('scheduled_end', '>', $schedule->start_time)->exists();
+                if ($conflict) {
+                    throw ValidationException::withMessages(['faculty_schedule_id' => 'This class overlaps an attendance snapshot already recorded for this date.']);
+                }
+                $log->fill(ClassAttendanceService::snapshot($schedule));
+            }
+            $log->fill(['time_in' => $data['time_in'] ?? null, 'time_out' => $data['time_out'] ?? null,
+                'method_in' => ! empty($data['time_in']) ? 'manual' : null, 'method_out' => ! empty($data['time_out']) ? 'manual' : null, 'remarks' => $data['remarks'] ?? null]);
+            AttendanceCalculator::recalculate($log);
+        });
 
-        if ($event = SchoolCalendarService::paidEventFor($employee, $data['attendance_date'])) {
-            return back()->withErrors(['attendance_date' => "Attendance is not required on this paid calendar date: {$event->title}."]);
-        }
-        if ($leave = LeaveService::approvedLeaveFor($employee, $data['attendance_date'])) {
-            return back()->withErrors(['attendance_date' => "Attendance is not required during approved {$leave->leaveType->name}."]);
-        }
-
-        $log = AttendanceLog::updateOrCreate(
-            ['employee_id' => $data['employee_id'], 'attendance_date' => $data['attendance_date']],
-            [
-                'time_in' => $data['time_in'],
-                'time_out' => $data['time_out'],
-                'method_in' => $data['time_in'] ? 'manual' : null,
-                'method_out' => $data['time_out'] ? 'manual' : null,
-                'remarks' => $data['remarks'] ?? null,
-            ]
-        );
-
-        $this->recalculate($log);
-
-        return redirect()->route('attendance.index')->with('success', 'Manual attendance saved.');
+        return back()->with('success', 'Class attendance saved.');
     }
 
     public function generateScheduledTestAttendance(Request $request)
     {
         $data = $request->validate([
-            'target_mode' => ['required', Rule::in(['all', 'selected'])],
-            'employee_ids' => [Rule::requiredIf($request->input('target_mode') === 'selected'), 'array', 'min:1'],
-            'employee_ids.*' => ['integer', 'distinct', 'exists:employees,id'],
-            'generation_mode' => ['required', Rule::in(['fill_missing', 'overwrite'])],
-            'start_date' => ['required', 'date'],
-            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'target_mode' => ['required', 'in:all,selected'], 'employee_ids' => [Rule::requiredIf($request->input('target_mode') === 'selected'), 'array', 'min:1'],
+            'employee_ids.*' => ['integer', 'distinct', 'exists:employees,id'], 'generation_mode' => ['required', 'in:fill_missing,overwrite'],
+            'start_date' => ['required', 'date_format:Y-m-d'], 'end_date' => ['required', 'date_format:Y-m-d', 'after_or_equal:start_date'],
         ]);
-
-        $start = Carbon::parse($data['start_date'], 'Asia/Manila')->startOfDay();
-        $end = Carbon::parse($data['end_date'], 'Asia/Manila')->startOfDay();
-
-        if ($start->diffInDays($end) > 31) {
-            return back()->withErrors(['end_date' => 'Test attendance can cover up to 31 days at a time.']);
+        $start = Carbon::parse($data['start_date'], 'Asia/Manila');
+        $end = Carbon::parse($data['end_date'], 'Asia/Manila');
+        if ($start->diffInDays($end) > 31 || $start->isAfter(Carbon::today('Asia/Manila'))) {
+            return back()->withErrors(['start_date' => 'Choose up to 31 days, starting no later than today.']);
         }
-        $today = Carbon::today('Asia/Manila');
-        if ($start->greaterThan($today)) {
-            return back()->withErrors(['start_date' => 'Future attendance cannot be generated. Select a cutoff that has already started.']);
-        }
-        $effectiveEnd = $end->lessThan($today) ? $end->copy() : $today;
-
-        $employees = Employee::with('schedules')
-            ->where('status', 'active')
-            ->when($data['target_mode'] === 'selected', fn ($query) => $query->whereIn('id', $data['employee_ids']))
-            ->orderBy('last_name')
-            ->get();
-        if ($employees->isEmpty()) {
-            return back()->withErrors(['employee_ids' => 'Select at least one active faculty member.']);
-        }
+        $end = $end->min(Carbon::today('Asia/Manila'));
+        $employees = Employee::with('schedules')->where('status', 'active')->when($data['target_mode'] === 'selected', fn ($q) => $q->whereIn('id', $data['employee_ids']))->get();
         $created = 0;
-        $removed = 0;
-        $skipped = 0;
-        $withoutSchedule = 0;
-        $protectedDates = 0;
-        $generated = [
-            'clean' => 0,
-            'late' => 0,
-            'undertime' => 0,
-            'late_and_undertime' => 0,
-            'incomplete' => 0,
-            'absent' => 0,
-        ];
-
         foreach ($employees as $employee) {
-            for ($date = $start->copy(); $date->lte($effectiveEnd); $date->addDay()) {
-                $existingLog = AttendanceLog::where('employee_id', $employee->id)
-                    ->whereDate('attendance_date', $date->toDateString())
-                    ->first();
-                $schedules = $employee->schedules
-                    ->where('day_of_week', $date->dayOfWeek)
-                    ->sortBy('start_time');
-
-                if ($schedules->isEmpty()) {
-                    if ($data['generation_mode'] === 'overwrite' && $existingLog) {
-                        $existingLog->delete();
-                        $removed++;
-                    }
-                    $withoutSchedule++;
-
-                    continue;
-                }
-
-                if (SchoolCalendarService::paidEventFor($employee, $date)) {
-                    $protectedDates++;
-
-                    continue;
-                }
-                if (LeaveService::approvedLeaveFor($employee, $date)) {
-                    $protectedDates++;
-
-                    continue;
-                }
-
-                if ($data['generation_mode'] === 'fill_missing' && $existingLog) {
-                    $skipped++;
-
-                    continue;
-                }
-                if ($data['generation_mode'] === 'overwrite' && $existingLog) {
-                    $existingLog->delete();
-                    $removed++;
-                    $existingLog = null;
-                }
-
-                $scheduledIn = Carbon::parse($date->toDateString().' '.$schedules->first()->start_time, 'Asia/Manila');
-                $scheduledOut = Carbon::parse($date->toDateString().' '.$schedules->last()->end_time, 'Asia/Manila');
-                $roll = random_int(1, 100);
-                $scenario = match (true) {
-                    $roll <= 40 => 'clean',
-                    $roll <= 60 => 'late',
-                    $roll <= 75 => 'undertime',
-                    $roll <= 87 => 'late_and_undertime',
-                    $roll <= 95 => 'incomplete',
-                    default => 'absent',
-                };
-
-                // An absent day intentionally has no attendance record, which is
-                // how the DTR distinguishes absence from an incomplete tap.
-                if ($scenario === 'absent') {
-                    $generated['absent']++;
-
-                    continue;
-                }
-
-                $timeIn = $scheduledIn->copy()->subMinutes(random_int(0, 10));
-                $timeOut = $scheduledOut->copy()->addMinutes(random_int(0, 10));
-                if (in_array($scenario, ['late', 'late_and_undertime'], true)) {
-                    $timeIn = $scheduledIn->copy()->addMinutes(random_int(1, 35));
-                }
-                if (in_array($scenario, ['undertime', 'late_and_undertime'], true)) {
-                    $timeOut = $scheduledOut->copy()->subMinutes(random_int(1, 50));
-                }
-
-                $timeInValue = $timeIn->format('H:i:s');
-                $timeOutValue = $timeOut->format('H:i:s');
-                if ($scenario === 'incomplete') {
-                    if (random_int(0, 1) === 0) {
-                        $timeOutValue = null;
-                    } else {
-                        $timeInValue = null;
+            DB::transaction(function () use ($employee, $start, $end, $data, &$created) {
+                Employee::whereKey($employee->id)->lockForUpdate()->firstOrFail();
+                for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
+                    foreach ($employee->schedules->where('schedule_type', 'class')->where('day_of_week', $date->dayOfWeek) as $schedule) {
+                        if (Carbon::parse($date->toDateString().' '.$schedule->end_time, 'Asia/Manila')->isFuture()) {
+                            continue;
+                        }
+                        $log = AttendanceLog::firstOrNew(['employee_id' => $employee->id, 'attendance_date' => $date->toDateString(), 'faculty_schedule_id' => $schedule->id]);
+                        if ($log->exists && $data['generation_mode'] === 'fill_missing') {
+                            continue;
+                        }
+                        $in = Carbon::parse($date->toDateString().' '.$schedule->start_time, 'Asia/Manila');
+                        $out = Carbon::parse($date->toDateString().' '.$schedule->end_time, 'Asia/Manila');
+                        $in->addMinutes(random_int(0, min(15, max(0, (int) $in->diffInMinutes($out) - 1))));
+                        $log->fill([...ClassAttendanceService::snapshot($schedule), 'time_in' => $in->format('H:i:s'), 'time_out' => $out->format('H:i:s'),
+                            'method_in' => 'rfid', 'method_out' => 'rfid', 'remarks' => 'Generated class test attendance.']);
+                        AttendanceCalculator::recalculate($log);
+                        $created++;
                     }
                 }
-                $generatedMethod = random_int(1, 100) <= 80 ? 'rfid' : 'fingerprint';
-
-                $log = AttendanceLog::create([
-                    'employee_id' => $employee->id,
-                    'attendance_date' => $date->toDateString(),
-                    'time_in' => $timeInValue,
-                    'time_out' => $timeOutValue,
-                    'method_in' => $timeInValue ? $generatedMethod : null,
-                    'method_out' => $timeOutValue ? $generatedMethod : null,
-                    'remarks' => 'Random test attendance: '.str_replace('_', ' ', $scenario).'.',
-                ]);
-
-                $log->setRelation('employee', $employee);
-                $this->recalculate($log);
-                $log->status = match ($scenario) {
-                    'clean' => 'present',
-                    'late', 'late_and_undertime' => 'late',
-                    'undertime' => 'undertime',
-                    default => 'incomplete',
-                };
-                $log->save();
-                $created++;
-                $generated[$scenario]++;
-            }
+            });
         }
 
-        $breakdown = collect($generated)
-            ->filter()
-            ->map(fn ($count, $scenario) => str_replace('_', ' ', $scenario).": {$count}")
-            ->implode(', ');
-
-        $modeSummary = $data['generation_mode'] === 'overwrite'
-            ? "Removed {$removed} existing log(s) and created {$created} replacement test log(s)."
-            : "Created {$created} and preserved {$skipped} existing log(s).";
-        $scopeSummary = "Skipped {$withoutSchedule} faculty-date(s) without schedules and {$protectedDates} protected calendar/leave date(s).";
-
-        return redirect()->route('attendance.index', [
-            'date_from' => $start->toDateString(),
-            'date_to' => $effectiveEnd->toDateString(),
-        ])->with('success', "Generated random attendance through {$effectiveEnd->format('M j, Y')} for {$employees->count()} faculty ({$breakdown}). {$modeSummary} {$scopeSummary}");
-    }
-
-    private function recordAttendance(Employee $employee, string $method): array
-    {
-        $now = Carbon::now('Asia/Manila');
-        $log = AttendanceLog::firstOrNew([
-            'employee_id' => $employee->id,
-            'attendance_date' => $now->toDateString(),
-        ]);
-
-        if (! $log->time_in) {
-            $log->time_in = $now->format('H:i:s');
-            $log->method_in = $method;
-            $action = 'Time In';
-        } elseif (! $log->time_out) {
-            $timeIn = Carbon::parse($log->attendance_date.' '.$log->time_in, 'Asia/Manila');
-            $canTimeOutAt = $timeIn->copy()->addMinutes(self::TIME_OUT_COOLDOWN_MINUTES);
-
-            if ($now->lessThan($canTimeOutAt)) {
-                return ['action' => 'WAIT', 'available_at' => $canTimeOutAt->format('h:i A')];
-            }
-
-            $log->time_out = $now->format('H:i:s');
-            $log->method_out = $method;
-            $action = 'Time Out';
-        } else {
-            return ['action' => 'Already Out'];
-        }
-
-        $log->save();
-        $this->recalculate($log);
-
-        return ['action' => $action];
-    }
-
-    private function recalculate(AttendanceLog $log): void
-    {
-        AttendanceCalculator::recalculate($log);
-    }
-
-    private function hasScheduleOnDate(Employee $employee, string $date): bool
-    {
-        return AttendanceCalculator::hasSchedule($employee, $date);
-    }
-
-    private function facultyDtr(?int $employeeId): ?array
-    {
-        if (! $employeeId) {
-            return null;
-        }
-
-        $now = Carbon::now('Asia/Manila');
-        $employee = Employee::with(['schedules', 'scheduleBreaks'])->find($employeeId);
-
-        if (! $employee) {
-            return null;
-        }
-
-        $periodStart = $now->day <= 15 ? $now->copy()->startOfMonth() : $now->copy()->day(16);
-        $periodEnd = $now->day <= 15 ? $now->copy()->day(15) : $now->copy()->endOfMonth();
-        $elapsedEnd = $now->lessThan($periodEnd) ? $now->copy() : $periodEnd->copy();
-        $ledger = app(DtrService::class)->build($employee, $periodStart, $periodEnd);
-        $elapsedRows = $ledger['rows']->filter(fn ($row) => $row['date'] <= $elapsedEnd->toDateString());
-        $todayRow = $ledger['rows']->firstWhere('date', $now->toDateString());
-        $todayLog = $todayRow && ($todayRow['time_in'] || $todayRow['event']) ? [
-            'employee_id' => $employee->id,
-            'attendance_date' => $todayRow['date'],
-            'time_in' => $todayRow['time_in'],
-            'time_out' => $todayRow['time_out'],
-            'method_in' => $todayRow['method_in'],
-            'method_out' => $todayRow['method_out'],
-            'late_minutes' => $todayRow['late_minutes'],
-            'undertime_minutes' => $todayRow['undertime_minutes'],
-            'total_hours' => $todayRow['payable_hours'],
-            'status' => $todayRow['status'],
-            'calendar_event' => $todayRow['event'],
-        ] : null;
-        $todaySchedules = $employee->schedules
-            ->where('day_of_week', $now->dayOfWeek)
-            ->sortBy('start_time')
-            ->values()
-            ->map(fn ($schedule) => [
-                'id' => $schedule->id,
-                'type' => $schedule->schedule_type,
-                'start_time' => $schedule->start_time,
-                'end_time' => $schedule->end_time,
-            ]);
-
-        return [
-            'server_time' => $now->toIso8601String(),
-            'date' => $now->toDateString(),
-            'cutoff' => [
-                'start_date' => $periodStart->toDateString(),
-                'end_date' => $periodEnd->toDateString(),
-            ],
-            'today_log' => $todayLog,
-            'today_schedules' => $todaySchedules,
-            'summary' => [
-                'scheduled_days' => $elapsedRows->where('has_schedule', true)->count(),
-                'days_present' => $elapsedRows->filter(fn ($row) => $row['has_schedule'] && ($row['time_in'] || $row['event']))->count(),
-                'absent_days' => max(0, $elapsedRows->where('has_schedule', true)->count()
-                    - $elapsedRows->filter(fn ($row) => $row['has_schedule'] && ($row['time_in'] || $row['event']))->count()),
-                'total_hours' => round((float) $elapsedRows->sum('payable_hours'), 2),
-                'late_minutes' => (int) $elapsedRows->sum('late_minutes'),
-                'undertime_minutes' => (int) $elapsedRows->sum('undertime_minutes'),
-            ],
-        ];
+        return redirect()->route('attendance.index', ['cutoff_start' => $start->copy()->day($start->day <= 15 ? 1 : 16)->toDateString()])
+            ->with('success', "Generated {$created} class attendance sessions through ".$end->format('m/d/Y').'.');
     }
 }

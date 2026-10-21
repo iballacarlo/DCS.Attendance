@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HidesArchivedFaculty;
 use Illuminate\Database\Eloquent\Model;
 
 class PayrollRecord extends Model
 {
+    use HidesArchivedFaculty;
+
     protected $fillable = [
         'payroll_period_id',
         'employee_id',

@@ -13,7 +13,7 @@ use Tests\TestCase;
 
 class FacultyDtrTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, \Tests\CreatesClassSessions;
 
     public function test_faculty_online_dtr_only_contains_their_live_attendance_data(): void
     {
@@ -28,7 +28,7 @@ class FacultyDtrTest extends TestCase
             'end_time' => '17:00',
             'break_minutes' => 60,
         ]);
-        AttendanceLog::create([
+        $this->classLog([
             'employee_id' => $employee->id,
             'attendance_date' => '2026-09-25',
             'time_in' => '08:00:00',
@@ -56,7 +56,8 @@ class FacultyDtrTest extends TestCase
                 ->has('employees', 0)
                 ->has('logs.data', 1)
                 ->where('logs.data.0.employee_id', $employee->id)
-                ->where('dtr.today_log.employee_id', $employee->id)
+                ->where('dtr.employee.id', $employee->id)
+                ->has('dtr.rows.9.sessions', 1)
                 ->where('dtr.summary.days_present', 1)
                 ->where('dtr.summary.scheduled_days', 2)
                 ->where('dtr.summary.absent_days', 1)

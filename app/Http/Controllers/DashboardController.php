@@ -30,7 +30,7 @@ class DashboardController extends Controller
         return Inertia::render('Dashboard', [
             'contractWarnings' => $this->contractWarnings(),
             'employeeCount' => Employee::count(),
-            'presentToday' => AttendanceLog::where('attendance_date', $today)->whereNotNull('time_in')->count(),
+            'presentToday' => AttendanceLog::where('attendance_date', $today)->where('is_legacy', false)->whereNotNull('time_in')->distinct()->count('employee_id'),
             'openPeriods' => PayrollPeriod::where('status', '!=', 'finalized')->count(),
             'attendanceTrend' => $this->attendanceTrend(),
             'latestPayrolls' => PayrollRecord::with(['employee', 'payrollPeriod'])->latest()->take(5)->get(),
@@ -63,7 +63,7 @@ class DashboardController extends Controller
                 ->when($employeeId, fn ($query) => $query->where('employee_id', $employeeId))
                 ->where('attendance_date', $date->toDateString())
                 ->whereNotNull('time_in')
-                ->count();
+                ->where('is_legacy', false)->distinct()->count('employee_id');
 
             return ['label' => $date->format('D'), 'count' => $count];
         })->all();
@@ -71,7 +71,7 @@ class DashboardController extends Controller
 
     private function recentAttendance(?int $employeeId = null)
     {
-        return AttendanceLog::with('employee')
+        return AttendanceLog::with('employee')->where('is_legacy', false)
             ->when($employeeId, fn ($query) => $query->where('employee_id', $employeeId))
             ->orderByDesc('attendance_date')
             ->orderByDesc('time_in')

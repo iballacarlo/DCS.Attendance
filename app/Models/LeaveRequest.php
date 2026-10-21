@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HidesArchivedFaculty;
 use Illuminate\Database\Eloquent\Model;
 
 class LeaveRequest extends Model
 {
+    use HidesArchivedFaculty;
+
     protected $fillable = [
         'employee_id', 'leave_type_id', 'start_date', 'end_date', 'reason',
         'status', 'reviewed_by', 'reviewed_at', 'reviewer_remarks',
@@ -16,7 +19,18 @@ class LeaveRequest extends Model
         return ['start_date' => 'date:Y-m-d', 'end_date' => 'date:Y-m-d', 'reviewed_at' => 'datetime'];
     }
 
-    public function employee() { return $this->belongsTo(Employee::class); }
-    public function leaveType() { return $this->belongsTo(LeaveType::class); }
-    public function reviewer() { return $this->belongsTo(User::class, 'reviewed_by'); }
+    public function employee()
+    {
+        return $this->belongsTo(Employee::class);
+    }
+
+    public function leaveType()
+    {
+        return $this->belongsTo(LeaveType::class);
+    }
+
+    public function reviewer()
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
 }

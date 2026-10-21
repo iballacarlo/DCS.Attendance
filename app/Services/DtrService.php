@@ -16,72 +16,64 @@ class DtrService
         $employee->loadMissing(['schedules', 'scheduleBreaks']);
         $logs = AttendanceLog::where('employee_id', $employee->id)
             ->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()])
-            ->get()->keyBy(fn ($log) => Carbon::parse($log->attendance_date)->toDateString());
+            ->where('is_legacy', false)->orderBy('scheduled_start')->get()->groupBy(fn ($log) => Carbon::parse($log->attendance_date)->toDateString());
         $rows = collect();
 
         for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
             $dateString = $date->toDateString();
-            $schedules = $employee->schedules->where('day_of_week', $date->dayOfWeek)->sortBy('start_time')->values();
-            $scheduledHours = round(AttendanceCalculator::scheduledHoursForDay($employee, $date), 4);
-            // Keep unscheduled taps in the audit log, but never expose or pay
-            // them through the official DTR.
-            $log = $scheduledHours > 0 ? $logs->get($dateString) : null;
-            $calendarEvent = $scheduledHours > 0 ? SchoolCalendarService::paidEventFor($employee, $date) : null;
-            $leave = $scheduledHours > 0 && ! $calendarEvent ? LeaveService::approvedLeaveFor($employee, $date) : null;
-            $attendanceException = $calendarEvent || $leave;
-            $isPaidException = (bool) $calendarEvent || (bool) ($leave?->leaveType?->is_paid);
-            $late = $attendanceException ? 0 : (int) ($log?->late_minutes ?? 0);
-            $undertime = $attendanceException ? 0 : (int) ($log?->undertime_minutes ?? 0);
-            $payableHours = $attendanceException
-                ? ($isPaidException ? $scheduledHours : 0)
-                : round((float) ($log?->total_hours ?? 0), 4);
-            $variance = $late + $undertime;
+            $schedules = $employee->schedules->where('schedule_type', 'class')->where('day_of_week', $date->dayOfWeek)->sortBy('start_time')->values();
+            $sessions = $logs->get($dateString, collect());
+            $historicalSchedules = $schedules->map(function ($schedule) use ($sessions) {
+                $snapshot = $sessions->firstWhere('faculty_schedule_id', $schedule->id);
 
+                return (object) ['id' => $schedule->id, 'start_time' => $snapshot?->scheduled_start ?? $schedule->start_time,
+                    'end_time' => $snapshot?->scheduled_end ?? $schedule->end_time];
+            });
+            foreach ($sessions as $session) {
+                if (! $historicalSchedules->contains('id', $session->faculty_schedule_id)) {
+                    $historicalSchedules->push((object) ['id' => $session->faculty_schedule_id, 'start_time' => $session->scheduled_start, 'end_time' => $session->scheduled_end]);
+                }
+            }
+            $historicalSchedules = $historicalSchedules->sortBy('start_time')->values();
+            $scheduledHours = $historicalSchedules->sum(function ($schedule) use ($dateString) {
+                return Carbon::parse($dateString.' '.$schedule->start_time)->diffInSeconds(Carbon::parse($dateString.' '.$schedule->end_time)) / 3600;
+            });
+            // Persisted snapshots remain authoritative after a schedule edit/removal.
+            $seconds = $sessions->sum(fn ($session) => AttendanceCalculator::workedSeconds($session));
+            // Form 48 shows only the day's earliest IN and latest OUT.
+            // Keep the real tap direction and place each time in its AM/PM column.
+            $first = $sessions->filter(fn ($session) => $session->time_in)->sortBy('time_in')->first();
+            $last = $sessions->filter(fn ($session) => $session->time_out)->sortByDesc('time_out')->first();
+            $hasSchedule = $schedules->isNotEmpty() || $sessions->isNotEmpty();
+            $calendarEvent = $hasSchedule ? SchoolCalendarService::paidEventFor($employee, $date) : null;
+            $leave = $hasSchedule ? LeaveService::approvedLeaveFor($employee, $date) : null;
             $rows->push([
-                'date' => $dateString,
-                'day' => $date->day,
-                'weekday' => $date->format('D'),
-                'has_schedule' => $scheduledHours > 0,
-                'scheduled_hours' => $scheduledHours,
-                'schedule_label' => $schedules->isEmpty()
-                    ? null
-                    : $this->shortTime($schedules->first()->start_time).'-'.$this->shortTime($schedules->last()->end_time),
-                'am_arrival' => $attendanceException ? null : $this->timeForColumn($log?->time_in, 'am'),
-                'am_departure' => $attendanceException ? null : $this->timeForColumn($log?->time_out, 'am'),
-                'pm_arrival' => $attendanceException ? null : $this->timeForColumn($log?->time_in, 'pm'),
-                'pm_departure' => $attendanceException ? null : $this->timeForColumn($log?->time_out, 'pm'),
-                'late_minutes' => $late,
-                'undertime_minutes' => $undertime,
-                'variance_hours' => intdiv($variance, 60),
-                'variance_minutes' => $variance % 60,
-                'payable_hours' => $payableHours,
-                'margin_hours' => $isPaidException
-                    ? $payableHours
-                    : ($log?->time_in && $log?->time_out && $variance === 0 ? $payableHours : null),
-                'event' => $calendarEvent ? [
-                    'id' => $calendarEvent->id,
-                    'title' => $calendarEvent->title,
-                    'type' => $calendarEvent->type,
-                    'label' => $this->eventLabel($calendarEvent->type),
-                    'paid' => true,
-                ] : ($leave ? [
-                    'id' => $leave->id,
-                    'title' => $leave->leaveType->name,
-                    'type' => 'leave',
-                    'label' => strtoupper($leave->leaveType->code.' - LEAVE'),
-                    'paid' => (bool) $leave->leaveType->is_paid,
-                ] : null),
-                'status' => $calendarEvent ? 'paid_event' : ($leave ? ($isPaidException ? 'paid_leave' : 'unpaid_leave') : ($log?->status ?? ($scheduledHours > 0 ? 'absent' : 'not_scheduled'))),
-                'time_in' => $attendanceException ? null : $log?->time_in,
-                'time_out' => $attendanceException ? null : $log?->time_out,
-                'method_in' => $attendanceException ? null : $log?->method_in,
-                'method_out' => $attendanceException ? null : $log?->method_out,
+                'date' => $dateString, 'day' => $date->day, 'weekday' => $date->format('D'),
+                'has_schedule' => $hasSchedule, 'scheduled_hours' => round($scheduledHours, 4),
+                'schedule_label' => $historicalSchedules->isEmpty() ? null : $this->shortTime($historicalSchedules->first()->start_time).'-'.$this->shortTime($historicalSchedules->last()->end_time),
+                'am_arrival' => $this->timeForColumn($first?->time_in, 'am'), 'am_departure' => $this->timeForColumn($last?->time_out, 'am'),
+                'pm_arrival' => $this->timeForColumn($first?->time_in, 'pm'), 'pm_departure' => $this->timeForColumn($last?->time_out, 'pm'),
+                'late_minutes' => 0, 'undertime_minutes' => 0, 'variance_hours' => 0, 'variance_minutes' => 0,
+                'worked_seconds' => $seconds, 'payable_hours' => round($seconds / 3600, 4), 'margin_hours' => round($seconds / 3600, 4),
+                'event' => $calendarEvent ? ['id' => $calendarEvent->id, 'title' => $calendarEvent->title, 'type' => $calendarEvent->type, 'label' => $this->eventLabel($calendarEvent->type), 'paid' => false]
+                    : ($leave ? ['id' => $leave->id, 'title' => $leave->leaveType->name, 'type' => 'leave', 'label' => strtoupper($leave->leaveType->code).' - LEAVE', 'paid' => false] : null),
+                'status' => $sessions->isNotEmpty() ? ($sessions->contains(fn ($session) => ! $session->time_in || ! $session->time_out) ? 'incomplete' : 'present') : ($leave ? 'on_leave' : ($hasSchedule ? 'absent' : 'not_scheduled')),
+                'time_in' => $first?->time_in, 'time_out' => $last?->time_out, 'method_in' => $first?->method_in, 'method_out' => $last?->method_out,
+                'sessions' => $sessions->map(fn ($session) => [
+                    'id' => $session->id, 'faculty_schedule_id' => $session->faculty_schedule_id,
+                    'subject' => $session->subject, 'section' => $session->section, 'class_mode' => $session->class_mode,
+                    'scheduled_start' => $session->scheduled_start, 'scheduled_end' => $session->scheduled_end,
+                    'time_in' => $session->time_in, 'time_out' => $session->time_out,
+                    'hours' => round(AttendanceCalculator::workedSeconds($session) / 3600, 4),
+                    'status' => $session->status, 'reconstructed' => (bool) $session->legacy_source_id,
+                ])->values(),
             ]);
         }
 
         $scheduledRows = $rows->where('has_schedule', true);
-        $presentRows = $scheduledRows->filter(fn ($row) => ($row['event']['paid'] ?? false) || $row['time_in']);
+        $presentRows = $scheduledRows->filter(fn ($row) => $row['time_in']);
         $paidRows = $scheduledRows->filter(fn ($row) => $row['payable_hours'] > 0);
+
         $signatory = DtrSignatory::whereDate('effective_from', '<=', $end->toDateString())
             ->where(fn ($query) => $query->whereNull('effective_to')->orWhereDate('effective_to', '>=', $end->toDateString()))
             ->orderByDesc('effective_from')->first();
@@ -100,7 +92,8 @@ class DtrService
                 'days_present' => $presentRows->count(),
                 'paid_days' => $paidRows->count(),
                 'absent_days' => $scheduledRows->where('status', 'absent')->count(),
-                'total_hours' => round($rows->sum('payable_hours'), 4),
+                'worked_seconds' => $rows->sum('worked_seconds'),
+                'total_hours' => round($rows->sum('worked_seconds') / 3600, 4),
                 'late_minutes' => (int) $rows->sum('late_minutes'),
                 'undertime_minutes' => (int) $rows->sum('undertime_minutes'),
             ],

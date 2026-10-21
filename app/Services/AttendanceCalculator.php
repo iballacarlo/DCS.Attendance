@@ -11,62 +11,30 @@ class AttendanceCalculator
 {
     public static function recalculate(AttendanceLog $log): void
     {
-        $schedules = self::schedulesFor($log);
-
-        if ($schedules->isEmpty()) {
-            $log->late_minutes = 0;
-            $log->undertime_minutes = 0;
-            $log->total_hours = 0;
-            $log->status = 'incomplete';
-            $log->remarks = self::appendRemark($log->remarks, 'No schedule configured for this day; no payable hours counted.');
-            $log->save();
-
+        if ($log->is_legacy) {
             return;
-        }
-
-        $scheduledIn = Carbon::parse($log->attendance_date.' '.$schedules->first()->start_time, 'Asia/Manila');
-        $scheduledOut = Carbon::parse($log->attendance_date.' '.$schedules->last()->end_time, 'Asia/Manila');
-        $breaks = $log->employee->scheduleBreaks()->where('day_of_week', $scheduledIn->dayOfWeek)->get();
-        $late = 0;
-        $undertime = 0;
-        $workedMinutes = 0;
-        $scheduledMinutes = (int) $schedules->sum(function (FacultySchedule $schedule) use ($breaks) {
-            return self::scheduledMinutes($schedule, $breaks);
-        });
-
-        if ($log->time_in) {
-            $actualIn = Carbon::parse($log->attendance_date.' '.$log->time_in, 'Asia/Manila');
-            $late = $actualIn->greaterThan($scheduledIn) ? $scheduledIn->diffInMinutes($actualIn) : 0;
-        }
-
-        if ($log->time_in && $log->time_out) {
-            $actualIn = Carbon::parse($log->attendance_date.' '.$log->time_in, 'Asia/Manila');
-            $actualOut = Carbon::parse($log->attendance_date.' '.$log->time_out, 'Asia/Manila');
-
-            // Count only actual overlap with each assigned class block. Gaps between blocks are never payable.
-            $workedMinutes = (int) $schedules->sum(function (FacultySchedule $schedule) use ($log, $actualIn, $actualOut, $breaks) {
-                $blockStart = Carbon::parse($log->attendance_date.' '.$schedule->start_time, 'Asia/Manila');
-                $blockEnd = Carbon::parse($log->attendance_date.' '.$schedule->end_time, 'Asia/Manila');
-                $payableIn = $actualIn->greaterThan($blockStart) ? $actualIn : $blockStart;
-                $payableOut = $actualOut->lessThan($blockEnd) ? $actualOut : $blockEnd;
-
-                return self::minutesExcludingBreaks($payableIn, $payableOut, $breaks, $schedule->break_minutes);
-            });
-            $undertime = $actualOut->lessThan($scheduledOut) ? $actualOut->diffInMinutes($scheduledOut) : 0;
-        }
-
-        $penaltyMinutes = $late + $undertime;
-        $payableMinutes = $log->time_in && $log->time_out
-            ? min($workedMinutes, max(0, $scheduledMinutes - $penaltyMinutes))
-            : 0;
-
-        $log->late_minutes = $late;
-        $log->undertime_minutes = $undertime;
-        $log->total_hours = round($payableMinutes / 60, 4);
-        $log->status = ! $log->time_in || ! $log->time_out
-            ? 'incomplete'
-            : ($late > 0 ? 'late' : ($undertime > 0 ? 'undertime' : 'present'));
+        } // Preserve the original daily audit source.
+        $seconds = self::workedSeconds($log);
+        $log->worked_seconds = $seconds;
+        $log->late_minutes = 0;
+        $log->undertime_minutes = 0;
+        $log->total_hours = round($seconds / 3600, 4);
+        $log->status = $log->time_in && $log->time_out ? 'present' : 'incomplete';
         $log->save();
+    }
+
+    public static function workedSeconds(AttendanceLog $log): int
+    {
+        if ($log->is_legacy || ! $log->time_in || ! $log->time_out || ! $log->scheduled_start || ! $log->scheduled_end) {
+            return 0;
+        }
+        $date = $log->attendance_date;
+        $start = max(Carbon::parse($date.' '.$log->time_in, 'Asia/Manila')->timestamp,
+            Carbon::parse($date.' '.$log->scheduled_start, 'Asia/Manila')->timestamp);
+        $end = min(Carbon::parse($date.' '.$log->time_out, 'Asia/Manila')->timestamp,
+            Carbon::parse($date.' '.$log->scheduled_end, 'Asia/Manila')->timestamp);
+
+        return max(0, $end - $start);
     }
 
     public static function scheduleFor(AttendanceLog $log): ?FacultySchedule
@@ -77,7 +45,7 @@ class AttendanceCalculator
     public static function schedulesFor(AttendanceLog $log)
     {
         return $log->employee?->schedules()
-            ->where('day_of_week', Carbon::parse($log->attendance_date, 'Asia/Manila')->dayOfWeek)
+            ->where('schedule_type', 'class')->where('day_of_week', Carbon::parse($log->attendance_date, 'Asia/Manila')->dayOfWeek)
             ->orderBy('start_time')
             ->get() ?? collect();
     }
@@ -87,7 +55,7 @@ class AttendanceCalculator
         $attendanceDate = $date instanceof Carbon ? $date : Carbon::parse($date, 'Asia/Manila');
 
         return $employee->schedules()
-            ->where('day_of_week', $attendanceDate->dayOfWeek)
+            ->where('schedule_type', 'class')->where('day_of_week', $attendanceDate->dayOfWeek)
             ->exists();
     }
 
@@ -100,10 +68,10 @@ class AttendanceCalculator
     {
         $attendanceDate = $date instanceof Carbon ? $date : Carbon::parse($date, 'Asia/Manila');
 
-        $breaks = $employee->scheduleBreaks()->where('day_of_week', $attendanceDate->dayOfWeek)->get();
+        $breaks = $employee->scheduleBreaks()->where('schedule_type', 'class')->where('day_of_week', $attendanceDate->dayOfWeek)->get();
 
         return $employee->schedules()
-            ->where('day_of_week', $attendanceDate->dayOfWeek)
+            ->where('schedule_type', 'class')->where('day_of_week', $attendanceDate->dayOfWeek)
             ->get()
             ->sum(fn (FacultySchedule $schedule) => self::scheduledMinutes($schedule, $breaks) / 60);
     }

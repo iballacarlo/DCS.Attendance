@@ -45,7 +45,7 @@ class UserController extends Controller
     public function create()
     {
         return Inertia::render('Users/Form', [
-            'user' => new User(),
+            'user' => new User,
             'employees' => Employee::orderBy('last_name')->get(),
         ]);
     }
@@ -89,12 +89,12 @@ class UserController extends Controller
             'name' => ['required', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users')->ignore($user?->id)],
             'role' => ['required', 'in:admin,payroll_staff,faculty'],
-            'employee_id' => ['nullable', 'exists:employees,id'],
+            'employee_id' => ['nullable', Rule::exists('employees', 'id')->whereNull('archived_at')],
             'password' => [$user ? 'nullable' : 'required', 'min:6'],
         ];
 
         if ($request->role === 'faculty') {
-            $rules['employee_id'] = ['required', 'exists:employees,id'];
+            $rules['employee_id'] = ['required', Rule::exists('employees', 'id')->whereNull('archived_at')];
         }
 
         $data = $request->validate($rules);

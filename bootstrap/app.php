@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureFacultyIsNotArchived;
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
@@ -17,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(at: '*');
 
         $middleware->web(append: [
+            EnsureFacultyIsNotArchived::class,
             HandleInertiaRequests::class,
         ]);
 

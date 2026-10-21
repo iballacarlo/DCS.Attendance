@@ -15,7 +15,7 @@ class LeaveManagementTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_paid_leave_credits_only_scheduled_days_and_appears_in_dtr(): void
+    public function test_paid_leave_remains_informational_without_crediting_hours(): void
     {
         $employee = $this->employee();
         $this->mondaySchedule($employee);
@@ -31,7 +31,7 @@ class LeaveManagementTest extends TestCase
         $tuesday = $dtr['rows']->firstWhere('date', '2026-10-06');
 
         $this->assertSame('VL - LEAVE', $monday['event']['label']);
-        $this->assertSame(8.0, $monday['payable_hours']);
+        $this->assertSame(0.0, $monday['payable_hours']);
         $this->assertNull($monday['time_in']);
         $this->assertFalse($tuesday['has_schedule']);
         $this->assertNull($tuesday['event']);
@@ -51,10 +51,10 @@ class LeaveManagementTest extends TestCase
         $dtr = app(DtrService::class)->build($employee, '2026-10-01', '2026-10-15');
         $row = $dtr['rows']->firstWhere('date', '2026-10-05');
 
-        $this->assertSame('unpaid_leave', $row['status']);
-        $this->assertSame(0, $row['payable_hours']);
-        $this->assertNull($row['margin_hours']);
-        $this->assertSame(0, $dtr['summary']['absent_days']);
+        $this->assertSame('on_leave', $row['status']);
+        $this->assertSame(0.0, $row['payable_hours']);
+        $this->assertSame(0.0, $row['margin_hours']);
+        $this->assertSame(1, $dtr['summary']['absent_days']);
     }
 
     public function test_faculty_can_only_cancel_own_pending_request(): void

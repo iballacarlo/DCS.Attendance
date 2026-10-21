@@ -80,13 +80,13 @@ class PayrollController extends Controller
 
         $start = Carbon::parse($data['start_date'], 'Asia/Manila');
         $end = Carbon::parse($data['end_date'], 'Asia/Manila');
-        if (PayrollPeriod::whereDate('start_date', $start)->whereDate('end_date', $end)->exists()) {
+        if (PayrollPeriod::withoutGlobalScope('visible_faculty')->whereDate('start_date', $start)->whereDate('end_date', $end)->exists()) {
             throw ValidationException::withMessages([
                 'start_date' => 'A payroll period already exists for this cutoff.',
             ]);
         }
 
-        $data['period_name'] = $start->format('F').' '.$start->day.'-'.$end->day.', '.$start->year;
+        $data['period_name'] = $start->format('m/d/Y').' - '.$end->format('m/d/Y');
         $data['pay_date'] = $expectedPayDate;
 
         PayrollPeriod::create($data);
@@ -105,43 +105,12 @@ class PayrollController extends Controller
         foreach ($employees as $employee) {
             $computed = $payrollCalculator->calculate($employee, $period->start_date, $period->end_date);
 
-            // Late, undertime, early arrival, and overtime are already reflected in payable scheduled hours.
-            $deductions = 0;
-            $netPay = max(0, $computed['gross_pay']);
-
-            $record = PayrollRecord::firstOrNew([
-                'payroll_period_id' => $period->id,
-                'employee_id' => $employee->id,
-            ]);
+            $record = PayrollRecord::firstOrNew(['payroll_period_id' => $period->id, 'employee_id' => $employee->id]);
             if ($record->exists && $record->status !== 'draft') {
                 continue;
             }
-            $record->fill([
-                    'total_days_worked' => $computed['total_days_worked'],
-                    'total_hours_worked' => $computed['total_hours_worked'],
-                    'gross_pay' => $computed['gross_pay'],
-                    'overtime_pay' => 0,
-                    'late_undertime_minutes' => $computed['late_undertime_minutes'],
-                    'absent_days' => $computed['absent_days'],
-                    'other_earnings' => 0,
-                    'increase_amount' => 0,
-                    'total_earnings' => $computed['gross_pay'],
-                    'withholding_tax' => 0,
-                    'gsis_deduction' => 0,
-                    'philhealth_deduction' => 0,
-                    'pag_ibig_deduction' => 0,
-                    'multi_purpose_loan' => 0,
-                    'gsis_loan' => 0,
-                    'gsis_eplus_loan' => 0,
-                    'fea_dues' => 0,
-                    'oba_deduction' => 0,
-                    'cra_deduction' => 0,
-                    'total_deductions' => $deductions,
-                    'total_adjustments' => 0,
-                    'net_pay' => $netPay,
-                    'status' => 'draft',
-                    'generated_at' => Carbon::now(),
-                ])->save();
+            $record->generated_at = Carbon::now('Asia/Manila');
+            $payrollCalculator->updateDraft($record, $computed);
         }
 
         $period->update(['status' => 'processing']);
@@ -245,6 +214,7 @@ class PayrollController extends Controller
             foreach ($records as $record) {
                 if ($record->status !== $requiredStatus) {
                     $skipped++;
+
                     continue;
                 }
 
@@ -267,8 +237,8 @@ class PayrollController extends Controller
 
     private function syncPeriodStatus(PayrollPeriod $period): void
     {
-        $hasRecords = $period->records()->exists();
-        $hasUnreleasedRecords = $period->records()->where('status', '!=', 'released')->exists();
+        $hasRecords = $period->records()->withoutGlobalScope('visible_faculty')->exists();
+        $hasUnreleasedRecords = $period->records()->withoutGlobalScope('visible_faculty')->where('status', '!=', 'released')->exists();
         $period->update(['status' => $hasRecords && ! $hasUnreleasedRecords ? 'finalized' : 'processing']);
     }
 

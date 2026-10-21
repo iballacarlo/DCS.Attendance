@@ -1,3 +1,5 @@
+import { formatDate } from '../../lib/format';
+import DateInput from '../../components/DateInput';
 import { router, useForm } from '@inertiajs/react';
 import { AlertTriangle, CalendarRange, Check, FileCheck2, RotateCcw, Search, Send, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -7,7 +9,7 @@ import useConfirmDialog from '../../hooks/useConfirmDialog';
 import useDebouncedFilters from '../../hooks/useDebouncedFilters';
 import { fullName } from '../../lib/format';
 
-const dateText = (value) => new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+const dateText = formatDate;
 const emptyFilters = { search: '', status: '', leave_type_id: '', date_from: '', date_to: '' };
 
 function RejectionDialog({ leaveRequest, form, onClose }) {
@@ -79,10 +81,10 @@ export default function LeaveIndex({ requests, leaveTypes, canReview, filters = 
         {!canReview && <form className="panel leave-request-form" onSubmit={submit}>
             <div className="panel-heading"><div><span className="bento-eyebrow">New request</span><h2>File Faculty Leave</h2></div><FileCheck2 size={22} /></div>
             <label>Leave type<select value={form.data.leave_type_id} onChange={(e) => form.setData('leave_type_id', e.target.value)} required><option value="">Select leave type</option>{leaveTypes.map((type) => <option value={type.id} key={type.id}>{type.name} | {type.is_paid ? 'Paid' : 'Without pay'}</option>)}</select></label>
-            <div className="form-pair"><label>Start date<input type="date" value={form.data.start_date} onChange={(e) => form.setData('start_date', e.target.value)} required /></label><label>End date<input type="date" min={form.data.start_date || undefined} value={form.data.end_date} onChange={(e) => form.setData('end_date', e.target.value)} required /></label></div>
+            <div className="form-pair"><label>Start date<DateInput value={form.data.start_date} onChange={(e) => form.setData('start_date', e.target.value)} required /></label><label>End date<DateInput min={form.data.start_date || undefined} value={form.data.end_date} onChange={(e) => form.setData('end_date', e.target.value)} required /></label></div>
             <label>Reason<textarea rows="4" maxLength="1000" value={form.data.reason} onChange={(e) => form.setData('reason', e.target.value)} required /></label>
-            <p className="form-note">Only approved leave affects the DTR. Paid leave credits scheduled hours; leave without pay records the leave but credits no hours.</p>
-            <div className="form-actions"><button disabled={form.processing}><Send size={17} />Submit Request</button></div>
+            <p className="form-note">Approved leave appears in your DTR as a leave record. Pay is based only on completed class attendance.</p>
+            <div className="form-actions"><button className="ui-control ui-action ui-primary" disabled={form.processing}><Send size={17} />Submit Request</button></div>
         </form>}
 
         <section className="panel leave-request-list">
@@ -91,13 +93,13 @@ export default function LeaveIndex({ requests, leaveTypes, canReview, filters = 
                 <label>{canReview ? 'Search faculty or reason' : 'Search reason'}<span className="leave-filter-search"><Search size={16} /><input type="search" value={filterValues.search} onChange={(event) => setFilter('search', event.target.value)} placeholder={canReview ? 'Name, employee no., or reason' : 'Reason'} /></span></label>
                 <label>Status<select value={filterValues.status} onChange={(event) => setFilter('status', event.target.value)}><option value="">All statuses</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="cancelled">Cancelled</option></select></label>
                 <label>Leave type<select value={filterValues.leave_type_id} onChange={(event) => setFilter('leave_type_id', event.target.value)}><option value="">All types</option>{leaveTypes.map((type) => <option value={type.id} key={type.id}>{type.name}</option>)}</select></label>
-                <label>From<input type="date" value={filterValues.date_from} onChange={(event) => setFilter('date_from', event.target.value)} /></label>
-                <label>To<input type="date" min={filterValues.date_from || undefined} value={filterValues.date_to} onChange={(event) => setFilter('date_to', event.target.value)} /></label>
-                <button className="leave-filter-clear" type="button" onClick={() => setFilterValues(emptyFilters)} disabled={!hasFilters}><RotateCcw size={15} />Clear</button>
+                <label>From<DateInput value={filterValues.date_from} onChange={(event) => setFilter('date_from', event.target.value)} /></label>
+                <label>To<DateInput min={filterValues.date_from || undefined} value={filterValues.date_to} onChange={(event) => setFilter('date_to', event.target.value)} /></label>
+                <button className="leave-filter-clear ui-control ui-action ui-secondary" type="button" onClick={() => setFilterValues(emptyFilters)} disabled={!hasFilters}><RotateCcw size={15} />Clear</button>
             </div>
             <div className="leave-cards">{requests.data.length ? requests.data.map((request) => <article className="leave-card" key={request.id}>
-                <div className="leave-card-main"><span className={`leave-status is-${request.status}`}>{request.status}</span><h3>{request.leave_type.name}<small>{request.leave_type.is_paid ? 'Paid leave' : 'Leave without pay'}</small></h3>{canReview && <strong>{fullName(request.employee)} | {request.employee.employee_no}</strong>}<p>{dateText(request.start_date)} to {dateText(request.end_date)}</p><blockquote>{request.reason}</blockquote>{request.reviewer_remarks && <small><strong>{request.status === 'rejected' ? 'Rejection reason' : 'Reviewer remarks'}:</strong> {request.reviewer_remarks}</small>}{request.reviewer && <small>Reviewed by {request.reviewer.name}{request.reviewed_at ? ` on ${dateText(request.reviewed_at)}` : ''}</small>}</div>
-                <div className="leave-card-actions">{canReview && request.status === 'pending' && <><button type="button" className="leave-approve" onClick={() => approve(request)}><Check size={16} />Approve</button><button type="button" className="leave-reject" onClick={() => openRejection(request)}><X size={16} />Reject</button></>}{!canReview && request.status === 'pending' && <button type="button" className="leave-reject" onClick={() => cancel(request)}><X size={16} />Cancel</button>}</div>
+                <div className="leave-card-main"><span className={`leave-status is-${request.status}`}>{request.status}</span><h3>{request.leave_type.name}<small>Informational leave record; no automatic paid hours</small></h3>{canReview && <strong>{fullName(request.employee)} | {request.employee.employee_no}</strong>}<p>{dateText(request.start_date)} to {dateText(request.end_date)}</p><blockquote>{request.reason}</blockquote>{request.reviewer_remarks && <small><strong>{request.status === 'rejected' ? 'Rejection reason' : 'Reviewer remarks'}:</strong> {request.reviewer_remarks}</small>}{request.reviewer && <small>Reviewed by {request.reviewer.name}{request.reviewed_at ? ` on ${dateText(request.reviewed_at)}` : ''}</small>}</div>
+                <div className="leave-card-actions">{canReview && request.status === 'pending' && <><button type="button" className="leave-approve ui-control ui-action ui-primary" onClick={() => approve(request)}><Check size={16} />Approve</button><button type="button" className="leave-reject ui-control ui-action ui-danger" onClick={() => openRejection(request)}><X size={16} />Reject</button></>}{!canReview && request.status === 'pending' && <button type="button" className="leave-reject ui-control ui-action ui-danger" onClick={() => cancel(request)}><X size={16} />Cancel</button>}</div>
             </article>) : <p className="empty-row">No leave requests match the selected filters.</p>}</div>
             <Pagination links={requests.links} />
         </section>

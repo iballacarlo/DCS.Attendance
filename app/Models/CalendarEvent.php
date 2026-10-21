@@ -20,6 +20,11 @@ class CalendarEvent extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::addGlobalScope('visible_faculty', fn ($query) => $query->where(fn ($visible) => $visible->where('scope_type', '!=', 'faculty')->orWhereHas('employees')));
+    }
+
     public function employees()
     {
         return $this->belongsToMany(Employee::class, 'calendar_event_employee');

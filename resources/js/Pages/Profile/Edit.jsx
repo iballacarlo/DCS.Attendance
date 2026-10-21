@@ -1,3 +1,4 @@
+import { formatDate } from '../../lib/format';
 import { useForm } from '@inertiajs/react';
 import { BriefcaseBusiness, GraduationCap, KeyRound, Plus, Save, Trash2, UserRound } from 'lucide-react';
 import AppLayout from '../../Layouts/AppLayout';
@@ -104,9 +105,9 @@ export default function ProfileEdit({ profileUser }) {
                         <label>Position<input value={history.position} onChange={(event) => updateEmployment(index, 'position', event.target.value)} required /></label>
                         <label>From<input type="month" value={history.started_on} onChange={(event) => updateEmployment(index, 'started_on', event.target.value)} required /></label>
                         <label>Until<input type="month" min={history.started_on || undefined} value={history.ended_on} onChange={(event) => updateEmployment(index, 'ended_on', event.target.value)} /></label>
-                        <button className="history-delete" type="button" onClick={() => removeEmployment(index)} title="Remove employment" aria-label="Remove employment"><Trash2 size={16} /></button>
+                        <button className="history-delete ui-control ui-action ui-danger" type="button" onClick={() => removeEmployment(index)} title="Remove employment" aria-label="Remove employment"><Trash2 size={16} /></button>
                     </div>)}
-                    <button className="add-history-button" type="button" onClick={addEmployment}><Plus size={16} />Add Employment</button>
+                    <button className="add-history-button ui-control ui-action ui-primary" type="button" onClick={addEmployment}><Plus size={16} />Add Employment</button>
                     <ErrorMessage message={form.errors.employment_history} />
                 </div>
                 <div className="form-section-title"><span><BriefcaseBusiness size={17} /></span><div><strong>Employment details</strong><small>Managed by the payroll administrator</small></div></div>
@@ -115,8 +116,8 @@ export default function ProfileEdit({ profileUser }) {
                     <label>Rank<input value={employee.faculty_rank?.name || '-'} readOnly /></label>
                     <label>Hourly Rate<input value={money(employee.rate_amount)} readOnly /></label>
                     <label>Employment Status<input value={employee.status || '-'} readOnly /></label>
-                    <label>Contract Start<input value={employee.contract_start || '-'} readOnly /></label>
-                    <label>Contract End<input value={employee.contract_end || '-'} readOnly /></label>
+                    <label>Contract Start<input value={formatDate(employee.contract_start)} readOnly /></label>
+                    <label>Contract End<input value={formatDate(employee.contract_end)} readOnly /></label>
                 </div>
                 <p className="profile-readonly-note">Contact an administrator to correct employment, rank, rate, contract, or status information.</p>
             </> : <div className="profile-contact-fields">
@@ -130,7 +131,7 @@ export default function ProfileEdit({ profileUser }) {
                 <label>New Password<input type="password" autoComplete="new-password" minLength="8" placeholder="Minimum 8 characters" value={form.data.password} onChange={(event) => form.setData('password', event.target.value)} /><ErrorMessage message={form.errors.password} /></label>
                 <label>Confirm New Password<input type="password" autoComplete="new-password" minLength="8" value={form.data.password_confirmation} onChange={(event) => form.setData('password_confirmation', event.target.value)} /></label>
             </div>
-            <div className="form-actions"><button type="submit" disabled={form.processing}><Save size={17} />{form.processing ? 'Saving...' : 'Save Changes'}</button></div>
+            <div className="form-actions"><button className="ui-control ui-action ui-primary" type="submit" disabled={form.processing}><Save size={17} />{form.processing ? 'Saving...' : 'Save Changes'}</button></div>
         </form>
     </AppLayout>;
 }
