@@ -10,6 +10,8 @@ Payroll and attendance management system for Cavite State University - Imus Camp
 - Payroll period generation and A4 payslips
 - Email verification and password recovery
 - Administrative backup and restore
+- Custom JSON backups with data categories and searchable multi-faculty selection. Related profiles and references are included only when required. Full backups retain archived faculty; selected-faculty backups contain only the chosen non-archived faculty, with shared calendar/settings data when selected. Audit exports require all faculty.
+- Custom backup recovery adds missing records only, keeps existing records and financial adjustments, and rejects ID/ownership conflicts atomically. Full version-1 system backups keep their existing replace-all recovery behavior. Backup and recovery remain admin-only.
 - Responsive light and dark modes
 
 ## Per-class attendance

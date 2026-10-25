@@ -1,5 +1,20 @@
 /* Shared application surfaces, following the schedule designer's visual language. */
 @media screen {
+    #workspace .backup-options { min-width: 0; margin: 0; padding: 0; border: 0; }
+    #workspace .backup-settings-grid { align-items: start; }
+    #workspace .backup-options legend { padding: 0; margin-bottom: 10px; font-size: 13px; font-weight: 700; }
+    #workspace .backup-category-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    #workspace .backup-category { display: flex; align-items: flex-start; gap: 10px; padding: 12px; margin: 0; border: 1px solid var(--ui-line); border-radius: 9px; cursor: pointer; }
+    #workspace .backup-category:has(input:checked) { background: var(--ui-soft-green); border-color: var(--ui-green); }
+    #workspace .backup-category.is-disabled { opacity: .6; cursor: default; }
+    #workspace .backup-category input { flex: 0 0 16px; width: 16px; height: 16px; min-height: 16px; margin-top: 3px; accent-color: var(--ui-green); }
+    #workspace .backup-category > span { display: grid; gap: 5px; min-width: 0; }
+    #workspace .backup-category strong { font-size: 12px; }
+    #workspace .backup-category small, #workspace .backup-note { font-size: 12px; line-height: 1.5; color: var(--ui-muted); }
+    #workspace .backup-selected-faculty { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    #workspace .backup-selected-faculty .ui-action { min-height: 30px; padding: 6px 9px; font-size: 11px; }
+    #workspace .backup-faculty-picker > small { display: block; margin-top: 8px; }
+    @media (max-width: 600px) { #workspace .backup-category-grid { grid-template-columns: 1fr; } }
     #workspace .payroll-record-filters { display: flex; flex-wrap: nowrap; align-items: flex-end; gap: 14px; }
     #workspace .payroll-record-filters > .cutoff-picker { flex: 1.8 1 380px; min-width: 290px; }
     #workspace .payroll-record-filters .cutoff-picker-fields { display: grid; grid-template-columns: minmax(90px, 1fr) 85px minmax(125px, 1.15fr); gap: 12px; }
