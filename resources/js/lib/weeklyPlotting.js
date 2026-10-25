@@ -8,12 +8,12 @@ export const plottingTime = (minute) => `${String(Math.floor(minute / 60)).padSt
 export function weeklyPlotting(blocks) {
     const valid = blocks.map((block, index) => ({ ...block, key: index, start: minutesOf(block.start_time), end: minutesOf(block.end_time) }))
         .filter((block) => block.day_of_week >= 1 && block.day_of_week <= 6 && block.end > block.start);
-    const first = Math.min(7 * 60, ...valid.map((b) => Math.floor(b.start / 30) * 30));
-    const last = Math.max(21 * 60, ...valid.map((b) => Math.ceil(b.end / 30) * 30));
-    const boundaries = [...new Set([...Array.from({ length: (last - first) / 30 + 1 }, (_, i) => first + i * 30), ...valid.flatMap((b) => [b.start, b.end])])].sort((a, b) => a - b);
+    const first = 7 * 60, last = 19 * 60;
+    const visible = valid.filter((b) => b.end > first && b.start < last).map((b) => ({ ...b, start: Math.max(first, b.start), end: Math.min(last, b.end) }));
+    const boundaries = [...new Set([...Array.from({ length: (last - first) / 30 + 1 }, (_, i) => first + i * 30), ...visible.flatMap((b) => [b.start, b.end])])].sort((a, b) => a - b);
     const rows = boundaries.slice(0, -1).map((start, index) => ({ start, end: boundaries[index + 1],
         cells: plottingDays.map((_, day) => {
-            const block = valid.find((b) => Number(b.day_of_week) === day + 1 && b.start <= start && b.end > start);
+            const block = visible.find((b) => Number(b.day_of_week) === day + 1 && b.start <= start && b.end > start);
             if (!block) return { span: 1, block: null };
             if (block.start !== start) return null;
             return { span: boundaries.indexOf(block.end) - index, block };

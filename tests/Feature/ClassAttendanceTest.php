@@ -236,6 +236,24 @@ class ClassAttendanceTest extends TestCase
         $this->put('/employees/'.$employee->id.'/schedule', ['blocks' => [[...$block, 'section' => '']]])->assertSessionHasErrors('blocks.0.section');
     }
 
+    public function test_all_schedule_types_are_limited_to_7_am_through_7_pm(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-25', 'Asia/Manila'));
+        $employee = $this->employee();
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
+        foreach (['class', 'consultation', 'lunch_break'] as $type) {
+            $block = ['day_of_week' => 1, 'schedule_type' => $type, 'start_time' => '07:00', 'end_time' => '19:00', 'subject' => 'DCIT 21A', 'section' => 'BSIT 1A', 'class_mode' => 'lecture'];
+            $this->put('/employees/'.$employee->id.'/schedule', ['blocks' => [$block]])->assertSessionHasNoErrors();
+            foreach (['start_time' => '06:59', 'end_time' => '19:01'] as $field => $time) {
+                $this->put('/employees/'.$employee->id.'/schedule', ['blocks' => [[...$block, $field => $time]]])->assertSessionHasErrors('blocks.0.'.$field);
+            }
+            $relation = $type === 'lunch_break' ? $employee->scheduleBreaks() : $employee->schedules();
+            $this->assertSame(1, $relation->count());
+            $this->assertSame('07:00', substr($relation->first()->start_time, 0, 5));
+            $this->assertSame('19:00', substr($relation->first()->end_time, 0, 5));
+        }
+    }
+
     public function test_cutoff_service_handles_leap_year_and_month_end(): void
     {
         $this->assertSame('2024-02-29', CutoffService::range('2024-02-16')[1]->toDateString());
@@ -375,6 +393,43 @@ class ClassAttendanceTest extends TestCase
             $this->put('/employees/'.$employee->id.'/schedule', ['blocks' => [[...$block, $field => $value]]])->assertSessionHasErrors('blocks.0.'.$field);
         }
         $this->put('/employees/'.$employee->id.'/schedule', ['blocks' => [[...$block, 'class_mode' => null]]])->assertSessionHasErrors('blocks.0.class_mode');
+    }
+
+    public function test_saving_completed_class_details_preserves_other_unnamed_legacy_blocks(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-25', 'Asia/Manila'));
+        $employee = $this->employee();
+        $unnamed = $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'subject' => null, 'section' => null, 'class_mode' => null]);
+        $edited = $employee->schedules()->create(['day_of_week' => 2, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'subject' => null, 'section' => null, 'class_mode' => null]);
+        $this->actingAs(User::factory()->create(['role' => 'admin']))->put('/employees/'.$employee->id.'/schedule', ['blocks' => [
+            ['id' => $unnamed->id, 'day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'subject' => '', 'section' => '', 'class_mode' => ''],
+            ['id' => $edited->id, 'day_of_week' => 2, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'subject' => 'DCIT 26', 'section' => 'BSIT 3B', 'class_mode' => 'lecture'],
+        ]])->assertSessionHasNoErrors();
+        $this->assertNull($unnamed->fresh()->subject);
+        $this->assertNull($unnamed->fresh()->section);
+        $this->assertSame('DCIT 26', $edited->fresh()->subject);
+        $this->assertSame('BSIT 3B', $edited->fresh()->section);
+        $this->assertSame(2, $employee->schedules()->count());
+    }
+
+    public function test_admin_can_switch_faculty_from_schedule_page_without_exposing_options_to_faculty(): void
+    {
+        $first = $this->employee('NAV-1');
+        $first->update(['last_name' => 'Alpha']);
+        $second = $this->employee('NAV-2');
+        $second->update(['last_name' => 'Bravo']);
+        $archived = $this->employee('NAV-3');
+        $archived->forceFill(['archived_at' => now()])->save();
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->get('/employees/'.$first->id.'/schedule?view=daily&day=3')
+            ->assertOk()->assertInertia(fn (Assert $page) => $page->has('facultyOptions', 2)
+            ->where('facultyOptions.0.id', $first->id)->where('facultyOptions.1.id', $second->id));
+        $this->get('/employees/'.$second->id.'/schedule?view=daily&day=3')
+            ->assertOk()->assertInertia(fn (Assert $page) => $page->where('employee.id', $second->id));
+        $this->get('/employees/'.$archived->id.'/schedule')->assertNotFound();
+        $this->actingAs(User::factory()->create(['role' => 'faculty', 'employee_id' => $first->id]))
+            ->get('/my-schedule')->assertOk()->assertInertia(fn (Assert $page) => $page->where('readOnly', true)->missing('facultyOptions'));
+        $this->get('/employees/'.$second->id.'/schedule')->assertForbidden();
     }
 
     public function test_legacy_subject_and_section_can_be_retained_when_adding_class_type(): void

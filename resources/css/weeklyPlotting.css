@@ -4,6 +4,11 @@
 .wp-scroll, .wp-summary { overflow-x: auto; }
 .wp-grid, .wp-summary table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .wp-grid { min-width: 940px; }
+#workspace .wp-grid { border: 1px solid #a3a3a3; }
+#workspace .wp-grid tbody tr:last-child > :is(th, td) { border-bottom: 1px solid #a3a3a3 !important; }
+#workspace .sd-timeline { border-bottom: 1px solid var(--sd-line); }
+html[data-theme='dark'] #workspace .wp-grid,
+html[data-theme='dark'] #workspace .wp-grid tbody tr:last-child > :is(th, td) { border-color: #606060 !important; }
 .wp-grid .wp-time-col { width: 76px; }
 .weekly-plotting :is(th, td) { border: 1px solid #a3a3a3; text-align: center; padding: 5px; }
 .wp-grid thead th { background: transparent; color: inherit; font-size: 11px; height: 30px; }
@@ -23,9 +28,12 @@
 #workspace .schedule-designer .sd-timeline-block.is-consultation { background: #fff3b8; color: #5a4710; }
 .wp-grid .wp-block.wp-lunch_break, .wp-legend .wp-lunch_break,
 #workspace .schedule-designer .sd-timeline-block.is-lunch_break { background: #f9e1c2; color: #674215; }
-#workspace .schedule-designer .sd-timeline-block { border-color: currentColor; }
+#workspace .schedule-designer .sd-timeline-block { border: 0; }
+#workspace .schedule-designer .sd-timeline-block.is-editing { outline: 1px solid #8fb99f; outline-offset: -1px; }
+#workspace .schedule-designer .sd-timeline-block:focus-visible { outline: 2px solid #3776c4; outline-offset: -2px; }
 #workspace .schedule-designer .sd-timeline-block :is(strong, span) { color: inherit; }
 .wp-empty { background: #fff; }
+#workspace .wp-grid tbody td.wp-empty { border-top: 0; border-bottom: 0; border-left: 1px solid #a3a3a3; border-right: 1px solid #a3a3a3; }
 .wp-summary { margin-top: 20px; }
 .wp-summary table { min-width: 650px; font-size: 11px; }
 #workspace .wp-summary table { border: 1px solid #a3a3a3; }
@@ -38,8 +46,12 @@ html[data-theme='dark'] #workspace .wp-summary tbody tr:last-child > td { border
 .sd-view-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
 .sd-view-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
 .sd-view-toolbar .wp-legend { margin: 0; }
+.sd-faculty-switcher { display: flex; align-items: center; gap: 10px; margin-left: auto; min-width: 0; }
+.sd-faculty-switcher > label { display: grid; width: 270px; min-width: 0; margin: 0; font-size: 12px; font-weight: 700; }
+.sd-faculty-switcher select { width: 100%; min-width: 0; }
+.sd-faculty-arrows { display: flex; gap: 8px; }
 .sd-daily-view { display: grid; gap: 22px; }
 html[data-theme='dark'] .weekly-plotting { background: #202020; color: #ededed; border-color: #606060; }
 html[data-theme='dark'] .weekly-plotting :is(th, td), html[data-theme='dark'] .wp-legend > span { border-color: #606060; }
 html[data-theme='dark'] .weekly-plotting :is(thead th, .wp-summary th, tbody th, .wp-time-to, .wp-empty) { background: transparent; color: inherit; }
-@media (max-width: 600px) { .weekly-plotting { padding: 16px; } }
+@media (max-width: 600px) { .weekly-plotting { padding: 16px; } .sd-faculty-switcher { margin-left: 0; width: 100%; } .sd-faculty-switcher > label { flex: 1; width: auto; } }

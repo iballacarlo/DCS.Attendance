@@ -20,12 +20,15 @@ test('weekly totals separate lecture/lab and include paid consultation but exclu
     assert.equal(model.consultationHours, 1);
     assert.equal(model.payableHours, 5);
 });
-test('weekly plotting expands for early/evening blocks and still shows six days when empty', () => {
-    const expanded = weeklyPlotting([block('06:00', '06:30'), block('21:30', '22:00', { day_of_week: 6 })]);
-    assert.equal(expanded.rows[0].start, 360);
-    assert.equal(expanded.rows.at(-1).end, 1320);
+test('weekly plotting stays within 7 AM to 7 PM and clips legacy blocks without changing totals', () => {
+    const expanded = weeklyPlotting([block('06:00', '08:00'), block('18:00', '20:00', { day_of_week: 6 })]);
+    assert.equal(expanded.rows[0].start, 420);
+    assert.equal(expanded.rows.at(-1).end, 1140);
+    assert.equal(expanded.payableHours, 4);
     assert.ok(expanded.rows.some((row) => row.cells[5]?.block));
+    assert.ok(expanded.rows.every((row) => row.start >= 420 && row.end <= 1140));
     const empty = weeklyPlotting([]);
+    assert.equal(empty.rows.length, 24);
     assert.equal(empty.payableHours, 0);
     assert.ok(empty.rows.every((row) => row.cells.length === 6));
 });

@@ -170,7 +170,12 @@ class EmployeeController extends Controller
     {
         $employee->load(['schedules', 'scheduleBreaks', 'facultyRank']);
 
-        return Inertia::render('Employees/Schedule', ['employee' => $employee, 'scheduleOptions' => ScheduleOptions::all()]);
+        return Inertia::render('Employees/Schedule', [
+            'employee' => $employee,
+            'scheduleOptions' => ScheduleOptions::all(),
+            'facultyOptions' => Employee::orderBy('last_name')->orderBy('first_name')->orderBy('id')
+                ->get(['id', 'employee_no', 'first_name', 'middle_name', 'last_name', 'suffix']),
+        ]);
     }
 
     public function mySchedule(Request $request)
@@ -331,6 +336,11 @@ class EmployeeController extends Controller
         $blocks = $data['blocks'];
         $ids = [];
         foreach ($blocks as $i => $block) {
+            foreach (['start_time', 'end_time'] as $field) {
+                if ($block[$field] < '07:00' || $block[$field] > '19:00') {
+                    throw ValidationException::withMessages(["blocks.$i.$field" => 'Schedule blocks must be within 7:00 AM and 7:00 PM.']);
+                }
+            }
             if ($block['end_time'] <= $block['start_time']) {
                 throw ValidationException::withMessages(["blocks.$i.end_time" => 'End time must be after start time.']);
             }
@@ -345,10 +355,13 @@ class EmployeeController extends Controller
             }
             $ids[] = $key;
             if ($block['schedule_type'] === 'class') {
+                if (($block['class_mode'] ?? '') === 'laboratory' && in_array($block['subject'] ?? '', ScheduleOptions::LECTURE_ONLY_SUBJECTS, true)) {
+                    throw ValidationException::withMessages(["blocks.$i.subject" => 'This subject is available for Lecture only.']);
+                }
                 foreach (['section' => ScheduleOptions::sections(), 'subject' => ScheduleOptions::subjectsFor($block['section'] ?? ''), 'class_mode' => array_keys(ScheduleOptions::CLASS_MODES)] as $field => $allowed) {
                     $value = $block[$field] ?? null;
                     // Preserve existing legacy values; new/changed selections must use the catalog.
-                    if ((! $existing || $value !== $existing->$field || ($field === 'subject' && ($block['section'] ?? '') !== $existing->section)) && ! in_array($value, $allowed, true)) {
+                    if ((! $existing || (string) $value !== (string) $existing->$field || ($field === 'subject' && (string) ($block['section'] ?? '') !== (string) $existing->section)) && ! in_array($value, $allowed, true)) {
                         throw ValidationException::withMessages(["blocks.$i.$field" => 'Select a valid '.str_replace('_', ' ', $field).'.']);
                     }
                 }
