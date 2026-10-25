@@ -202,6 +202,7 @@ class SchoolCalendarDtrTest extends TestCase
             ->where('dtr.signatory.name', 'DR. HISTORICAL DEAN')
             ->where('dtr.signatory.designation', 'In Charge')
             ->has('dtr.rows', 15)
+            ->has('dtr.form_rows', 31)
             );
     }
 

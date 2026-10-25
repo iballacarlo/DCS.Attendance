@@ -1,5 +1,29 @@
 /* Shared application surfaces, following the schedule designer's visual language. */
 @media screen {
+    #workspace .attendance-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 24px; padding: 18px; }
+    #workspace .attendance-filter-fields { display: flex; flex: 1 1 600px; flex-wrap: wrap; align-items: flex-end; gap: 12px; min-width: 0; }
+    #workspace .attendance-filter-fields label { display: grid; gap: 6px; margin: 0; width: 145px; min-width: 0; }
+    #workspace .attendance-filter-fields label:first-child { width: 225px; }
+    #workspace .attendance-filter-fields label:has(input) { width: 210px; }
+    #workspace .attendance-filter-fields :is(input, select) { width: 100%; min-width: 0; }
+    #workspace .attendance-toolbar-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-left: auto; }
+    #workspace .attendance-toolbar-actions .button { display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
+    #workspace .today-schedule-list { display: grid; gap: 12px; }
+    #workspace .dashboard-panels .faculty-today-schedule { padding: 22px; min-width: 0; min-height: 0; height: auto; margin: 0; }
+    #workspace .faculty-today-schedule .bento-heading { margin: 0 0 16px; padding: 0 0 16px; }
+    #workspace .faculty-today-schedule .bento-empty { border: 0; padding: 18px 10px; background: var(--ui-surface); border-radius: 10px; font-size: 13px; line-height: 1.6; }
+    #workspace .today-schedule-item { display: grid; gap: 5px; padding: 14px; border: 1px solid var(--ui-line); border-radius: 10px; overflow-wrap: anywhere; }
+    #workspace .today-schedule-item > span { font-size: 12px; color: var(--ui-muted); }
+    #workspace .today-schedule-item .today-schedule-time { color: var(--ui-green); font-weight: 700; }
+    @media (max-width: 600px) {
+        #workspace .attendance-filter-fields { display: grid; flex-basis: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+        #workspace .attendance-filter-fields label { width: auto; }
+        #workspace .attendance-filter-fields label:first-child, #workspace .attendance-filter-fields label:has(input) { grid-column: 1 / -1; width: auto; }
+        #workspace .attendance-toolbar-actions { margin-left: 0; width: 100%; }
+        #workspace .attendance-toolbar-actions .button { flex: 1; white-space: normal; }
+    }
+}
+@media screen {
     #workspace {
         --ui-paper: #fff; --ui-surface: #f3f7f4; --ui-line: #cbd9cf;
         --ui-ink: #183a27; --ui-muted: #4f6558; --ui-green: #176b46;
@@ -139,7 +163,11 @@
     #workspace .dashboard-panels :is(.attendance-bento, .trend-bento, .payroll-bento) { grid-column: auto; grid-row: auto; align-self: start; min-height: 0; height: auto; margin: 0; min-width: 0; }
     #workspace .dashboard-panels .bento-table { max-height: 420px; overflow: auto; }
     #workspace .dashboard-panels .bento-table th { position: sticky; top: 0; z-index: 1; }
-    #workspace .dashboard-side-panels .trend-chart { height: 160px; min-height: 0; }
+    #workspace .dashboard-side-panels .trend-chart { height: 160px; min-height: 0; padding-top: 24px; }
+    #workspace .trend-bar-area { position: relative; flex: 1; min-height: 0; width: 100%; }
+    #workspace .trend-bar-area .trend-value { position: absolute; left: 0; right: 0; text-align: center; margin: 0; line-height: 16px; }
+    #workspace .trend-bar-area i { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); min-height: 0; max-height: none; }
+    #workspace .trend-column small { flex-shrink: 0; }
     #workspace .dashboard-panels .payroll-stack { max-height: 280px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-right: 4px; }
     #workspace .dashboard-panels .payroll-stack:focus-visible { outline: 3px solid #74a6e7; outline-offset: 4px; }
     #workspace .dashboard-panels .payroll-item { padding: 12px 14px; gap: 7px; }

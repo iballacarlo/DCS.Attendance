@@ -22,12 +22,12 @@ class DtrController extends Controller
         abort_unless($employeeId, 404, 'No faculty record is available for DTR generation.');
         $employee = Employee::findOrFail($employeeId);
         $start = isset($data['start_date']) ? Carbon::parse($data['start_date'], 'Asia/Manila') : $this->currentCutoffStart();
+        abort_unless($start->year >= 1900 && $start->year <= 2100, 422, 'Choose a DTR year from 1900 to 2100.');
         [$start, $end] = $this->cutoff($start);
         $dtr = $dtrService->build($employee, $start, $end);
 
         return Inertia::render('Dtr/Show', [
             'dtr' => $dtr,
-            'cutoffOptions' => $this->cutoffOptions($employee, $start),
             'employees' => $user->role === 'faculty' ? [] : Employee::orderBy('last_name')->get(),
             'canSelectFaculty' => $user->role !== 'faculty',
         ]);
@@ -43,10 +43,5 @@ class DtrController extends Controller
         $today = Carbon::now('Asia/Manila');
 
         return $today->day <= 15 ? $today->copy()->startOfMonth() : $today->copy()->day(16);
-    }
-
-    private function cutoffOptions(Employee $employee, Carbon $selected): array
-    {
-        return CutoffService::options($employee->service_start_date ?: Carbon::today('Asia/Manila')->subYears(2)->toDateString(), $selected);
     }
 }

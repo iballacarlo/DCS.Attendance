@@ -1,5 +1,7 @@
 import '../css/app.css';
 import '../css/workspace.css';
+import '../css/form48.css';
+import '../css/weeklyPlotting.css';
 import './bootstrap';
 import { createInertiaApp } from '@inertiajs/react';
 import { createRoot } from 'react-dom/client';

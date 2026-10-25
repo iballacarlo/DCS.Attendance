@@ -330,8 +330,29 @@ class PayrollRulesTest extends TestCase
     public function test_admin_cannot_create_manual_attendance(): void
     {
         $this->actingAs(User::factory()->create(['role' => 'admin']))
-            ->post(route('attendance.manual'), [])
-            ->assertForbidden();
+            ->post('/attendance/manual', [])
+            ->assertNotFound();
+    }
+
+    public function test_faculty_dashboard_only_links_to_own_released_payslips(): void
+    {
+        $employee = $this->employeeWithMondaySchedule();
+        $otherEmployee = Employee::create(['employee_no' => 'OTHER', 'first_name' => 'Other', 'last_name' => 'Faculty', 'rate_type' => 'hourly', 'rate_amount' => 100, 'status' => 'active']);
+        $records = [];
+        foreach (['released', 'approved', 'draft'] as $index => $status) {
+            $period = PayrollPeriod::create(['period_name' => $status, 'start_date' => '2026-0'.($index + 1).'-01', 'end_date' => '2026-0'.($index + 1).'-15', 'status' => 'processing']);
+            $records[$status] = PayrollRecord::create(['employee_id' => $employee->id, 'payroll_period_id' => $period->id, 'status' => $status]);
+        }
+        $otherRecord = PayrollRecord::create(['employee_id' => $otherEmployee->id, 'payroll_period_id' => $records['released']->payroll_period_id, 'status' => 'released']);
+        $this->actingAs(User::factory()->create(['role' => 'faculty', 'employee_id' => $employee->id]));
+        $this->get('/')->assertOk()->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+            ->component('Dashboard')->has('latestPayrolls', 1)->where('latestPayrolls.0.id', $records['released']->id));
+        $this->get(route('payroll.records.show', $records['released']))->assertOk();
+        foreach ([$records['draft'], $records['approved'], $otherRecord] as $record) {
+            $this->get(route('payroll.records.show', $record))->assertForbidden();
+        }
+        $records['released']->update(['status' => 'approved']);
+        $this->get('/')->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page->has('latestPayrolls', 0));
     }
 
     private function employeeWithMondaySchedule(): Employee

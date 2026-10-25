@@ -45,7 +45,7 @@ class AttendanceCalculator
     public static function schedulesFor(AttendanceLog $log)
     {
         return $log->employee?->schedules()
-            ->where('schedule_type', 'class')->where('day_of_week', Carbon::parse($log->attendance_date, 'Asia/Manila')->dayOfWeek)
+            ->whereIn('schedule_type', FacultySchedule::PAYABLE_TYPES)->where('day_of_week', Carbon::parse($log->attendance_date, 'Asia/Manila')->dayOfWeek)
             ->orderBy('start_time')
             ->get() ?? collect();
     }
@@ -55,7 +55,7 @@ class AttendanceCalculator
         $attendanceDate = $date instanceof Carbon ? $date : Carbon::parse($date, 'Asia/Manila');
 
         return $employee->schedules()
-            ->where('schedule_type', 'class')->where('day_of_week', $attendanceDate->dayOfWeek)
+            ->whereIn('schedule_type', FacultySchedule::PAYABLE_TYPES)->where('day_of_week', $attendanceDate->dayOfWeek)
             ->exists();
     }
 
@@ -68,10 +68,10 @@ class AttendanceCalculator
     {
         $attendanceDate = $date instanceof Carbon ? $date : Carbon::parse($date, 'Asia/Manila');
 
-        $breaks = $employee->scheduleBreaks()->where('schedule_type', 'class')->where('day_of_week', $attendanceDate->dayOfWeek)->get();
+        $breaks = $employee->scheduleBreaks()->whereIn('schedule_type', FacultySchedule::PAYABLE_TYPES)->where('day_of_week', $attendanceDate->dayOfWeek)->get();
 
         return $employee->schedules()
-            ->where('schedule_type', 'class')->where('day_of_week', $attendanceDate->dayOfWeek)
+            ->whereIn('schedule_type', FacultySchedule::PAYABLE_TYPES)->where('day_of_week', $attendanceDate->dayOfWeek)
             ->get()
             ->sum(fn (FacultySchedule $schedule) => self::scheduledMinutes($schedule, $breaks) / 60);
     }

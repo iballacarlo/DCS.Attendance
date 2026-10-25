@@ -16,7 +16,17 @@ Payroll and attendance management system for Cavite State University - Imus Camp
 
 Each class has its own time-in/time-out pair, subject, and section. The administrator creates separate blocks even for adjacent classes. Faculty can view their own read-only plotting under **My Schedule**.
 
-Hourly pay is the employee's hourly rate multiplied by completed class attendance within the selected cutoff. Count only the overlap between each tap pair and its class schedule; consultation, breaks, gaps, and time outside the class are unpaid. There is no additional late/undertime penalty and no automatic holiday, activity, or leave credit. An incomplete pair remains unpaid until corrected by payroll staff.
+Both Manage Schedule and My Schedule open with a Monday-Saturday **Weekly Plotting** matrix. Blocks show subject, section, lecture/laboratory, consultation, and breaks, followed by weekly subject/section hour totals. Administrators use **Manage by Day** to edit; faculty have a read-only **Daily View**. Plotting contains schedule information only, without institutional headings or faculty profile details. Total no. of contract hours per week includes class and consultation hours. The summary omits the unspecified-class-hours column while retaining those hours in the class total. Room, student-count, credit-unit, and signature data are not invented when they are absent from the database.
+
+Hourly pay is the employee's hourly rate multiplied by completed class and consultation attendance within the selected cutoff. Count only the overlap between each tap pair and its assigned class or consultation schedule. Breaks, gaps, and time outside payable schedules are unpaid. There is no additional late/undertime penalty and no automatic holiday, activity, or leave credit. An incomplete pair remains unpaid.
+
+Consultation requires its own time-in/time-out pair, including when it is adjacent to a class. Consultation sessions retain their type in attendance snapshots and are included in DTR and payroll totals. Existing class records retain their original type. Deploy the consultation snapshot field with the targeted migration below; it does not create attendance or credit historical hours automatically:
+
+```sh
+php artisan migrate --path=database/migrations/2026_10_25_000001_add_attendance_schedule_type.php --force
+```
+
+Manual attendance entry and editing have been removed from the UI and routes, including the browser's identifier-based Record Tap form. Actual attendance taps are accepted through the hardware API. Existing records remain intact. The test log generator is available only to payroll staff, not administrators or faculty. It creates complete RFID IN/OUT pairs for class and consultation schedules. At most one in five newly generated days receives a late/early-out example; the rest cover their full schedules, with a mixture of exact, early-arrival, and late-departure taps. Adjacent sessions keep separate pairs at the scheduled boundary. Generation respects retained neighboring taps, never generates future time-outs, and fill-missing mode preserves existing records. It does not retroactively rewrite previously generated logs unless overwrite mode is explicitly selected.
 
 Time-in opens 30 minutes before class. Time-out keeps the existing three-minute cooldown. At an exact class-end boundary, the tap closes the open class; a separate tap starts the adjacent class. If a previous class has already ended and the next class is eligible, its first tap starts the new class and leaves the previous session incomplete for staff review.
 
@@ -36,7 +46,17 @@ The conversion prints a JSON report. Save it in private storage for review. It k
 
 The legacy database has no schedule version history. Conversion therefore uses the blocks currently assigned, and cannot prove which historical subject/section or class arrangement applied. Review the preview before changing old plotting. Legacy class blocks containing breaks must first be split into class-only blocks. New attendance stores class snapshots so subsequent schedule edits/deletions do not change recorded hours or class details.
 
-The DTR includes daily totals and a paginated class-session PDF appendix. Use the session breakdown for individual class pairs; the daily form displays daily arrival/departure summaries.
+### Form 48 and editable Excel
+
+The A4 Form 48 preview, PDF/print, and single-sheet Excel export follow the supplied form: Day, AM/PM arrival/departure, and UNDER TIME hours/minutes. All 31 day rows are printed, including blank rows for nonexistent dates and days outside the selected cutoff. Select the month, year, and cutoff using the compact controls; new calendar periods do not require manual setup. The form's month/cutoff heading follows the reference wording (for example, October 1-15, 2026).
+
+Form 48 displays only the earliest actual IN and latest actual OUT each day, placed in their AM/PM columns using 24-hour H:mm. The schedule range sits outside the table on the left. For days with taps, the reporting shortfall is total scheduled class/consultation seconds minus completed payable seconds, floored at zero, then rounded once to whole minutes. A positive shortfall appears in the UNDER TIME columns; the Hours cell stays blank below 60 minutes. Otherwise completed worked hours appear outside the table on the right with two decimal places. Days without taps have blank shortfall and worked-hour fields. This is reporting only and does not introduce any payroll deduction.
+
+**Download Excel** creates native editable time, number, and text cells, with A4 one-page print settings and no added worksheets. Corrections are manual: editing first/last taps does not infer per-class payable hours, and edited Excel files do not update system attendance or payroll. Correct the exported shortfall and worked-hour cells as needed for the document.
+
+The DTR controls offer **Print DTR** and **Download Excel**; there are no PDF download actions. Printing uses an internally generated PDF with the same vector cell layout as the preview and Excel layout specification. The class-session breakdown remains available on screen with its own **Print Breakdown** action and is not automatically appended to Form 48.
+
+Verification: run the PHP test suite and `node --test tests/js/form48.test.mjs`, then `npm run build`.
 
 ## Faculty archive
 

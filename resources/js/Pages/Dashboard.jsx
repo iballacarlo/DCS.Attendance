@@ -52,15 +52,16 @@ function FacultyDashboardOverview({ academicTermLabel, user }) {
     </section>;
 }
 
-export default function Dashboard({ employeeCount, presentToday, openPeriods, attendanceTrend = [], latestPayrolls, recentAttendance, contractWarnings = [] }) {
+export default function Dashboard({ employeeCount, presentToday, openPeriods, attendanceTrend = [], latestPayrolls, recentAttendance, contractWarnings = [], todaySchedule = [], scheduleDate }) {
     const { academicTerm, auth } = usePage().props;
     const isFaculty = auth.user.role === 'faculty';
     const academicTermLabel = academicTerm?.semester && academicTerm?.school_year
         ? `${academicTerm.semester.toUpperCase()} SY ${academicTerm.school_year}`
         : academicTerm?.label;
+    const highestAttendance = Math.max(1, ...attendanceTrend.map((item) => item.count));
 
     useRealtimeReload(isFaculty
-        ? ['latestPayrolls', 'recentAttendance', 'contractWarnings']
+        ? ['latestPayrolls', 'recentAttendance', 'contractWarnings', 'todaySchedule', 'scheduleDate']
         : ['employeeCount', 'presentToday', 'openPeriods', 'attendanceTrend', 'latestPayrolls', 'recentAttendance', 'contractWarnings'], 5000);
 
     return <AppLayout title="Dashboard" subtitle={isFaculty ? 'Your attendance and payroll summary.' : 'Overview of faculty attendance and payroll activity.'}>
@@ -91,18 +92,24 @@ export default function Dashboard({ employeeCount, presentToday, openPeriods, at
             </section>
 
                 <div className="dashboard-side-panels">
+            {isFaculty && <section className="bento-panel faculty-today-schedule">
+                <header className="bento-heading"><div><span className="bento-eyebrow">{formatDate(scheduleDate)}</span><h2>Today's schedule</h2></div><Link href="/my-schedule">View all <ArrowUpRight size={15} /></Link></header>
+                <div className="today-schedule-list">{todaySchedule.length ? todaySchedule.map((block) => <div className="today-schedule-item" key={`${block.schedule_type}-${block.id}`}>
+                    <span className="today-schedule-time">{time12(block.start_time)} – {time12(block.end_time)}</span>
+                    <strong>{block.schedule_type === 'consultation' ? 'Consultation' : block.schedule_type === 'lunch_break' ? 'Break' : block.subject || 'Not specified'}</strong>
+                    {block.schedule_type === 'class' && <span>{block.section || 'Not specified'} · {block.class_mode === 'lecture' ? 'Lecture' : block.class_mode === 'laboratory' ? 'Laboratory' : 'Not specified'}</span>}
+                </div>) : <div className="bento-empty">No schedule for today.</div>}</div>
+            </section>}
             {!isFaculty && <section className="trend-bento">
                 <header className="bento-heading">
-                    <div><span className="bento-eyebrow">Seven-day view</span><h2>Attendance pulse</h2></div>
+                    <div><span className="bento-eyebrow">Monday–Saturday</span><h2>Attendance pulse</h2></div>
                     <span className="trend-icon"><CalendarCheck2 size={19} /></span>
                 </header>
-                <div className="trend-chart" aria-label="Attendance during the last seven days">
+                <div className="trend-chart" style={{ gridTemplateColumns: `repeat(${Math.max(1, attendanceTrend.length)}, minmax(0, 1fr))` }} aria-label="Attendance during the past week, excluding Sunday">
                     {attendanceTrend.map((day) => {
-                        const highest = Math.max(1, ...attendanceTrend.map((item) => item.count));
-                        const height = day.count === 0 ? 8 : Math.max(18, (day.count / highest) * 100);
+                        const height = (day.count / highestAttendance) * 100;
                         return <div className="trend-column" key={day.label} title={`${day.label}: ${day.count}`}>
-                            <span className="trend-value">{day.count}</span>
-                            <i style={{ height: `${height}%` }} />
+                            <div className="trend-bar-area"><span className="trend-value" style={{ bottom: `calc(${height}% + 4px)` }}>{day.count}</span><i style={{ height: `${height}%` }} /></div>
                             <small>{day.label}</small>
                         </div>;
                     })}
@@ -118,7 +125,7 @@ export default function Dashboard({ employeeCount, presentToday, openPeriods, at
                     {latestPayrolls.length ? latestPayrolls.map((record) => <Link href={`/payroll/records/${record.id}`} className="payroll-item" key={record.id}>
                         <span><strong>{fullName(record.employee)}</strong><small>{formatDate(record.payroll_period?.start_date)} – {formatDate(record.payroll_period?.end_date)}</small></span>
                         <strong className="payroll-amount">{money(record.net_pay)}</strong>
-                    </Link>) : <div className="bento-empty">No payroll records yet.</div>}
+                    </Link>) : <div className="bento-empty">{isFaculty ? 'No released payslips yet.' : 'No payroll records yet.'}</div>}
                 </div>
             </section>
                 </div>

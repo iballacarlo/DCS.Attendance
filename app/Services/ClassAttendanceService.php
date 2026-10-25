@@ -12,7 +12,7 @@ class ClassAttendanceService
 {
     public static function snapshot(FacultySchedule $schedule): array
     {
-        return ['faculty_schedule_id' => $schedule->id, 'class_mode' => $schedule->class_mode, 'subject' => $schedule->subject,
+        return ['faculty_schedule_id' => $schedule->id, 'schedule_type' => $schedule->schedule_type, 'class_mode' => $schedule->class_mode, 'subject' => $schedule->subject,
             'section' => $schedule->section, 'scheduled_start' => $schedule->start_time,
             'scheduled_end' => $schedule->end_time, 'is_legacy' => false];
     }
@@ -27,7 +27,7 @@ class ClassAttendanceService
                 ->where('is_legacy', false)->lockForUpdate()->get();
             $latest = $logs->sortByDesc('scheduled_start')->first();
             $open = $latest && $latest->time_in && ! $latest->time_out ? $latest : null;
-            $schedules = $employee->schedules()->where('schedule_type', 'class')
+            $schedules = $employee->schedules()->whereIn('schedule_type', FacultySchedule::PAYABLE_TYPES)
                 ->where('day_of_week', $now->dayOfWeek)->orderBy('start_time')->get();
             $eligible = $schedules->filter(function ($schedule) use ($now, $date, $logs) {
                 $start = Carbon::parse($date.' '.$schedule->start_time, 'Asia/Manila');
@@ -49,16 +49,16 @@ class ClassAttendanceService
                 $open->update(['time_out' => $now->format('H:i:s'), 'method_out' => $method]);
                 AttendanceCalculator::recalculate($open);
 
-                return ['action' => 'OUT', 'message' => 'Class time out recorded.', 'time' => $now->format('h:i A'), 'log' => $open->fresh()];
+                return ['action' => 'OUT', 'message' => 'Scheduled session time out recorded.', 'time' => $now->format('h:i A'), 'log' => $open->fresh()];
             }
             if (! $schedule) {
-                return ['action' => 'NO CLASS', 'message' => 'No eligible class. Time in is available 30 minutes before class.', 'time' => '', 'log' => null];
+                return ['action' => 'NO CLASS', 'message' => 'No eligible class or consultation. Time in is available 30 minutes before the scheduled session.', 'time' => '', 'log' => null];
             }
             $log = AttendanceLog::create(['employee_id' => $employee->id, 'attendance_date' => $date,
                 ...self::snapshot($schedule), 'time_in' => $now->format('H:i:s'), 'method_in' => $method]);
             AttendanceCalculator::recalculate($log);
 
-            return ['action' => 'IN', 'message' => 'Class time in recorded.', 'time' => $now->format('h:i A'), 'log' => $log->fresh()];
+            return ['action' => 'IN', 'message' => 'Scheduled session time in recorded.', 'time' => $now->format('h:i A'), 'log' => $log->fresh()];
         });
     }
 }

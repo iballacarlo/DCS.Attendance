@@ -1,0 +1,1145 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3222" height="1660" viewBox="0 0 3222 1660">
+<style>text{font-family:Consolas,monospace} .wire{fill:none;stroke-linejoin:round;stroke-linecap:round}</style>
+<rect width="3222" height="1660" fill="#f5f7fb"/>
+<text x="36" y="42" font-size="25" fill="#0f172a" font-weight="700">PAYROLL SYSTEM  /  ENTITY RELATIONSHIP DIAGRAM</text>
+<text x="36" y="69" font-size="14" fill="#475569">28 tables  |  270 columns  |  19 enforced relationships  |  PK = primary key  /  FK = foreign key</text>
+<polyline class="wire" points="1112,292.0 1063.0,292.0 1063.0,272.0 1034,272.0" stroke="#0891b2" stroke-width="1.1"/>
+<polyline class="wire" points="1112,292.0 1103,287.0" stroke="#0891b2" stroke-width="1.5"/>
+<polyline class="wire" points="1112,292.0 1103,292.0" stroke="#0891b2" stroke-width="1.5"/>
+<polyline class="wire" points="1112,292.0 1103,297.0" stroke="#0891b2" stroke-width="1.5"/>
+<polyline class="wire" points="1042,267.0 1042,277.0" stroke="#0891b2" stroke-width="1.5"/>
+<polyline class="wire" points="1650,452.0 1627,452.0 1627,98 1057,98 1057,896.0 1034,896.0" stroke="#0d9488" stroke-width="1.1"/>
+<polyline class="wire" points="1650,452.0 1641,447.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="1650,452.0 1641,452.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="1650,452.0 1641,457.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="1042,891.0 1042,901.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="2110,596.0 2140,596.0 2140,272.0 2110,272.0" stroke="#0d9488" stroke-width="1.1"/>
+<polyline class="wire" points="2110,596.0 2119,591.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="2110,596.0 2119,596.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="2110,596.0 2119,601.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="2118,267.0 2118,277.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="1650,616.0 1613,616.0 1613,105 1071,105 1071,272.0 1034,272.0" stroke="#0d9488" stroke-width="1.1"/>
+<polyline class="wire" points="1650,616.0 1641,611.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="1650,616.0 1641,616.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="1650,616.0 1641,621.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="1042,267.0 1042,277.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="1650,800.0 1634,800.0 1634,112 1050,112 1050,896.0 1034,896.0" stroke="#0d9488" stroke-width="1.1"/>
+<polyline class="wire" points="1650,800.0 1641,795.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="1650,800.0 1641,800.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="1650,800.0 1641,805.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="1042,891.0 1042,901.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="574,572.0 525.0,572.0 525.0,272.0 496,272.0" stroke="#2563eb" stroke-width="1.1"/>
+<polyline class="wire" points="574,572.0 565,567.0" stroke="#2563eb" stroke-width="1.5"/>
+<polyline class="wire" points="574,572.0 565,572.0" stroke="#2563eb" stroke-width="1.5"/>
+<polyline class="wire" points="574,572.0 565,577.0" stroke="#2563eb" stroke-width="1.5"/>
+<polyline class="wire" points="504,267.0 504,277.0" stroke="#2563eb" stroke-width="1.5"/>
+<polyline class="wire" points="1034,1200.0 1064,1200.0 1064,272.0 1034,272.0" stroke="#2563eb" stroke-width="1.1"/>
+<polyline class="wire" points="1034,1200.0 1043,1195.0" stroke="#2563eb" stroke-width="1.5"/>
+<polyline class="wire" points="1034,1200.0 1043,1200.0" stroke="#2563eb" stroke-width="1.5"/>
+<polyline class="wire" points="1034,1200.0 1043,1205.0" stroke="#2563eb" stroke-width="1.5"/>
+<polyline class="wire" points="1042,267.0 1042,277.0" stroke="#2563eb" stroke-width="1.5"/>
+<polyline class="wire" points="1112,816.0 1073.0,816.0 1073.0,272.0 1034,272.0" stroke="#0891b2" stroke-width="1.1"/>
+<polyline class="wire" points="1112,816.0 1103,811.0" stroke="#0891b2" stroke-width="1.5"/>
+<polyline class="wire" points="1112,816.0 1103,816.0" stroke="#0891b2" stroke-width="1.5"/>
+<polyline class="wire" points="1112,816.0 1103,821.0" stroke="#0891b2" stroke-width="1.5"/>
+<polyline class="wire" points="1042,267.0 1042,277.0" stroke="#0891b2" stroke-width="1.5"/>
+<polyline class="wire" points="1112,1120.0 1078.0,1120.0 1078.0,272.0 1034,272.0" stroke="#0891b2" stroke-width="1.1"/>
+<polyline class="wire" points="1112,1120.0 1103,1115.0" stroke="#0891b2" stroke-width="1.5"/>
+<polyline class="wire" points="1112,1120.0 1103,1120.0" stroke="#0891b2" stroke-width="1.5"/>
+<polyline class="wire" points="1112,1120.0 1103,1125.0" stroke="#0891b2" stroke-width="1.5"/>
+<polyline class="wire" points="1042,267.0 1042,277.0" stroke="#0891b2" stroke-width="1.5"/>
+<polyline class="wire" points="2188,880.0 2165,880.0 2165,119 1057,119 1057,272.0 1034,272.0" stroke="#c2410c" stroke-width="1.1"/>
+<polyline class="wire" points="2188,880.0 2179,875.0" stroke="#c2410c" stroke-width="1.5"/>
+<polyline class="wire" points="2188,880.0 2179,880.0" stroke="#c2410c" stroke-width="1.5"/>
+<polyline class="wire" points="2188,880.0 2179,885.0" stroke="#c2410c" stroke-width="1.5"/>
+<polyline class="wire" points="1042,267.0 1042,277.0" stroke="#c2410c" stroke-width="1.5"/>
+<polyline class="wire" points="2188,656.0 2158,656.0 2158,126 1064,126 1064,272.0 1034,272.0" stroke="#c2410c" stroke-width="1.1"/>
+<polyline class="wire" points="2188,656.0 2179,651.0" stroke="#c2410c" stroke-width="1.5"/>
+<polyline class="wire" points="2188,656.0 2179,656.0" stroke="#c2410c" stroke-width="1.5"/>
+<polyline class="wire" points="2188,656.0 2179,661.0" stroke="#c2410c" stroke-width="1.5"/>
+<polyline class="wire" points="1042,267.0 1042,277.0" stroke="#c2410c" stroke-width="1.5"/>
+<polyline class="wire" points="2188,292.0 2151,292.0 2151,133 1071,133 1071,272.0 1034,272.0" stroke="#c2410c" stroke-width="1.1"/>
+<polyline class="wire" points="2188,292.0 2179,287.0" stroke="#c2410c" stroke-width="1.5"/>
+<polyline class="wire" points="2188,292.0 2179,292.0" stroke="#c2410c" stroke-width="1.5"/>
+<polyline class="wire" points="2188,292.0 2179,297.0" stroke="#c2410c" stroke-width="1.5"/>
+<polyline class="wire" points="1042,267.0 1042,277.0" stroke="#c2410c" stroke-width="1.5"/>
+<polyline class="wire" points="1650,1148.0 1634,1148.0 1634,140 1050,140 1050,272.0 1034,272.0" stroke="#0d9488" stroke-width="1.1"/>
+<polyline class="wire" points="1650,1148.0 1641,1143.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="1650,1148.0 1641,1148.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="1650,1148.0 1641,1153.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="1042,267.0 1042,277.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="2110,1168.0 2133,1168.0 2133,924.0 2110,924.0" stroke="#0d9488" stroke-width="1.1"/>
+<polyline class="wire" points="2110,1168.0 2119,1163.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="2110,1168.0 2119,1168.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="2110,1168.0 2119,1173.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="2118,919.0 2118,929.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="1650,1268.0 1620,1268.0 1620,147 1064,147 1064,896.0 1034,896.0" stroke="#0d9488" stroke-width="1.1"/>
+<polyline class="wire" points="1650,1268.0 1641,1263.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="1650,1268.0 1641,1268.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="1650,1268.0 1641,1273.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="1042,891.0 1042,901.0" stroke="#0d9488" stroke-width="1.5"/>
+<polyline class="wire" points="496,780.0 525.0,780.0 525.0,272.0 574,272.0" stroke="#7c3aed" stroke-width="1.1"/>
+<polyline class="wire" points="496,780.0 505,775.0" stroke="#7c3aed" stroke-width="1.5"/>
+<polyline class="wire" points="496,780.0 505,780.0" stroke="#7c3aed" stroke-width="1.5"/>
+<polyline class="wire" points="496,780.0 505,785.0" stroke="#7c3aed" stroke-width="1.5"/>
+<polyline class="wire" points="566,267.0 566,277.0" stroke="#7c3aed" stroke-width="1.5"/>
+<polyline class="wire" points="496,760.0 512,760.0 512,516.0 496,516.0" stroke="#7c3aed" stroke-width="1.1"/>
+<polyline class="wire" points="496,760.0 505,755.0" stroke="#7c3aed" stroke-width="1.5"/>
+<polyline class="wire" points="496,760.0 505,760.0" stroke="#7c3aed" stroke-width="1.5"/>
+<polyline class="wire" points="496,760.0 505,765.0" stroke="#7c3aed" stroke-width="1.5"/>
+<polyline class="wire" points="504,511.0 504,521.0" stroke="#7c3aed" stroke-width="1.5"/>
+<polyline class="wire" points="2188,1104.0 2165,1104.0 2165,154 1057,154 1057,272.0 1034,272.0" stroke="#c2410c" stroke-width="1.1"/>
+<polyline class="wire" points="2188,1104.0 2179,1099.0" stroke="#c2410c" stroke-width="1.5"/>
+<polyline class="wire" points="2188,1104.0 2179,1104.0" stroke="#c2410c" stroke-width="1.5"/>
+<polyline class="wire" points="2188,1104.0 2179,1109.0" stroke="#c2410c" stroke-width="1.5"/>
+<polyline class="wire" points="1042,267.0 1042,277.0" stroke="#c2410c" stroke-width="1.5"/>
+<polyline class="wire" points="1034,916.0 1064,916.0 1064,272.0 1034,272.0" stroke="#2563eb" stroke-width="1.1"/>
+<polyline class="wire" points="1034,916.0 1043,911.0" stroke="#2563eb" stroke-width="1.5"/>
+<polyline class="wire" points="1034,916.0 1043,916.0" stroke="#2563eb" stroke-width="1.5"/>
+<polyline class="wire" points="1034,916.0 1043,921.0" stroke="#2563eb" stroke-width="1.5"/>
+<polyline class="wire" points="1042,267.0 1042,277.0" stroke="#2563eb" stroke-width="1.5"/>
+<text x="36" y="213" font-size="14" fill="#7c3aed" font-weight="700">PAYROLL</text>
+<rect x="36" y="230" width="460" height="220" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="36" y="230" width="460" height="32" rx="4" fill="#7c3aed"/>
+<text x="48" y="252" font-size="15" fill="#ffffff" font-weight="700">faculty_ranks</text>
+<rect x="37" y="262" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="276" font-size="10" fill="#7c3aed" font-weight="700">PK</text>
+<text x="70" y="276" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="314" y="276" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="44" y="296" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="296" font-size="12" fill="#0f172a">name</text>
+<text x="314" y="296" font-size="11" fill="#64748b"><title>varchar(100); not null</title>varchar(100)</text>
+<rect x="37" y="302" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="316" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="316" font-size="12" fill="#0f172a">salary_grade</text>
+<text x="314" y="316" font-size="11" fill="#64748b"><title>varchar(10); null, default: null</title>varchar(10)</text>
+<text x="44" y="336" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="336" font-size="12" fill="#0f172a">rate_type</text>
+<text x="314" y="336" font-size="11" fill="#64748b"><title>faculty_ranks_rate_type_enum; not null, default: &#x27;daily&#x27;</title>enum</text>
+<rect x="37" y="342" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="356" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="356" font-size="12" fill="#0f172a">rate_amount</text>
+<text x="314" y="356" font-size="11" fill="#64748b"><title>decimal(10,2); not null</title>decimal(10,2)</text>
+<text x="44" y="376" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="376" font-size="12" fill="#0f172a">monthly_salary</text>
+<text x="314" y="376" font-size="11" fill="#64748b"><title>decimal(12,2); null, default: null</title>decimal(12,2)</text>
+<rect x="37" y="382" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="396" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="396" font-size="12" fill="#0f172a">is_active</text>
+<text x="314" y="396" font-size="11" fill="#64748b"><title>tinyint(1); not null, default: 1</title>tinyint(1)</text>
+<text x="44" y="416" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="416" font-size="12" fill="#0f172a">created_at</text>
+<text x="314" y="416" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="37" y="422" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="436" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="436" font-size="12" fill="#0f172a">updated_at</text>
+<text x="314" y="436" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="36" y="474" width="460" height="200" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="36" y="474" width="460" height="32" rx="4" fill="#7c3aed"/>
+<text x="48" y="496" font-size="15" fill="#ffffff" font-weight="700">payroll_periods</text>
+<rect x="37" y="506" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="520" font-size="10" fill="#7c3aed" font-weight="700">PK</text>
+<text x="70" y="520" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="314" y="520" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="44" y="540" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="540" font-size="12" fill="#0f172a">period_name</text>
+<text x="314" y="540" font-size="11" fill="#64748b"><title>varchar(255); not null</title>varchar(255)</text>
+<rect x="37" y="546" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="560" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="560" font-size="12" fill="#0f172a">start_date</text>
+<text x="314" y="560" font-size="11" fill="#64748b"><title>date; not null</title>date</text>
+<text x="44" y="580" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="580" font-size="12" fill="#0f172a">end_date</text>
+<text x="314" y="580" font-size="11" fill="#64748b"><title>date; not null</title>date</text>
+<rect x="37" y="586" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="600" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="600" font-size="12" fill="#0f172a">pay_date</text>
+<text x="314" y="600" font-size="11" fill="#64748b"><title>date; null, default: null</title>date</text>
+<text x="44" y="620" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="620" font-size="12" fill="#0f172a">status</text>
+<text x="314" y="620" font-size="11" fill="#64748b"><title>payroll_periods_status_enum; not null, default: &#x27;open&#x27;</title>enum</text>
+<rect x="37" y="626" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="640" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="640" font-size="12" fill="#0f172a">created_at</text>
+<text x="314" y="640" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="44" y="660" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="660" font-size="12" fill="#0f172a">updated_at</text>
+<text x="314" y="660" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="36" y="698" width="460" height="620" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="36" y="698" width="460" height="32" rx="4" fill="#7c3aed"/>
+<text x="48" y="720" font-size="15" fill="#ffffff" font-weight="700">payroll_records</text>
+<rect x="37" y="730" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="744" font-size="10" fill="#7c3aed" font-weight="700">PK</text>
+<text x="70" y="744" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="314" y="744" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="44" y="764" font-size="10" fill="#7c3aed" font-weight="700">FK</text>
+<text x="70" y="764" font-size="12" fill="#0f172a">payroll_period_id</text>
+<text x="314" y="764" font-size="11" fill="#64748b"><title>bigint(20) unsigned; not null</title>bigint(20) unsigned</text>
+<rect x="37" y="770" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="784" font-size="10" fill="#7c3aed" font-weight="700">FK</text>
+<text x="70" y="784" font-size="12" fill="#0f172a">employee_id</text>
+<text x="314" y="784" font-size="11" fill="#64748b"><title>bigint(20) unsigned; not null</title>bigint(20) unsigned</text>
+<text x="44" y="804" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="804" font-size="12" fill="#0f172a">total_days_worked</text>
+<text x="314" y="804" font-size="11" fill="#64748b"><title>decimal(6,2); not null, default: 0.00</title>decimal(6,2)</text>
+<rect x="37" y="810" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="824" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="824" font-size="12" fill="#0f172a">total_hours_worked</text>
+<text x="314" y="824" font-size="11" fill="#64748b"><title>decimal(12,4); not null, default: 0.0000</title>decimal(12,4)</text>
+<text x="44" y="844" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="844" font-size="12" fill="#0f172a">gross_pay</text>
+<text x="314" y="844" font-size="11" fill="#64748b"><title>decimal(10,2); not null, default: 0.00</title>decimal(10,2)</text>
+<rect x="37" y="850" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="864" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="864" font-size="12" fill="#0f172a">overtime_pay</text>
+<text x="314" y="864" font-size="11" fill="#64748b"><title>decimal(10,2); not null, default: 0.00</title>decimal(10,2)</text>
+<text x="44" y="884" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="884" font-size="12" fill="#0f172a">late_undertime_minutes</text>
+<text x="314" y="884" font-size="11" fill="#64748b"><title>int(10) unsigned; not null, default: 0</title>int(10) unsigned</text>
+<rect x="37" y="890" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="904" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="904" font-size="12" fill="#0f172a">absent_days</text>
+<text x="314" y="904" font-size="11" fill="#64748b"><title>decimal(6,2); not null, default: 0.00</title>decimal(6,2)</text>
+<text x="44" y="924" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="924" font-size="12" fill="#0f172a">other_earnings</text>
+<text x="314" y="924" font-size="11" fill="#64748b"><title>decimal(10,2); not null, default: 0.00</title>decimal(10,2)</text>
+<rect x="37" y="930" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="944" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="944" font-size="12" fill="#0f172a">increase_amount</text>
+<text x="314" y="944" font-size="11" fill="#64748b"><title>decimal(10,2); not null, default: 0.00</title>decimal(10,2)</text>
+<text x="44" y="964" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="964" font-size="12" fill="#0f172a">total_earnings</text>
+<text x="314" y="964" font-size="11" fill="#64748b"><title>decimal(10,2); not null, default: 0.00</title>decimal(10,2)</text>
+<rect x="37" y="970" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="984" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="984" font-size="12" fill="#0f172a">withholding_tax</text>
+<text x="314" y="984" font-size="11" fill="#64748b"><title>decimal(10,2); not null, default: 0.00</title>decimal(10,2)</text>
+<text x="44" y="1004" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="1004" font-size="12" fill="#0f172a">gsis_deduction</text>
+<text x="314" y="1004" font-size="11" fill="#64748b"><title>decimal(10,2); not null, default: 0.00</title>decimal(10,2)</text>
+<rect x="37" y="1010" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="1024" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="1024" font-size="12" fill="#0f172a">philhealth_deduction</text>
+<text x="314" y="1024" font-size="11" fill="#64748b"><title>decimal(10,2); not null, default: 0.00</title>decimal(10,2)</text>
+<text x="44" y="1044" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="1044" font-size="12" fill="#0f172a">pag_ibig_deduction</text>
+<text x="314" y="1044" font-size="11" fill="#64748b"><title>decimal(10,2); not null, default: 0.00</title>decimal(10,2)</text>
+<rect x="37" y="1050" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="1064" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="1064" font-size="12" fill="#0f172a">multi_purpose_loan</text>
+<text x="314" y="1064" font-size="11" fill="#64748b"><title>decimal(10,2); not null, default: 0.00</title>decimal(10,2)</text>
+<text x="44" y="1084" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="1084" font-size="12" fill="#0f172a">gsis_loan</text>
+<text x="314" y="1084" font-size="11" fill="#64748b"><title>decimal(10,2); not null, default: 0.00</title>decimal(10,2)</text>
+<rect x="37" y="1090" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="1104" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="1104" font-size="12" fill="#0f172a">gsis_eplus_loan</text>
+<text x="314" y="1104" font-size="11" fill="#64748b"><title>decimal(10,2); not null, default: 0.00</title>decimal(10,2)</text>
+<text x="44" y="1124" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="1124" font-size="12" fill="#0f172a">fea_dues</text>
+<text x="314" y="1124" font-size="11" fill="#64748b"><title>decimal(10,2); not null, default: 0.00</title>decimal(10,2)</text>
+<rect x="37" y="1130" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="1144" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="1144" font-size="12" fill="#0f172a">oba_deduction</text>
+<text x="314" y="1144" font-size="11" fill="#64748b"><title>decimal(10,2); not null, default: 0.00</title>decimal(10,2)</text>
+<text x="44" y="1164" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="1164" font-size="12" fill="#0f172a">cra_deduction</text>
+<text x="314" y="1164" font-size="11" fill="#64748b"><title>decimal(10,2); not null, default: 0.00</title>decimal(10,2)</text>
+<rect x="37" y="1170" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="1184" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="1184" font-size="12" fill="#0f172a">total_deductions</text>
+<text x="314" y="1184" font-size="11" fill="#64748b"><title>decimal(10,2); not null, default: 0.00</title>decimal(10,2)</text>
+<text x="44" y="1204" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="1204" font-size="12" fill="#0f172a">total_adjustments</text>
+<text x="314" y="1204" font-size="11" fill="#64748b"><title>decimal(10,2); not null, default: 0.00</title>decimal(10,2)</text>
+<rect x="37" y="1210" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="1224" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="1224" font-size="12" fill="#0f172a">net_pay</text>
+<text x="314" y="1224" font-size="11" fill="#64748b"><title>decimal(10,2); not null, default: 0.00</title>decimal(10,2)</text>
+<text x="44" y="1244" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="1244" font-size="12" fill="#0f172a">status</text>
+<text x="314" y="1244" font-size="11" fill="#64748b"><title>payroll_records_status_enum; not null, default: &#x27;draft&#x27;</title>enum</text>
+<rect x="37" y="1250" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="1264" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="1264" font-size="12" fill="#0f172a">generated_at</text>
+<text x="314" y="1264" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="44" y="1284" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="1284" font-size="12" fill="#0f172a">created_at</text>
+<text x="314" y="1284" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="37" y="1290" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="44" y="1304" font-size="10" fill="#7c3aed" font-weight="700"></text>
+<text x="70" y="1304" font-size="12" fill="#0f172a">updated_at</text>
+<text x="314" y="1304" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="574" y="213" font-size="14" fill="#2563eb" font-weight="700">PEOPLE</text>
+<rect x="574" y="230" width="460" height="600" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="574" y="230" width="460" height="32" rx="4" fill="#2563eb"/>
+<text x="586" y="252" font-size="15" fill="#ffffff" font-weight="700">employees</text>
+<rect x="575" y="262" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="276" font-size="10" fill="#2563eb" font-weight="700">PK</text>
+<text x="608" y="276" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="852" y="276" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="582" y="296" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="296" font-size="12" fill="#0f172a">employee_no</text>
+<text x="852" y="296" font-size="11" fill="#64748b"><title>varchar(30); not null</title>varchar(30)</text>
+<rect x="575" y="302" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="316" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="316" font-size="12" fill="#0f172a">first_name</text>
+<text x="852" y="316" font-size="11" fill="#64748b"><title>varchar(255); not null</title>varchar(255)</text>
+<text x="582" y="336" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="336" font-size="12" fill="#0f172a">middle_name</text>
+<text x="852" y="336" font-size="11" fill="#64748b"><title>varchar(255); null, default: null</title>varchar(255)</text>
+<rect x="575" y="342" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="356" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="356" font-size="12" fill="#0f172a">last_name</text>
+<text x="852" y="356" font-size="11" fill="#64748b"><title>varchar(255); not null</title>varchar(255)</text>
+<text x="582" y="376" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="376" font-size="12" fill="#0f172a">suffix</text>
+<text x="852" y="376" font-size="11" fill="#64748b"><title>varchar(20); null, default: null</title>varchar(20)</text>
+<rect x="575" y="382" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="396" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="396" font-size="12" fill="#0f172a">email</text>
+<text x="852" y="396" font-size="11" fill="#64748b"><title>varchar(255); null, default: null</title>varchar(255)</text>
+<text x="582" y="416" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="416" font-size="12" fill="#0f172a">contact_no</text>
+<text x="852" y="416" font-size="11" fill="#64748b"><title>varchar(20); null, default: null</title>varchar(20)</text>
+<rect x="575" y="422" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="436" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="436" font-size="12" fill="#0f172a">tin_no</text>
+<text x="852" y="436" font-size="11" fill="#64748b"><title>varchar(30); null, default: null</title>varchar(30)</text>
+<text x="582" y="456" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="456" font-size="12" fill="#0f172a">gsis_no</text>
+<text x="852" y="456" font-size="11" fill="#64748b"><title>varchar(30); null, default: null</title>varchar(30)</text>
+<rect x="575" y="462" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="476" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="476" font-size="12" fill="#0f172a">pag_ibig_no</text>
+<text x="852" y="476" font-size="11" fill="#64748b"><title>varchar(30); null, default: null</title>varchar(30)</text>
+<text x="582" y="496" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="496" font-size="12" fill="#0f172a">philhealth_no</text>
+<text x="852" y="496" font-size="11" fill="#64748b"><title>varchar(30); null, default: null</title>varchar(30)</text>
+<rect x="575" y="502" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="516" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="516" font-size="12" fill="#0f172a">position</text>
+<text x="852" y="516" font-size="11" fill="#64748b"><title>varchar(255); not null, default: &#x27;COS Faculty Member&#x27;</title>varchar(255)</text>
+<text x="582" y="536" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="536" font-size="12" fill="#0f172a">department</text>
+<text x="852" y="536" font-size="11" fill="#64748b"><title>varchar(255); not null, default: &#x27;Department of Computer Studies&#x27;</title>varchar(255)</text>
+<rect x="575" y="542" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="556" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="556" font-size="12" fill="#0f172a">employment_type</text>
+<text x="852" y="556" font-size="11" fill="#64748b"><title>varchar(255); not null, default: &#x27;Contract of Service&#x27;</title>varchar(255)</text>
+<text x="582" y="576" font-size="10" fill="#2563eb" font-weight="700">FK</text>
+<text x="608" y="576" font-size="12" fill="#0f172a">faculty_rank_id</text>
+<text x="852" y="576" font-size="11" fill="#64748b"><title>bigint(20) unsigned; null, default: null</title>bigint(20) unsigned</text>
+<rect x="575" y="582" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="596" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="596" font-size="12" fill="#0f172a">rate_type</text>
+<text x="852" y="596" font-size="11" fill="#64748b"><title>employees_rate_type_enum; not null, default: &#x27;daily&#x27;</title>enum</text>
+<text x="582" y="616" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="616" font-size="12" fill="#0f172a">rate_amount</text>
+<text x="852" y="616" font-size="11" fill="#64748b"><title>decimal(10,2); not null</title>decimal(10,2)</text>
+<rect x="575" y="622" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="636" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="636" font-size="12" fill="#0f172a">contract_start</text>
+<text x="852" y="636" font-size="11" fill="#64748b"><title>date; null, default: null</title>date</text>
+<text x="582" y="656" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="656" font-size="12" fill="#0f172a">contract_end</text>
+<text x="852" y="656" font-size="11" fill="#64748b"><title>date; null, default: null</title>date</text>
+<rect x="575" y="662" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="676" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="676" font-size="12" fill="#0f172a">status</text>
+<text x="852" y="676" font-size="11" fill="#64748b"><title>employees_status_enum; not null, default: &#x27;active&#x27;</title>enum</text>
+<text x="582" y="696" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="696" font-size="12" fill="#0f172a">created_at</text>
+<text x="852" y="696" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="575" y="702" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="716" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="716" font-size="12" fill="#0f172a">updated_at</text>
+<text x="852" y="716" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="582" y="736" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="736" font-size="12" fill="#0f172a">highest_educational_attainment</text>
+<text x="852" y="736" font-size="11" fill="#64748b"><title>varchar(255); null, default: null</title>varchar(255)</text>
+<rect x="575" y="742" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="756" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="756" font-size="12" fill="#0f172a">years_of_service</text>
+<text x="852" y="756" font-size="11" fill="#64748b"><title>decimal(5,2); null, default: null</title>decimal(5,2)</text>
+<text x="582" y="776" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="776" font-size="12" fill="#0f172a">service_start_date</text>
+<text x="852" y="776" font-size="11" fill="#64748b"><title>date; null, default: null</title>date</text>
+<rect x="575" y="782" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="796" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="796" font-size="12" fill="#0f172a">archived_at</text>
+<text x="852" y="796" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="582" y="816" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="816" font-size="12" fill="#0f172a">archived_by</text>
+<text x="852" y="816" font-size="11" fill="#64748b"><title>bigint(20) unsigned; null, default: null</title>bigint(20) unsigned</text>
+<rect x="574" y="854" width="460" height="260" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="574" y="854" width="460" height="32" rx="4" fill="#2563eb"/>
+<text x="586" y="876" font-size="15" fill="#ffffff" font-weight="700">users</text>
+<rect x="575" y="886" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="900" font-size="10" fill="#2563eb" font-weight="700">PK</text>
+<text x="608" y="900" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="852" y="900" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="582" y="920" font-size="10" fill="#2563eb" font-weight="700">FK</text>
+<text x="608" y="920" font-size="12" fill="#0f172a">employee_id</text>
+<text x="852" y="920" font-size="11" fill="#64748b"><title>bigint(20) unsigned; null, default: null</title>bigint(20) unsigned</text>
+<rect x="575" y="926" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="940" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="940" font-size="12" fill="#0f172a">name</text>
+<text x="852" y="940" font-size="11" fill="#64748b"><title>varchar(255); not null</title>varchar(255)</text>
+<text x="582" y="960" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="960" font-size="12" fill="#0f172a">email</text>
+<text x="852" y="960" font-size="11" fill="#64748b"><title>varchar(255); not null</title>varchar(255)</text>
+<rect x="575" y="966" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="980" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="980" font-size="12" fill="#0f172a">email_verified_at</text>
+<text x="852" y="980" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="582" y="1000" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="1000" font-size="12" fill="#0f172a">password</text>
+<text x="852" y="1000" font-size="11" fill="#64748b"><title>varchar(255); not null</title>varchar(255)</text>
+<rect x="575" y="1006" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="1020" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="1020" font-size="12" fill="#0f172a">must_change_password</text>
+<text x="852" y="1020" font-size="11" fill="#64748b"><title>tinyint(1); not null, default: 0</title>tinyint(1)</text>
+<text x="582" y="1040" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="1040" font-size="12" fill="#0f172a">role</text>
+<text x="852" y="1040" font-size="11" fill="#64748b"><title>varchar(255); not null, default: &#x27;admin&#x27;</title>varchar(255)</text>
+<rect x="575" y="1046" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="1060" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="1060" font-size="12" fill="#0f172a">remember_token</text>
+<text x="852" y="1060" font-size="11" fill="#64748b"><title>varchar(100); null, default: null</title>varchar(100)</text>
+<text x="582" y="1080" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="1080" font-size="12" fill="#0f172a">created_at</text>
+<text x="852" y="1080" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="575" y="1086" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="1100" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="1100" font-size="12" fill="#0f172a">updated_at</text>
+<text x="852" y="1100" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="574" y="1138" width="460" height="200" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="574" y="1138" width="460" height="32" rx="4" fill="#2563eb"/>
+<text x="586" y="1160" font-size="15" fill="#ffffff" font-weight="700">employment_histories</text>
+<rect x="575" y="1170" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="1184" font-size="10" fill="#2563eb" font-weight="700">PK</text>
+<text x="608" y="1184" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="852" y="1184" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="582" y="1204" font-size="10" fill="#2563eb" font-weight="700">FK</text>
+<text x="608" y="1204" font-size="12" fill="#0f172a">employee_id</text>
+<text x="852" y="1204" font-size="11" fill="#64748b"><title>bigint(20) unsigned; not null</title>bigint(20) unsigned</text>
+<rect x="575" y="1210" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="1224" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="1224" font-size="12" fill="#0f172a">employer</text>
+<text x="852" y="1224" font-size="11" fill="#64748b"><title>varchar(255); not null</title>varchar(255)</text>
+<text x="582" y="1244" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="1244" font-size="12" fill="#0f172a">position</text>
+<text x="852" y="1244" font-size="11" fill="#64748b"><title>varchar(255); not null</title>varchar(255)</text>
+<rect x="575" y="1250" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="1264" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="1264" font-size="12" fill="#0f172a">started_on</text>
+<text x="852" y="1264" font-size="11" fill="#64748b"><title>date; not null</title>date</text>
+<text x="582" y="1284" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="1284" font-size="12" fill="#0f172a">ended_on</text>
+<text x="852" y="1284" font-size="11" fill="#64748b"><title>date; null, default: null</title>date</text>
+<rect x="575" y="1290" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="582" y="1304" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="1304" font-size="12" fill="#0f172a">created_at</text>
+<text x="852" y="1304" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="582" y="1324" font-size="10" fill="#2563eb" font-weight="700"></text>
+<text x="608" y="1324" font-size="12" fill="#0f172a">updated_at</text>
+<text x="852" y="1324" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="1112" y="213" font-size="14" fill="#0891b2" font-weight="700">ATTENDANCE &amp; SCHEDULE</text>
+<rect x="1112" y="230" width="460" height="500" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="1112" y="230" width="460" height="32" rx="4" fill="#0891b2"/>
+<text x="1124" y="252" font-size="15" fill="#ffffff" font-weight="700">attendance_logs</text>
+<rect x="1113" y="262" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="276" font-size="10" fill="#0891b2" font-weight="700">PK</text>
+<text x="1146" y="276" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="1390" y="276" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="1120" y="296" font-size="10" fill="#0891b2" font-weight="700">FK</text>
+<text x="1146" y="296" font-size="12" fill="#0f172a">employee_id</text>
+<text x="1390" y="296" font-size="11" fill="#64748b"><title>bigint(20) unsigned; not null</title>bigint(20) unsigned</text>
+<rect x="1113" y="302" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="316" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="316" font-size="12" fill="#0f172a">attendance_date</text>
+<text x="1390" y="316" font-size="11" fill="#64748b"><title>date; not null</title>date</text>
+<text x="1120" y="336" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="336" font-size="12" fill="#0f172a">time_in</text>
+<text x="1390" y="336" font-size="11" fill="#64748b"><title>time; null, default: null</title>time</text>
+<rect x="1113" y="342" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="356" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="356" font-size="12" fill="#0f172a">time_out</text>
+<text x="1390" y="356" font-size="11" fill="#64748b"><title>time; null, default: null</title>time</text>
+<text x="1120" y="376" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="376" font-size="12" fill="#0f172a">method_in</text>
+<text x="1390" y="376" font-size="11" fill="#64748b"><title>attendance_logs_method_in_enum; null, default: null</title>enum</text>
+<rect x="1113" y="382" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="396" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="396" font-size="12" fill="#0f172a">method_out</text>
+<text x="1390" y="396" font-size="11" fill="#64748b"><title>attendance_logs_method_out_enum; null, default: null</title>enum</text>
+<text x="1120" y="416" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="416" font-size="12" fill="#0f172a">late_minutes</text>
+<text x="1390" y="416" font-size="11" fill="#64748b"><title>int(10) unsigned; not null, default: 0</title>int(10) unsigned</text>
+<rect x="1113" y="422" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="436" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="436" font-size="12" fill="#0f172a">undertime_minutes</text>
+<text x="1390" y="436" font-size="11" fill="#64748b"><title>int(10) unsigned; not null, default: 0</title>int(10) unsigned</text>
+<text x="1120" y="456" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="456" font-size="12" fill="#0f172a">total_hours</text>
+<text x="1390" y="456" font-size="11" fill="#64748b"><title>decimal(8,4); not null, default: 0.0000</title>decimal(8,4)</text>
+<rect x="1113" y="462" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="476" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="476" font-size="12" fill="#0f172a">status</text>
+<text x="1390" y="476" font-size="11" fill="#64748b"><title>attendance_logs_status_enum; not null, default: &#x27;incomplete&#x27;</title>enum</text>
+<text x="1120" y="496" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="496" font-size="12" fill="#0f172a">remarks</text>
+<text x="1390" y="496" font-size="11" fill="#64748b"><title>text; null, default: null</title>text</text>
+<rect x="1113" y="502" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="516" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="516" font-size="12" fill="#0f172a">created_at</text>
+<text x="1390" y="516" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="1120" y="536" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="536" font-size="12" fill="#0f172a">updated_at</text>
+<text x="1390" y="536" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="1113" y="542" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="556" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="556" font-size="12" fill="#0f172a">faculty_schedule_id</text>
+<text x="1390" y="556" font-size="11" fill="#64748b"><title>bigint(20) unsigned; null, default: null</title>bigint(20) unsigned</text>
+<text x="1120" y="576" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="576" font-size="12" fill="#0f172a">subject</text>
+<text x="1390" y="576" font-size="11" fill="#64748b"><title>varchar(255); null, default: null</title>varchar(255)</text>
+<rect x="1113" y="582" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="596" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="596" font-size="12" fill="#0f172a">section</text>
+<text x="1390" y="596" font-size="11" fill="#64748b"><title>varchar(100); null, default: null</title>varchar(100)</text>
+<text x="1120" y="616" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="616" font-size="12" fill="#0f172a">scheduled_start</text>
+<text x="1390" y="616" font-size="11" fill="#64748b"><title>time; null, default: null</title>time</text>
+<rect x="1113" y="622" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="636" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="636" font-size="12" fill="#0f172a">scheduled_end</text>
+<text x="1390" y="636" font-size="11" fill="#64748b"><title>time; null, default: null</title>time</text>
+<text x="1120" y="656" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="656" font-size="12" fill="#0f172a">worked_seconds</text>
+<text x="1390" y="656" font-size="11" fill="#64748b"><title>int(10) unsigned; not null, default: 0</title>int(10) unsigned</text>
+<rect x="1113" y="662" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="676" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="676" font-size="12" fill="#0f172a">legacy_source_id</text>
+<text x="1390" y="676" font-size="11" fill="#64748b"><title>bigint(20) unsigned; null, default: null</title>bigint(20) unsigned</text>
+<text x="1120" y="696" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="696" font-size="12" fill="#0f172a">is_legacy</text>
+<text x="1390" y="696" font-size="11" fill="#64748b"><title>tinyint(1); not null, default: 1</title>tinyint(1)</text>
+<rect x="1113" y="702" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="716" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="716" font-size="12" fill="#0f172a">class_mode</text>
+<text x="1390" y="716" font-size="11" fill="#64748b"><title>varchar(20); null, default: null</title>varchar(20)</text>
+<rect x="1112" y="754" width="460" height="280" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="1112" y="754" width="460" height="32" rx="4" fill="#0891b2"/>
+<text x="1124" y="776" font-size="15" fill="#ffffff" font-weight="700">faculty_schedules</text>
+<rect x="1113" y="786" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="800" font-size="10" fill="#0891b2" font-weight="700">PK</text>
+<text x="1146" y="800" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="1390" y="800" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="1120" y="820" font-size="10" fill="#0891b2" font-weight="700">FK</text>
+<text x="1146" y="820" font-size="12" fill="#0f172a">employee_id</text>
+<text x="1390" y="820" font-size="11" fill="#64748b"><title>bigint(20) unsigned; not null</title>bigint(20) unsigned</text>
+<rect x="1113" y="826" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="840" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="840" font-size="12" fill="#0f172a">day_of_week</text>
+<text x="1390" y="840" font-size="11" fill="#64748b"><title>tinyint(3) unsigned; not null</title>tinyint(3) unsigned</text>
+<text x="1120" y="860" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="860" font-size="12" fill="#0f172a">schedule_type</text>
+<text x="1390" y="860" font-size="11" fill="#64748b"><title>varchar(24); not null, default: &#x27;class&#x27;</title>varchar(24)</text>
+<rect x="1113" y="866" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="880" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="880" font-size="12" fill="#0f172a">start_time</text>
+<text x="1390" y="880" font-size="11" fill="#64748b"><title>time; not null</title>time</text>
+<text x="1120" y="900" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="900" font-size="12" fill="#0f172a">end_time</text>
+<text x="1390" y="900" font-size="11" fill="#64748b"><title>time; not null</title>time</text>
+<rect x="1113" y="906" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="920" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="920" font-size="12" fill="#0f172a">break_minutes</text>
+<text x="1390" y="920" font-size="11" fill="#64748b"><title>smallint(5) unsigned; not null, default: 0</title>smallint(5) unsigned</text>
+<text x="1120" y="940" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="940" font-size="12" fill="#0f172a">created_at</text>
+<text x="1390" y="940" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="1113" y="946" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="960" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="960" font-size="12" fill="#0f172a">updated_at</text>
+<text x="1390" y="960" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="1120" y="980" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="980" font-size="12" fill="#0f172a">subject</text>
+<text x="1390" y="980" font-size="11" fill="#64748b"><title>varchar(255); null, default: null</title>varchar(255)</text>
+<rect x="1113" y="986" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="1000" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="1000" font-size="12" fill="#0f172a">section</text>
+<text x="1390" y="1000" font-size="11" fill="#64748b"><title>varchar(100); null, default: null</title>varchar(100)</text>
+<text x="1120" y="1020" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="1020" font-size="12" fill="#0f172a">class_mode</text>
+<text x="1390" y="1020" font-size="11" fill="#64748b"><title>varchar(20); null, default: null</title>varchar(20)</text>
+<rect x="1112" y="1058" width="460" height="200" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="1112" y="1058" width="460" height="32" rx="4" fill="#0891b2"/>
+<text x="1124" y="1080" font-size="15" fill="#ffffff" font-weight="700">faculty_schedule_breaks</text>
+<rect x="1113" y="1090" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="1104" font-size="10" fill="#0891b2" font-weight="700">PK</text>
+<text x="1146" y="1104" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="1390" y="1104" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="1120" y="1124" font-size="10" fill="#0891b2" font-weight="700">FK</text>
+<text x="1146" y="1124" font-size="12" fill="#0f172a">employee_id</text>
+<text x="1390" y="1124" font-size="11" fill="#64748b"><title>bigint(20) unsigned; not null</title>bigint(20) unsigned</text>
+<rect x="1113" y="1130" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="1144" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="1144" font-size="12" fill="#0f172a">day_of_week</text>
+<text x="1390" y="1144" font-size="11" fill="#64748b"><title>tinyint(3) unsigned; not null</title>tinyint(3) unsigned</text>
+<text x="1120" y="1164" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="1164" font-size="12" fill="#0f172a">schedule_type</text>
+<text x="1390" y="1164" font-size="11" fill="#64748b"><title>varchar(24); not null, default: &#x27;lunch_break&#x27;</title>varchar(24)</text>
+<rect x="1113" y="1170" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="1184" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="1184" font-size="12" fill="#0f172a">start_time</text>
+<text x="1390" y="1184" font-size="11" fill="#64748b"><title>time; not null</title>time</text>
+<text x="1120" y="1204" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="1204" font-size="12" fill="#0f172a">end_time</text>
+<text x="1390" y="1204" font-size="11" fill="#64748b"><title>time; not null</title>time</text>
+<rect x="1113" y="1210" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1120" y="1224" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="1224" font-size="12" fill="#0f172a">created_at</text>
+<text x="1390" y="1224" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="1120" y="1244" font-size="10" fill="#0891b2" font-weight="700"></text>
+<text x="1146" y="1244" font-size="12" fill="#0f172a">updated_at</text>
+<text x="1390" y="1244" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="1650" y="213" font-size="14" fill="#0d9488" font-weight="700">CALENDAR &amp; LEAVE</text>
+<rect x="1650" y="230" width="460" height="280" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="1650" y="230" width="460" height="32" rx="4" fill="#0d9488"/>
+<text x="1662" y="252" font-size="15" fill="#ffffff" font-weight="700">calendar_events</text>
+<rect x="1651" y="262" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="276" font-size="10" fill="#0d9488" font-weight="700">PK</text>
+<text x="1684" y="276" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="1928" y="276" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="1658" y="296" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="296" font-size="12" fill="#0f172a">title</text>
+<text x="1928" y="296" font-size="11" fill="#64748b"><title>varchar(150); not null</title>varchar(150)</text>
+<rect x="1651" y="302" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="316" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="316" font-size="12" fill="#0f172a">type</text>
+<text x="1928" y="316" font-size="11" fill="#64748b"><title>varchar(40); not null</title>varchar(40)</text>
+<text x="1658" y="336" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="336" font-size="12" fill="#0f172a">start_date</text>
+<text x="1928" y="336" font-size="11" fill="#64748b"><title>date; not null</title>date</text>
+<rect x="1651" y="342" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="356" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="356" font-size="12" fill="#0f172a">end_date</text>
+<text x="1928" y="356" font-size="11" fill="#64748b"><title>date; not null</title>date</text>
+<text x="1658" y="376" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="376" font-size="12" fill="#0f172a">is_paid</text>
+<text x="1928" y="376" font-size="11" fill="#64748b"><title>tinyint(1); not null, default: 1</title>tinyint(1)</text>
+<rect x="1651" y="382" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="396" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="396" font-size="12" fill="#0f172a">scope_type</text>
+<text x="1928" y="396" font-size="11" fill="#64748b"><title>calendar_events_scope_type_enum; not null, default: &#x27;campus&#x27;</title>enum</text>
+<text x="1658" y="416" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="416" font-size="12" fill="#0f172a">department</text>
+<text x="1928" y="416" font-size="11" fill="#64748b"><title>varchar(255); null, default: null</title>varchar(255)</text>
+<rect x="1651" y="422" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="436" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="436" font-size="12" fill="#0f172a">remarks</text>
+<text x="1928" y="436" font-size="11" fill="#64748b"><title>text; null, default: null</title>text</text>
+<text x="1658" y="456" font-size="10" fill="#0d9488" font-weight="700">FK</text>
+<text x="1684" y="456" font-size="12" fill="#0f172a">created_by</text>
+<text x="1928" y="456" font-size="11" fill="#64748b"><title>bigint(20) unsigned; null, default: null</title>bigint(20) unsigned</text>
+<rect x="1651" y="462" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="476" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="476" font-size="12" fill="#0f172a">created_at</text>
+<text x="1928" y="476" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="1658" y="496" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="496" font-size="12" fill="#0f172a">updated_at</text>
+<text x="1928" y="496" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="1650" y="534" width="460" height="100" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="1650" y="534" width="460" height="32" rx="4" fill="#0d9488"/>
+<text x="1662" y="556" font-size="15" fill="#ffffff" font-weight="700">calendar_event_employee</text>
+<rect x="1651" y="566" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="580" font-size="10" fill="#0d9488" font-weight="700">PK</text>
+<text x="1684" y="580" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="1928" y="580" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="1658" y="600" font-size="10" fill="#0d9488" font-weight="700">FK</text>
+<text x="1684" y="600" font-size="12" fill="#0f172a">calendar_event_id</text>
+<text x="1928" y="600" font-size="11" fill="#64748b"><title>bigint(20) unsigned; not null</title>bigint(20) unsigned</text>
+<rect x="1651" y="606" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="620" font-size="10" fill="#0d9488" font-weight="700">FK</text>
+<text x="1684" y="620" font-size="12" fill="#0f172a">employee_id</text>
+<text x="1928" y="620" font-size="11" fill="#64748b"><title>bigint(20) unsigned; not null</title>bigint(20) unsigned</text>
+<rect x="1650" y="658" width="460" height="200" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="1650" y="658" width="460" height="32" rx="4" fill="#0d9488"/>
+<text x="1662" y="680" font-size="15" fill="#ffffff" font-weight="700">dtr_signatories</text>
+<rect x="1651" y="690" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="704" font-size="10" fill="#0d9488" font-weight="700">PK</text>
+<text x="1684" y="704" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="1928" y="704" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="1658" y="724" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="724" font-size="12" fill="#0f172a">name</text>
+<text x="1928" y="724" font-size="11" fill="#64748b"><title>varchar(150); not null</title>varchar(150)</text>
+<rect x="1651" y="730" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="744" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="744" font-size="12" fill="#0f172a">designation</text>
+<text x="1928" y="744" font-size="11" fill="#64748b"><title>varchar(100); not null, default: &#x27;Dean / In Charge&#x27;</title>varchar(100)</text>
+<text x="1658" y="764" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="764" font-size="12" fill="#0f172a">effective_from</text>
+<text x="1928" y="764" font-size="11" fill="#64748b"><title>date; not null</title>date</text>
+<rect x="1651" y="770" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="784" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="784" font-size="12" fill="#0f172a">effective_to</text>
+<text x="1928" y="784" font-size="11" fill="#64748b"><title>date; null, default: null</title>date</text>
+<text x="1658" y="804" font-size="10" fill="#0d9488" font-weight="700">FK</text>
+<text x="1684" y="804" font-size="12" fill="#0f172a">created_by</text>
+<text x="1928" y="804" font-size="11" fill="#64748b"><title>bigint(20) unsigned; null, default: null</title>bigint(20) unsigned</text>
+<rect x="1651" y="810" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="824" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="824" font-size="12" fill="#0f172a">created_at</text>
+<text x="1928" y="824" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="1658" y="844" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="844" font-size="12" fill="#0f172a">updated_at</text>
+<text x="1928" y="844" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="1650" y="882" width="460" height="180" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="1650" y="882" width="460" height="32" rx="4" fill="#0d9488"/>
+<text x="1662" y="904" font-size="15" fill="#ffffff" font-weight="700">leave_types</text>
+<rect x="1651" y="914" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="928" font-size="10" fill="#0d9488" font-weight="700">PK</text>
+<text x="1684" y="928" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="1928" y="928" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="1658" y="948" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="948" font-size="12" fill="#0f172a">name</text>
+<text x="1928" y="948" font-size="11" fill="#64748b"><title>varchar(100); not null</title>varchar(100)</text>
+<rect x="1651" y="954" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="968" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="968" font-size="12" fill="#0f172a">code</text>
+<text x="1928" y="968" font-size="11" fill="#64748b"><title>varchar(30); not null</title>varchar(30)</text>
+<text x="1658" y="988" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="988" font-size="12" fill="#0f172a">is_paid</text>
+<text x="1928" y="988" font-size="11" fill="#64748b"><title>tinyint(1); not null, default: 1</title>tinyint(1)</text>
+<rect x="1651" y="994" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="1008" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="1008" font-size="12" fill="#0f172a">is_active</text>
+<text x="1928" y="1008" font-size="11" fill="#64748b"><title>tinyint(1); not null, default: 1</title>tinyint(1)</text>
+<text x="1658" y="1028" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="1028" font-size="12" fill="#0f172a">created_at</text>
+<text x="1928" y="1028" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="1651" y="1034" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="1048" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="1048" font-size="12" fill="#0f172a">updated_at</text>
+<text x="1928" y="1048" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="1650" y="1086" width="460" height="280" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="1650" y="1086" width="460" height="32" rx="4" fill="#0d9488"/>
+<text x="1662" y="1108" font-size="15" fill="#ffffff" font-weight="700">leave_requests</text>
+<rect x="1651" y="1118" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="1132" font-size="10" fill="#0d9488" font-weight="700">PK</text>
+<text x="1684" y="1132" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="1928" y="1132" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="1658" y="1152" font-size="10" fill="#0d9488" font-weight="700">FK</text>
+<text x="1684" y="1152" font-size="12" fill="#0f172a">employee_id</text>
+<text x="1928" y="1152" font-size="11" fill="#64748b"><title>bigint(20) unsigned; not null</title>bigint(20) unsigned</text>
+<rect x="1651" y="1158" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="1172" font-size="10" fill="#0d9488" font-weight="700">FK</text>
+<text x="1684" y="1172" font-size="12" fill="#0f172a">leave_type_id</text>
+<text x="1928" y="1172" font-size="11" fill="#64748b"><title>bigint(20) unsigned; not null</title>bigint(20) unsigned</text>
+<text x="1658" y="1192" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="1192" font-size="12" fill="#0f172a">start_date</text>
+<text x="1928" y="1192" font-size="11" fill="#64748b"><title>date; not null</title>date</text>
+<rect x="1651" y="1198" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="1212" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="1212" font-size="12" fill="#0f172a">end_date</text>
+<text x="1928" y="1212" font-size="11" fill="#64748b"><title>date; not null</title>date</text>
+<text x="1658" y="1232" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="1232" font-size="12" fill="#0f172a">reason</text>
+<text x="1928" y="1232" font-size="11" fill="#64748b"><title>text; not null</title>text</text>
+<rect x="1651" y="1238" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="1252" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="1252" font-size="12" fill="#0f172a">status</text>
+<text x="1928" y="1252" font-size="11" fill="#64748b"><title>leave_requests_status_enum; not null, default: &#x27;pending&#x27;</title>enum</text>
+<text x="1658" y="1272" font-size="10" fill="#0d9488" font-weight="700">FK</text>
+<text x="1684" y="1272" font-size="12" fill="#0f172a">reviewed_by</text>
+<text x="1928" y="1272" font-size="11" fill="#64748b"><title>bigint(20) unsigned; null, default: null</title>bigint(20) unsigned</text>
+<rect x="1651" y="1278" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="1292" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="1292" font-size="12" fill="#0f172a">reviewed_at</text>
+<text x="1928" y="1292" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="1658" y="1312" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="1312" font-size="12" fill="#0f172a">reviewer_remarks</text>
+<text x="1928" y="1312" font-size="11" fill="#64748b"><title>text; null, default: null</title>text</text>
+<rect x="1651" y="1318" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="1658" y="1332" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="1332" font-size="12" fill="#0f172a">created_at</text>
+<text x="1928" y="1332" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="1658" y="1352" font-size="10" fill="#0d9488" font-weight="700"></text>
+<text x="1684" y="1352" font-size="12" fill="#0f172a">updated_at</text>
+<text x="1928" y="1352" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="2188" y="213" font-size="14" fill="#c2410c" font-weight="700">DEVICES &amp; AUDIT</text>
+<rect x="2188" y="230" width="460" height="320" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="2188" y="230" width="460" height="32" rx="4" fill="#c2410c"/>
+<text x="2200" y="252" font-size="15" fill="#ffffff" font-weight="700">hardware_enrollments</text>
+<rect x="2189" y="262" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="276" font-size="10" fill="#c2410c" font-weight="700">PK</text>
+<text x="2222" y="276" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="2466" y="276" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="2196" y="296" font-size="10" fill="#c2410c" font-weight="700">FK</text>
+<text x="2222" y="296" font-size="12" fill="#0f172a">employee_id</text>
+<text x="2466" y="296" font-size="11" fill="#64748b"><title>bigint(20) unsigned; not null</title>bigint(20) unsigned</text>
+<rect x="2189" y="302" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="316" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="316" font-size="12" fill="#0f172a">requested_by</text>
+<text x="2466" y="316" font-size="11" fill="#64748b"><title>bigint(20) unsigned; null, default: null, note: &#x27;From project migration 2026_10_16; absent from supplied SQL export&#x27;</title>bigint(20) unsigned</text>
+<text x="2196" y="336" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="336" font-size="12" fill="#0f172a">method</text>
+<text x="2466" y="336" font-size="11" fill="#64748b"><title>hardware_enrollments_method_enum; not null</title>enum</text>
+<rect x="2189" y="342" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="356" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="356" font-size="12" fill="#0f172a">operation</text>
+<text x="2466" y="356" font-size="11" fill="#64748b"><title>hardware_enrollments_operation_enum; not null, default: &#x27;replace&#x27;, note: &#x27;From project migration 2026_10_16; absent from supplied SQL export&#x27;</title>enum</text>
+<text x="2196" y="376" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="376" font-size="12" fill="#0f172a">finger_label</text>
+<text x="2466" y="376" font-size="11" fill="#64748b"><title>varchar(50); null, default: null</title>varchar(50)</text>
+<rect x="2189" y="382" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="396" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="396" font-size="12" fill="#0f172a">current_identifier</text>
+<text x="2466" y="396" font-size="11" fill="#64748b"><title>varchar(100); null, default: null</title>varchar(100)</text>
+<text x="2196" y="416" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="416" font-size="12" fill="#0f172a">identifier</text>
+<text x="2466" y="416" font-size="11" fill="#64748b"><title>varchar(100); null, default: null</title>varchar(100)</text>
+<rect x="2189" y="422" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="436" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="436" font-size="12" fill="#0f172a">status</text>
+<text x="2466" y="436" font-size="11" fill="#64748b"><title>hardware_enrollments_status_enum; not null, default: &#x27;pending&#x27;</title>enum</text>
+<text x="2196" y="456" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="456" font-size="12" fill="#0f172a">message</text>
+<text x="2466" y="456" font-size="11" fill="#64748b"><title>varchar(255); null, default: null</title>varchar(255)</text>
+<rect x="2189" y="462" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="476" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="476" font-size="12" fill="#0f172a">expires_at</text>
+<text x="2466" y="476" font-size="11" fill="#64748b"><title>timestamp; not null, default: `current_timestamp()`</title>timestamp</text>
+<text x="2196" y="496" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="496" font-size="12" fill="#0f172a">completed_at</text>
+<text x="2466" y="496" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="2189" y="502" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="516" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="516" font-size="12" fill="#0f172a">created_at</text>
+<text x="2466" y="516" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="2196" y="536" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="536" font-size="12" fill="#0f172a">updated_at</text>
+<text x="2466" y="536" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="2188" y="574" width="460" height="220" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="2188" y="574" width="460" height="32" rx="4" fill="#c2410c"/>
+<text x="2200" y="596" font-size="15" fill="#ffffff" font-weight="700">hardware_attendance_events</text>
+<rect x="2189" y="606" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="620" font-size="10" fill="#c2410c" font-weight="700">PK</text>
+<text x="2222" y="620" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="2466" y="620" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="2196" y="640" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="640" font-size="12" fill="#0f172a">event_id</text>
+<text x="2466" y="640" font-size="11" fill="#64748b"><title>varchar(64); not null</title>varchar(64)</text>
+<rect x="2189" y="646" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="660" font-size="10" fill="#c2410c" font-weight="700">FK</text>
+<text x="2222" y="660" font-size="12" fill="#0f172a">employee_id</text>
+<text x="2466" y="660" font-size="11" fill="#64748b"><title>bigint(20) unsigned; not null</title>bigint(20) unsigned</text>
+<text x="2196" y="680" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="680" font-size="12" fill="#0f172a">identifier</text>
+<text x="2466" y="680" font-size="11" fill="#64748b"><title>varchar(100); not null</title>varchar(100)</text>
+<rect x="2189" y="686" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="700" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="700" font-size="12" fill="#0f172a">method</text>
+<text x="2466" y="700" font-size="11" fill="#64748b"><title>hardware_attendance_events_method_enum; not null</title>enum</text>
+<text x="2196" y="720" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="720" font-size="12" fill="#0f172a">occurred_at</text>
+<text x="2466" y="720" font-size="11" fill="#64748b"><title>datetime; not null</title>datetime</text>
+<rect x="2189" y="726" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="740" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="740" font-size="12" fill="#0f172a">response_payload</text>
+<text x="2466" y="740" font-size="11" fill="#64748b"><title>longtext; not null</title>longtext</text>
+<text x="2196" y="760" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="760" font-size="12" fill="#0f172a">created_at</text>
+<text x="2466" y="760" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="2189" y="766" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="780" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="780" font-size="12" fill="#0f172a">updated_at</text>
+<text x="2466" y="780" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="2188" y="818" width="460" height="200" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="2188" y="818" width="460" height="32" rx="4" fill="#c2410c"/>
+<text x="2200" y="840" font-size="15" fill="#ffffff" font-weight="700">fingerprint_templates</text>
+<rect x="2189" y="850" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="864" font-size="10" fill="#c2410c" font-weight="700">PK</text>
+<text x="2222" y="864" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="2466" y="864" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="2196" y="884" font-size="10" fill="#c2410c" font-weight="700">FK</text>
+<text x="2222" y="884" font-size="12" fill="#0f172a">employee_id</text>
+<text x="2466" y="884" font-size="11" fill="#64748b"><title>bigint(20) unsigned; not null</title>bigint(20) unsigned</text>
+<rect x="2189" y="890" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="904" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="904" font-size="12" fill="#0f172a">fingerprint_code</text>
+<text x="2466" y="904" font-size="11" fill="#64748b"><title>varchar(255); not null</title>varchar(255)</text>
+<text x="2196" y="924" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="924" font-size="12" fill="#0f172a">finger_label</text>
+<text x="2466" y="924" font-size="11" fill="#64748b"><title>varchar(50); null, default: null</title>varchar(50)</text>
+<rect x="2189" y="930" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="944" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="944" font-size="12" fill="#0f172a">status</text>
+<text x="2466" y="944" font-size="11" fill="#64748b"><title>fingerprint_templates_status_enum; not null, default: &#x27;active&#x27;</title>enum</text>
+<text x="2196" y="964" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="964" font-size="12" fill="#0f172a">registered_at</text>
+<text x="2466" y="964" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="2189" y="970" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="984" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="984" font-size="12" fill="#0f172a">created_at</text>
+<text x="2466" y="984" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="2196" y="1004" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="1004" font-size="12" fill="#0f172a">updated_at</text>
+<text x="2466" y="1004" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="2188" y="1042" width="460" height="180" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="2188" y="1042" width="460" height="32" rx="4" fill="#c2410c"/>
+<text x="2200" y="1064" font-size="15" fill="#ffffff" font-weight="700">rfid_cards</text>
+<rect x="2189" y="1074" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="1088" font-size="10" fill="#c2410c" font-weight="700">PK</text>
+<text x="2222" y="1088" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="2466" y="1088" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="2196" y="1108" font-size="10" fill="#c2410c" font-weight="700">FK</text>
+<text x="2222" y="1108" font-size="12" fill="#0f172a">employee_id</text>
+<text x="2466" y="1108" font-size="11" fill="#64748b"><title>bigint(20) unsigned; not null</title>bigint(20) unsigned</text>
+<rect x="2189" y="1114" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="1128" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="1128" font-size="12" fill="#0f172a">rfid_uid</text>
+<text x="2466" y="1128" font-size="11" fill="#64748b"><title>varchar(255); not null</title>varchar(255)</text>
+<text x="2196" y="1148" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="1148" font-size="12" fill="#0f172a">status</text>
+<text x="2466" y="1148" font-size="11" fill="#64748b"><title>rfid_cards_status_enum; not null, default: &#x27;active&#x27;</title>enum</text>
+<rect x="2189" y="1154" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="1168" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="1168" font-size="12" fill="#0f172a">registered_at</text>
+<text x="2466" y="1168" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="2196" y="1188" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="1188" font-size="12" fill="#0f172a">created_at</text>
+<text x="2466" y="1188" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="2189" y="1194" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="1208" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="1208" font-size="12" fill="#0f172a">updated_at</text>
+<text x="2466" y="1208" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="2188" y="1246" width="460" height="180" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="2188" y="1246" width="460" height="32" rx="4" fill="#c2410c"/>
+<text x="2200" y="1268" font-size="15" fill="#ffffff" font-weight="700">audit_trails</text>
+<rect x="2189" y="1278" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="1292" font-size="10" fill="#c2410c" font-weight="700">PK</text>
+<text x="2222" y="1292" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="2466" y="1292" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="2196" y="1312" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="1312" font-size="12" fill="#0f172a">action</text>
+<text x="2466" y="1312" font-size="11" fill="#64748b"><title>varchar(255); not null</title>varchar(255)</text>
+<rect x="2189" y="1318" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="1332" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="1332" font-size="12" fill="#0f172a">table_name</text>
+<text x="2466" y="1332" font-size="11" fill="#64748b"><title>varchar(255); null, default: null</title>varchar(255)</text>
+<text x="2196" y="1352" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="1352" font-size="12" fill="#0f172a">record_id</text>
+<text x="2466" y="1352" font-size="11" fill="#64748b"><title>bigint(20) unsigned; null, default: null</title>bigint(20) unsigned</text>
+<rect x="2189" y="1358" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="1372" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="1372" font-size="12" fill="#0f172a">description</text>
+<text x="2466" y="1372" font-size="11" fill="#64748b"><title>text; null, default: null</title>text</text>
+<text x="2196" y="1392" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="1392" font-size="12" fill="#0f172a">created_at</text>
+<text x="2466" y="1392" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="2189" y="1398" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="1412" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="1412" font-size="12" fill="#0f172a">updated_at</text>
+<text x="2466" y="1412" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="2188" y="1450" width="460" height="140" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="2188" y="1450" width="460" height="32" rx="4" fill="#c2410c"/>
+<text x="2200" y="1472" font-size="15" fill="#ffffff" font-weight="700">system_settings</text>
+<rect x="2189" y="1482" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="1496" font-size="10" fill="#c2410c" font-weight="700">PK</text>
+<text x="2222" y="1496" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="2466" y="1496" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="2196" y="1516" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="1516" font-size="12" fill="#0f172a">key</text>
+<text x="2466" y="1516" font-size="11" fill="#64748b"><title>varchar(255); not null</title>varchar(255)</text>
+<rect x="2189" y="1522" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="1536" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="1536" font-size="12" fill="#0f172a">value</text>
+<text x="2466" y="1536" font-size="11" fill="#64748b"><title>text; null, default: null</title>text</text>
+<text x="2196" y="1556" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="1556" font-size="12" fill="#0f172a">created_at</text>
+<text x="2466" y="1556" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="2189" y="1562" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2196" y="1576" font-size="10" fill="#c2410c" font-weight="700"></text>
+<text x="2222" y="1576" font-size="12" fill="#0f172a">updated_at</text>
+<text x="2466" y="1576" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<text x="2726" y="213" font-size="14" fill="#64748b" font-weight="700">SYSTEM TABLES</text>
+<rect x="2726" y="230" width="460" height="160" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="2726" y="230" width="460" height="32" rx="4" fill="#64748b"/>
+<text x="2738" y="252" font-size="15" fill="#ffffff" font-weight="700">sessions</text>
+<rect x="2727" y="262" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="276" font-size="10" fill="#64748b" font-weight="700">PK</text>
+<text x="2760" y="276" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="3004" y="276" font-size="11" fill="#64748b"><title>varchar(255); pk, not null</title>varchar(255)</text>
+<text x="2734" y="296" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="296" font-size="12" fill="#0f172a">user_id</text>
+<text x="3004" y="296" font-size="11" fill="#64748b"><title>bigint(20) unsigned; null, default: null</title>bigint(20) unsigned</text>
+<rect x="2727" y="302" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="316" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="316" font-size="12" fill="#0f172a">ip_address</text>
+<text x="3004" y="316" font-size="11" fill="#64748b"><title>varchar(45); null, default: null</title>varchar(45)</text>
+<text x="2734" y="336" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="336" font-size="12" fill="#0f172a">user_agent</text>
+<text x="3004" y="336" font-size="11" fill="#64748b"><title>text; null, default: null</title>text</text>
+<rect x="2727" y="342" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="356" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="356" font-size="12" fill="#0f172a">payload</text>
+<text x="3004" y="356" font-size="11" fill="#64748b"><title>longtext; not null</title>longtext</text>
+<text x="2734" y="376" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="376" font-size="12" fill="#0f172a">last_activity</text>
+<text x="3004" y="376" font-size="11" fill="#64748b"><title>int(11); not null</title>int(11)</text>
+<rect x="2726" y="414" width="460" height="100" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="2726" y="414" width="460" height="32" rx="4" fill="#64748b"/>
+<text x="2738" y="436" font-size="15" fill="#ffffff" font-weight="700">password_reset_tokens</text>
+<rect x="2727" y="446" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="460" font-size="10" fill="#64748b" font-weight="700">PK</text>
+<text x="2760" y="460" font-size="12" fill="#0f172a" font-weight="700">email</text>
+<text x="3004" y="460" font-size="11" fill="#64748b"><title>varchar(255); pk, not null</title>varchar(255)</text>
+<text x="2734" y="480" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="480" font-size="12" fill="#0f172a">token</text>
+<text x="3004" y="480" font-size="11" fill="#64748b"><title>varchar(255); not null</title>varchar(255)</text>
+<rect x="2727" y="486" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="500" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="500" font-size="12" fill="#0f172a">created_at</text>
+<text x="3004" y="500" font-size="11" fill="#64748b"><title>timestamp; null, default: null</title>timestamp</text>
+<rect x="2726" y="538" width="460" height="100" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="2726" y="538" width="460" height="32" rx="4" fill="#64748b"/>
+<text x="2738" y="560" font-size="15" fill="#ffffff" font-weight="700">cache</text>
+<rect x="2727" y="570" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="584" font-size="10" fill="#64748b" font-weight="700">PK</text>
+<text x="2760" y="584" font-size="12" fill="#0f172a" font-weight="700">key</text>
+<text x="3004" y="584" font-size="11" fill="#64748b"><title>varchar(255); pk, not null</title>varchar(255)</text>
+<text x="2734" y="604" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="604" font-size="12" fill="#0f172a">value</text>
+<text x="3004" y="604" font-size="11" fill="#64748b"><title>mediumtext; not null</title>mediumtext</text>
+<rect x="2727" y="610" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="624" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="624" font-size="12" fill="#0f172a">expiration</text>
+<text x="3004" y="624" font-size="11" fill="#64748b"><title>int(11); not null</title>int(11)</text>
+<rect x="2726" y="662" width="460" height="100" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="2726" y="662" width="460" height="32" rx="4" fill="#64748b"/>
+<text x="2738" y="684" font-size="15" fill="#ffffff" font-weight="700">cache_locks</text>
+<rect x="2727" y="694" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="708" font-size="10" fill="#64748b" font-weight="700">PK</text>
+<text x="2760" y="708" font-size="12" fill="#0f172a" font-weight="700">key</text>
+<text x="3004" y="708" font-size="11" fill="#64748b"><title>varchar(255); pk, not null</title>varchar(255)</text>
+<text x="2734" y="728" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="728" font-size="12" fill="#0f172a">owner</text>
+<text x="3004" y="728" font-size="11" fill="#64748b"><title>varchar(255); not null</title>varchar(255)</text>
+<rect x="2727" y="734" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="748" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="748" font-size="12" fill="#0f172a">expiration</text>
+<text x="3004" y="748" font-size="11" fill="#64748b"><title>int(11); not null</title>int(11)</text>
+<rect x="2726" y="786" width="460" height="100" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="2726" y="786" width="460" height="32" rx="4" fill="#64748b"/>
+<text x="2738" y="808" font-size="15" fill="#ffffff" font-weight="700">migrations</text>
+<rect x="2727" y="818" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="832" font-size="10" fill="#64748b" font-weight="700">PK</text>
+<text x="2760" y="832" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="3004" y="832" font-size="11" fill="#64748b"><title>int(10) unsigned; pk, not null, increment</title>int(10) unsigned</text>
+<text x="2734" y="852" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="852" font-size="12" fill="#0f172a">migration</text>
+<text x="3004" y="852" font-size="11" fill="#64748b"><title>varchar(255); not null</title>varchar(255)</text>
+<rect x="2727" y="858" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="872" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="872" font-size="12" fill="#0f172a">batch</text>
+<text x="3004" y="872" font-size="11" fill="#64748b"><title>int(11); not null</title>int(11)</text>
+<rect x="2726" y="910" width="460" height="180" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="2726" y="910" width="460" height="32" rx="4" fill="#64748b"/>
+<text x="2738" y="932" font-size="15" fill="#ffffff" font-weight="700">jobs</text>
+<rect x="2727" y="942" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="956" font-size="10" fill="#64748b" font-weight="700">PK</text>
+<text x="2760" y="956" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="3004" y="956" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="2734" y="976" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="976" font-size="12" fill="#0f172a">queue</text>
+<text x="3004" y="976" font-size="11" fill="#64748b"><title>varchar(255); not null</title>varchar(255)</text>
+<rect x="2727" y="982" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="996" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="996" font-size="12" fill="#0f172a">payload</text>
+<text x="3004" y="996" font-size="11" fill="#64748b"><title>longtext; not null</title>longtext</text>
+<text x="2734" y="1016" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="1016" font-size="12" fill="#0f172a">attempts</text>
+<text x="3004" y="1016" font-size="11" fill="#64748b"><title>tinyint(3) unsigned; not null</title>tinyint(3) unsigned</text>
+<rect x="2727" y="1022" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="1036" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="1036" font-size="12" fill="#0f172a">reserved_at</text>
+<text x="3004" y="1036" font-size="11" fill="#64748b"><title>int(10) unsigned; null, default: null</title>int(10) unsigned</text>
+<text x="2734" y="1056" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="1056" font-size="12" fill="#0f172a">available_at</text>
+<text x="3004" y="1056" font-size="11" fill="#64748b"><title>int(10) unsigned; not null</title>int(10) unsigned</text>
+<rect x="2727" y="1062" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="1076" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="1076" font-size="12" fill="#0f172a">created_at</text>
+<text x="3004" y="1076" font-size="11" fill="#64748b"><title>int(10) unsigned; not null</title>int(10) unsigned</text>
+<rect x="2726" y="1114" width="460" height="240" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="2726" y="1114" width="460" height="32" rx="4" fill="#64748b"/>
+<text x="2738" y="1136" font-size="15" fill="#ffffff" font-weight="700">job_batches</text>
+<rect x="2727" y="1146" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="1160" font-size="10" fill="#64748b" font-weight="700">PK</text>
+<text x="2760" y="1160" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="3004" y="1160" font-size="11" fill="#64748b"><title>varchar(255); pk, not null</title>varchar(255)</text>
+<text x="2734" y="1180" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="1180" font-size="12" fill="#0f172a">name</text>
+<text x="3004" y="1180" font-size="11" fill="#64748b"><title>varchar(255); not null</title>varchar(255)</text>
+<rect x="2727" y="1186" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="1200" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="1200" font-size="12" fill="#0f172a">total_jobs</text>
+<text x="3004" y="1200" font-size="11" fill="#64748b"><title>int(11); not null</title>int(11)</text>
+<text x="2734" y="1220" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="1220" font-size="12" fill="#0f172a">pending_jobs</text>
+<text x="3004" y="1220" font-size="11" fill="#64748b"><title>int(11); not null</title>int(11)</text>
+<rect x="2727" y="1226" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="1240" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="1240" font-size="12" fill="#0f172a">failed_jobs</text>
+<text x="3004" y="1240" font-size="11" fill="#64748b"><title>int(11); not null</title>int(11)</text>
+<text x="2734" y="1260" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="1260" font-size="12" fill="#0f172a">failed_job_ids</text>
+<text x="3004" y="1260" font-size="11" fill="#64748b"><title>longtext; not null</title>longtext</text>
+<rect x="2727" y="1266" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="1280" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="1280" font-size="12" fill="#0f172a">options</text>
+<text x="3004" y="1280" font-size="11" fill="#64748b"><title>mediumtext; null, default: null</title>mediumtext</text>
+<text x="2734" y="1300" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="1300" font-size="12" fill="#0f172a">cancelled_at</text>
+<text x="3004" y="1300" font-size="11" fill="#64748b"><title>int(11); null, default: null</title>int(11)</text>
+<rect x="2727" y="1306" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="1320" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="1320" font-size="12" fill="#0f172a">created_at</text>
+<text x="3004" y="1320" font-size="11" fill="#64748b"><title>int(11); not null</title>int(11)</text>
+<text x="2734" y="1340" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="1340" font-size="12" fill="#0f172a">finished_at</text>
+<text x="3004" y="1340" font-size="11" fill="#64748b"><title>int(11); null, default: null</title>int(11)</text>
+<rect x="2726" y="1378" width="460" height="180" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+<rect x="2726" y="1378" width="460" height="32" rx="4" fill="#64748b"/>
+<text x="2738" y="1400" font-size="15" fill="#ffffff" font-weight="700">failed_jobs</text>
+<rect x="2727" y="1410" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="1424" font-size="10" fill="#64748b" font-weight="700">PK</text>
+<text x="2760" y="1424" font-size="12" fill="#0f172a" font-weight="700">id</text>
+<text x="3004" y="1424" font-size="11" fill="#64748b"><title>bigint(20) unsigned; pk, not null, increment</title>bigint(20) unsigned</text>
+<text x="2734" y="1444" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="1444" font-size="12" fill="#0f172a">uuid</text>
+<text x="3004" y="1444" font-size="11" fill="#64748b"><title>varchar(255); not null</title>varchar(255)</text>
+<rect x="2727" y="1450" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="1464" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="1464" font-size="12" fill="#0f172a">connection</text>
+<text x="3004" y="1464" font-size="11" fill="#64748b"><title>text; not null</title>text</text>
+<text x="2734" y="1484" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="1484" font-size="12" fill="#0f172a">queue</text>
+<text x="3004" y="1484" font-size="11" fill="#64748b"><title>text; not null</title>text</text>
+<rect x="2727" y="1490" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="1504" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="1504" font-size="12" fill="#0f172a">payload</text>
+<text x="3004" y="1504" font-size="11" fill="#64748b"><title>longtext; not null</title>longtext</text>
+<text x="2734" y="1524" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="1524" font-size="12" fill="#0f172a">exception</text>
+<text x="3004" y="1524" font-size="11" fill="#64748b"><title>longtext; not null</title>longtext</text>
+<rect x="2727" y="1530" width="458" height="20" rx="0" fill="#f8fafc"/>
+<text x="2734" y="1544" font-size="10" fill="#64748b" font-weight="700"></text>
+<text x="2760" y="1544" font-size="12" fill="#0f172a">failed_at</text>
+<text x="3004" y="1544" font-size="11" fill="#64748b"><title>timestamp; not null, default: `current_timestamp()`</title>timestamp</text>
+<text x="36" y="1635" font-size="12" fill="#64748b">Schema from supplied export + operation / requested_by from the project migration. Lines show SQL foreign keys only.</text>
+</svg>

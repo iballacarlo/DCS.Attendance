@@ -168,14 +168,14 @@ class EmployeeController extends Controller
 
     public function editSchedule(Employee $employee)
     {
-        $employee->load(['schedules', 'scheduleBreaks']);
+        $employee->load(['schedules', 'scheduleBreaks', 'facultyRank']);
 
         return Inertia::render('Employees/Schedule', ['employee' => $employee, 'scheduleOptions' => ScheduleOptions::all()]);
     }
 
     public function mySchedule(Request $request)
     {
-        $employee = Employee::with(['schedules', 'scheduleBreaks'])->findOrFail($request->user()->employee_id);
+        $employee = Employee::with(['schedules', 'scheduleBreaks', 'facultyRank'])->findOrFail($request->user()->employee_id);
 
         return Inertia::render('Employees/Schedule', ['employee' => $employee, 'readOnly' => true, 'scheduleOptions' => ScheduleOptions::all()]);
     }
@@ -345,10 +345,10 @@ class EmployeeController extends Controller
             }
             $ids[] = $key;
             if ($block['schedule_type'] === 'class') {
-                foreach (['subject' => ScheduleOptions::SUBJECTS, 'section' => ScheduleOptions::sections(), 'class_mode' => array_keys(ScheduleOptions::CLASS_MODES)] as $field => $allowed) {
+                foreach (['section' => ScheduleOptions::sections(), 'subject' => ScheduleOptions::subjectsFor($block['section'] ?? ''), 'class_mode' => array_keys(ScheduleOptions::CLASS_MODES)] as $field => $allowed) {
                     $value = $block[$field] ?? null;
                     // Preserve existing legacy values; new/changed selections must use the catalog.
-                    if ((! $existing || $value !== $existing->$field) && ! in_array($value, $allowed, true)) {
+                    if ((! $existing || $value !== $existing->$field || ($field === 'subject' && ($block['section'] ?? '') !== $existing->section)) && ! in_array($value, $allowed, true)) {
                         throw ValidationException::withMessages(["blocks.$i.$field" => 'Select a valid '.str_replace('_', ' ', $field).'.']);
                     }
                 }

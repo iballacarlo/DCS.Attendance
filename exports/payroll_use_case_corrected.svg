@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1710" height="1040" viewBox="0 0 1710 1040">
+<rect width="100%" height="100%" fill="white"/>
+<style>text{font-family:Arial,sans-serif} path,polyline,line{stroke-linecap:round;stroke-linejoin:round}</style>
+<rect x="210" y="40" width="1290" height="930" rx="18" fill="white" stroke="#334155" stroke-width="2"/>
+<text x="855" y="77" font-size="27" fill="#1f2937" dominant-baseline="central" text-anchor="middle" font-weight="700">Payroll Management System</text>
+<ellipse cx="90.0" cy="280.0" rx="15.0" ry="15.0" fill="white" stroke="#2563eb" stroke-width="2.2"/>
+<polyline fill="none" stroke="#2563eb" stroke-width="2.2" points="90,295 90,344"/>
+<polyline fill="none" stroke="#2563eb" stroke-width="2.2" points="63,314 117,314"/>
+<polyline fill="none" stroke="#2563eb" stroke-width="2.2" points="90,344 65,379"/>
+<polyline fill="none" stroke="#2563eb" stroke-width="2.2" points="90,344 115,379"/>
+<text x="90" y="403" font-size="20" fill="#2563eb" dominant-baseline="central" text-anchor="middle" font-weight="700">Administrator</text>
+<ellipse cx="90.0" cy="755.0" rx="15.0" ry="15.0" fill="white" stroke="#0f766e" stroke-width="2.2"/>
+<polyline fill="none" stroke="#0f766e" stroke-width="2.2" points="90,770 90,819"/>
+<polyline fill="none" stroke="#0f766e" stroke-width="2.2" points="63,789 117,789"/>
+<polyline fill="none" stroke="#0f766e" stroke-width="2.2" points="90,819 65,854"/>
+<polyline fill="none" stroke="#0f766e" stroke-width="2.2" points="90,819 115,854"/>
+<text x="90" y="878" font-size="20" fill="#0f766e" dominant-baseline="central" text-anchor="middle" font-weight="700">Payroll Staff</text>
+<ellipse cx="1615.0" cy="360.0" rx="15.0" ry="15.0" fill="white" stroke="#7c3aed" stroke-width="2.2"/>
+<polyline fill="none" stroke="#7c3aed" stroke-width="2.2" points="1615,375 1615,424"/>
+<polyline fill="none" stroke="#7c3aed" stroke-width="2.2" points="1588,394 1642,394"/>
+<polyline fill="none" stroke="#7c3aed" stroke-width="2.2" points="1615,424 1590,459"/>
+<polyline fill="none" stroke="#7c3aed" stroke-width="2.2" points="1615,424 1640,459"/>
+<text x="1615" y="483" font-size="20" fill="#7c3aed" dominant-baseline="central" text-anchor="middle" font-weight="700">COS Faculty</text>
+<polyline fill="none" stroke="#2563eb" stroke-width="1.4" points="122,314 155,314 250,197"/>
+<polyline fill="none" stroke="#2563eb" stroke-width="1.4" points="122,314 155,314 250,289"/>
+<polyline fill="none" stroke="#2563eb" stroke-width="1.4" points="122,314 155,314 250,381"/>
+<polyline fill="none" stroke="#2563eb" stroke-width="1.4" points="122,314 155,314 250,473"/>
+<polyline fill="none" stroke="#2563eb" stroke-width="1.4" points="122,314 155,314 250,565"/>
+<polyline fill="none" stroke="#2563eb" stroke-width="1.4" points="122,314 155,314 250,657"/>
+<polyline fill="none" stroke="#2563eb" stroke-width="1.4" points="122,314 155,314 155,106 598,106 598,192 700,192"/>
+<polyline fill="none" stroke="#0f766e" stroke-width="1.4" points="122,789 153,789 153,950 654,950 654,202 700,202"/>
+<polyline fill="none" stroke="#2563eb" stroke-width="1.4" points="122,314 160,314 160,111 606,111 606,284 700,284"/>
+<polyline fill="none" stroke="#0f766e" stroke-width="1.4" points="122,789 158,789 158,945 661,945 661,294 700,294"/>
+<polyline fill="none" stroke="#2563eb" stroke-width="1.4" points="122,314 165,314 165,116 614,116 614,376 700,376"/>
+<polyline fill="none" stroke="#0f766e" stroke-width="1.4" points="122,789 163,789 163,940 668,940 668,386 700,386"/>
+<polyline fill="none" stroke="#2563eb" stroke-width="1.4" points="122,314 170,314 170,121 622,121 622,468 700,468"/>
+<polyline fill="none" stroke="#0f766e" stroke-width="1.4" points="122,789 168,789 168,935 675,935 675,478 700,478"/>
+<polyline fill="none" stroke="#2563eb" stroke-width="1.4" points="122,314 175,314 175,126 630,126 630,560 700,560"/>
+<polyline fill="none" stroke="#0f766e" stroke-width="1.4" points="122,789 173,789 173,930 682,930 682,570 700,570"/>
+<polyline fill="none" stroke="#2563eb" stroke-width="1.4" points="122,314 180,314 180,131 638,131 638,652 700,652"/>
+<polyline fill="none" stroke="#0f766e" stroke-width="1.4" points="122,789 178,789 178,925 689,925 689,662 700,662"/>
+<polyline fill="none" stroke="#7c3aed" stroke-width="1.4" points="1583,394 1545,394 1460,197"/>
+<polyline fill="none" stroke="#7c3aed" stroke-width="1.4" points="1583,394 1545,394 1460,289"/>
+<polyline fill="none" stroke="#7c3aed" stroke-width="1.4" points="1583,394 1545,394 1460,381"/>
+<polyline fill="none" stroke="#7c3aed" stroke-width="1.4" points="1583,394 1545,394 1460,473"/>
+<polyline fill="none" stroke="#7c3aed" stroke-width="1.4" points="1583,394 1545,394 1460,565"/>
+<polyline fill="none" stroke="#7c3aed" stroke-width="1.4" points="1583,394 1545,394 1460,657"/>
+<polyline fill="none" stroke="#0f766e" stroke-width="1.4" points="122,789 250,805"/>
+<ellipse cx="415.0" cy="197.0" rx="165.0" ry="32.0" fill="#ffffff" stroke="#2563eb" stroke-width="1.6"/>
+<text x="415.0" y="197.0" font-size="16" fill="#2563eb" dominant-baseline="central" text-anchor="middle">Manage User Accounts</text>
+<ellipse cx="415.0" cy="289.0" rx="165.0" ry="32.0" fill="#ffffff" stroke="#2563eb" stroke-width="1.6"/>
+<text x="415.0" y="289.0" font-size="16" fill="#2563eb" dominant-baseline="central" text-anchor="middle">Manage Faculty Profiles</text>
+<ellipse cx="415.0" cy="381.0" rx="165.0" ry="32.0" fill="#ffffff" stroke="#2563eb" stroke-width="1.6"/>
+<text x="415.0" y="381.0" font-size="16" fill="#2563eb" dominant-baseline="central" text-anchor="middle">Manage Class Schedules</text>
+<ellipse cx="415.0" cy="473.0" rx="165.0" ry="32.0" fill="#ffffff" stroke="#2563eb" stroke-width="1.6"/>
+<text x="415.0" y="473.0" font-size="16" fill="#2563eb" dominant-baseline="central" text-anchor="middle">Manage RFID / Fingerprint</text>
+<ellipse cx="415.0" cy="565.0" rx="165.0" ry="32.0" fill="#ffffff" stroke="#2563eb" stroke-width="1.6"/>
+<text x="415.0" y="565.0" font-size="16" fill="#2563eb" dominant-baseline="central" text-anchor="middle">Manage Faculty Ranks and Rates</text>
+<ellipse cx="415.0" cy="657.0" rx="165.0" ry="32.0" fill="#ffffff" stroke="#2563eb" stroke-width="1.6"/>
+<text x="415.0" y="657.0" font-size="16" fill="#2563eb" dominant-baseline="central" text-anchor="middle">Back Up / Restore Database</text>
+<ellipse cx="865.0" cy="197.0" rx="165.0" ry="32.0" fill="#ffffff" stroke="#0f766e" stroke-width="1.6"/>
+<text x="865.0" y="197.0" font-size="16" fill="#0f766e" dominant-baseline="central" text-anchor="middle">View Attendance and DTR</text>
+<ellipse cx="865.0" cy="289.0" rx="165.0" ry="32.0" fill="#ffffff" stroke="#0f766e" stroke-width="1.6"/>
+<text x="865.0" y="289.0" font-size="16" fill="#0f766e" dominant-baseline="central" text-anchor="middle">Manage School Calendar</text>
+<ellipse cx="865.0" cy="381.0" rx="165.0" ry="32.0" fill="#ffffff" stroke="#0f766e" stroke-width="1.6"/>
+<text x="865.0" y="381.0" font-size="16" fill="#0f766e" dominant-baseline="central" text-anchor="middle">Review Leave Requests</text>
+<ellipse cx="865.0" cy="473.0" rx="165.0" ry="32.0" fill="#ffffff" stroke="#0f766e" stroke-width="1.6"/>
+<text x="865.0" y="473.0" font-size="16" fill="#0f766e" dominant-baseline="central" text-anchor="middle">Generate Payroll</text>
+<ellipse cx="865.0" cy="565.0" rx="165.0" ry="32.0" fill="#ffffff" stroke="#0f766e" stroke-width="1.6"/>
+<text x="865.0" y="565.0" font-size="16" fill="#0f766e" dominant-baseline="central" text-anchor="middle">Approve Payroll</text>
+<ellipse cx="865.0" cy="657.0" rx="165.0" ry="32.0" fill="#ffffff" stroke="#0f766e" stroke-width="1.6"/>
+<text x="865.0" y="657.0" font-size="16" fill="#0f766e" dominant-baseline="central" text-anchor="middle">Release Payslips</text>
+<ellipse cx="1295.0" cy="197.0" rx="165.0" ry="32.0" fill="#ffffff" stroke="#7c3aed" stroke-width="1.6"/>
+<text x="1295.0" y="197.0" font-size="16" fill="#7c3aed" dominant-baseline="central" text-anchor="middle">Time In / Out via RFID or Fingerprint</text>
+<ellipse cx="1295.0" cy="289.0" rx="165.0" ry="32.0" fill="#ffffff" stroke="#7c3aed" stroke-width="1.6"/>
+<text x="1295.0" y="289.0" font-size="16" fill="#7c3aed" dominant-baseline="central" text-anchor="middle">View Own Schedule</text>
+<ellipse cx="1295.0" cy="381.0" rx="165.0" ry="32.0" fill="#ffffff" stroke="#7c3aed" stroke-width="1.6"/>
+<text x="1295.0" y="381.0" font-size="16" fill="#7c3aed" dominant-baseline="central" text-anchor="middle">View Own Attendance and DTR</text>
+<ellipse cx="1295.0" cy="473.0" rx="165.0" ry="32.0" fill="#ffffff" stroke="#7c3aed" stroke-width="1.6"/>
+<text x="1295.0" y="473.0" font-size="16" fill="#7c3aed" dominant-baseline="central" text-anchor="middle">View Released Payslips</text>
+<ellipse cx="1295.0" cy="565.0" rx="165.0" ry="32.0" fill="#ffffff" stroke="#7c3aed" stroke-width="1.6"/>
+<text x="1295.0" y="565.0" font-size="16" fill="#7c3aed" dominant-baseline="central" text-anchor="middle">Submit Leave Request</text>
+<ellipse cx="1295.0" cy="657.0" rx="165.0" ry="32.0" fill="#ffffff" stroke="#7c3aed" stroke-width="1.6"/>
+<text x="1295.0" y="657.0" font-size="16" fill="#7c3aed" dominant-baseline="central" text-anchor="middle">Cancel Own Leave Request</text>
+<ellipse cx="415.0" cy="805.0" rx="165.0" ry="35.0" fill="#ffffff" stroke="#0f766e" stroke-width="1.6"/>
+<text x="415.0" y="805.0" font-size="16" fill="#0f766e" dominant-baseline="central" text-anchor="middle">Record / Correct Manual Attendance</text>
+<text x="415" y="140" font-size="13" fill="#2563eb" dominant-baseline="central" text-anchor="middle" font-weight="700">ADMINISTRATION</text>
+<text x="865" y="140" font-size="13" fill="#0f766e" dominant-baseline="central" text-anchor="middle" font-weight="700">PAYROLL &amp; OPERATIONS</text>
+<text x="1295" y="140" font-size="13" fill="#7c3aed" dominant-baseline="central" text-anchor="middle" font-weight="700">FACULTY SELF-SERVICE</text>
+<text x="855" y="1008" font-size="14" fill="#64748b" dominant-baseline="central" text-anchor="middle">Role-based functional overview • Corrected against the current project routes</text>
+</svg>

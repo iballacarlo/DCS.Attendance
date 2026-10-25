@@ -1,7 +1,7 @@
 import { formatDate, fullName, time12 } from './format.js';
 
 // The same attachment is used by Download PDF and Print.
-export function appendDtrBreakdown(pdf, dtr) {
+export function appendDtrBreakdown(pdf, dtr, { standalone = false } = {}) {
     const margin = 12;
     const widths = [23, 32, 21, 29, 23, 23, 15, 20];
     const tableWidth = widths.reduce((sum, width) => sum + width, 0);
@@ -27,7 +27,7 @@ export function appendDtrBreakdown(pdf, dtr) {
         return height;
     };
     const newPage = () => {
-        pdf.addPage();
+        if (!standalone || attachmentPages.length > 0) pdf.addPage();
         attachmentPages.push(pdf.getNumberOfPages());
         pdf.setTextColor(25, 35, 29);
         font(true, 10); pdf.text('CAVITE STATE UNIVERSITY', margin, 14);
@@ -50,9 +50,10 @@ export function appendDtrBreakdown(pdf, dtr) {
     newPage();
     for (const day of groups) {
         const entries = day.sessions.map((session) => {
+            const consultation = session.schedule_type === 'consultation';
             const type = session.class_mode === 'lecture' ? 'Lecture' : session.class_mode === 'laboratory' ? 'Laboratory' : 'Type not specified';
-            const cells = [formatDate(day.date), `${session.subject || 'Not specified'}\n${type}`,
-                session.section || 'Not specified', `${time12(session.scheduled_start)}\n- ${time12(session.scheduled_end)}`,
+            const cells = [formatDate(day.date), consultation ? 'Consultation' : `${session.subject || 'Not specified'}\n${type}`,
+                consultation ? '-' : session.section || 'Not specified', `${time12(session.scheduled_start)}\n- ${time12(session.scheduled_end)}`,
                 session.time_in ? time12(session.time_in) : '', session.time_out ? time12(session.time_out) : '', hours(session),
                 session.time_in && session.time_out ? 'Complete' : 'Incomplete'];
             font();
@@ -77,8 +78,8 @@ export function appendDtrBreakdown(pdf, dtr) {
     font(false, 8);
     const notes = [
         'Form 48 shows the earliest time-in and latest time-out each day; this attachment lists every class tap pair.',
-        'Hours count only completed tap pairs within each class schedule. Gaps, breaks, and consultation are excluded.',
-        'Incomplete pairs receive zero payable hours until corrected. Totals use unrounded durations.',
+        'Hours count completed tap pairs within class and consultation schedules. Gaps and breaks are excluded.',
+        'Incomplete pairs receive zero payable hours. Totals use unrounded durations.',
     ];
     for (const note of notes) {
         const lines = textLines(note, tableWidth);

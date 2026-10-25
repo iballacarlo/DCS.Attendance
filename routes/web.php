@@ -77,8 +77,6 @@ Route::middleware('auth')->group(function () {
 
     Route::get('my-schedule', [EmployeeController::class, 'mySchedule'])->name('faculty.schedule')->middleware('role:faculty');
     Route::get('attendance', [AttendanceController::class, 'index'])->name('attendance.index');
-    Route::post('attendance/tap', [AttendanceController::class, 'tap'])->name('attendance.tap')->middleware('role:payroll_staff');
-    Route::post('attendance/manual', [AttendanceController::class, 'manual'])->name('attendance.manual')->middleware('role:payroll_staff');
     Route::post('attendance/generate-test', [AttendanceController::class, 'generateScheduledTestAttendance'])->name('attendance.generate-test')->middleware('role:payroll_staff');
     Route::get('attendance/dtr', [DtrController::class, 'show'])->name('attendance.dtr');
 

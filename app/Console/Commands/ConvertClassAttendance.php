@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\AttendanceLog;
 use App\Models\Employee;
+use App\Models\FacultySchedule;
 use App\Models\PayrollRecord;
 use App\Services\AttendanceCalculator;
 use App\Services\ClassAttendanceService;
@@ -37,7 +38,7 @@ class ConvertClassAttendance extends Command
                     Employee::whereKey($employee->id)->lockForUpdate()->firstOrFail();
                 }
                 $date = Carbon::parse($source->attendance_date, 'Asia/Manila');
-                $schedules = $employee->schedules()->where('schedule_type', 'class')->where('day_of_week', $date->dayOfWeek)->orderBy('start_time')->get();
+                $schedules = $employee->schedules()->whereIn('schedule_type', FacultySchedule::PAYABLE_TYPES)->where('day_of_week', $date->dayOfWeek)->orderBy('start_time')->get();
                 if ($schedules->isEmpty()) {
                     $report['manual_review'][] = ['source_id' => $source->id, 'date' => $date->format('m/d/Y'), 'reason' => 'No matching class schedule; no hours reconstructed.'];
 

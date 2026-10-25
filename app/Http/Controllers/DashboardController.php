@@ -19,11 +19,18 @@ class DashboardController extends Controller
 
         if ($user->role === 'faculty') {
             $employeeId = $user->employee_id;
+            $employee = $employeeId ? Employee::with(['schedules', 'scheduleBreaks'])->find($employeeId) : null;
+            $day = Carbon::today('Asia/Manila')->dayOfWeek;
+            $todaySchedule = $employee ? $employee->schedules->concat($employee->scheduleBreaks)
+                ->filter(fn ($block) => (int) $block->day_of_week === $day)->sortBy('start_time')->values()
+                ->map(fn ($block) => $block->only(['id', 'schedule_type', 'start_time', 'end_time', 'subject', 'section', 'class_mode'])) : collect();
 
             return Inertia::render('Dashboard', [
                 'contractWarnings' => $employeeId ? $this->contractWarnings($employeeId) : collect(),
-                'latestPayrolls' => $employeeId ? PayrollRecord::with(['employee', 'payrollPeriod'])->where('employee_id', $employeeId)->latest()->take(5)->get() : collect(),
+                'latestPayrolls' => $employeeId ? PayrollRecord::with(['employee', 'payrollPeriod'])->where('employee_id', $employeeId)->where('status', 'released')->latest()->take(5)->get() : collect(),
                 'recentAttendance' => $employeeId ? $this->recentAttendance($employeeId) : collect(),
+                'todaySchedule' => $todaySchedule,
+                'scheduleDate' => $today,
             ]);
         }
 
@@ -57,7 +64,7 @@ class DashboardController extends Controller
 
     private function attendanceTrend(?int $employeeId = null): array
     {
-        return collect(range(6, 0))->map(function (int $daysAgo) use ($employeeId) {
+        return collect(range(6, 0))->filter(fn ($daysAgo) => ! Carbon::today('Asia/Manila')->subDays($daysAgo)->isSunday())->map(function (int $daysAgo) use ($employeeId) {
             $date = Carbon::today('Asia/Manila')->subDays($daysAgo);
             $count = AttendanceLog::query()
                 ->when($employeeId, fn ($query) => $query->where('employee_id', $employeeId))
@@ -66,7 +73,7 @@ class DashboardController extends Controller
                 ->where('is_legacy', false)->distinct()->count('employee_id');
 
             return ['label' => $date->format('D'), 'count' => $count];
-        })->all();
+        })->values()->all();
     }
 
     private function recentAttendance(?int $employeeId = null)

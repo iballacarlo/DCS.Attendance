@@ -17,6 +17,7 @@
     "dependencies": {
         "@inertiajs/react": "^3.7.1",
         "@vitejs/plugin-react": "^5.2.0",
+        "exceljs": "^4.4.0",
         "jspdf": "^4.2.1",
         "lucide-react": "^1.47.0",
         "react": "^19.3.0",

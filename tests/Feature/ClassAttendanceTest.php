@@ -108,12 +108,20 @@ class ClassAttendanceTest extends TestCase
         $this->assertNull($old->fresh()->time_out);
     }
 
-    public function test_consultation_is_not_a_payable_session(): void
+    public function test_consultation_is_paid_from_actual_taps_and_preserves_its_snapshot(): void
     {
         $employee = $this->employee();
-        $this->block($employee, '08:00', '10:00', 'consultation');
-        $this->assertSame('NO CLASS', $this->tap($employee, '08:30')['action']);
-        $this->assertDatabaseCount('attendance_logs', 0);
+        $consultation = $this->block($employee, '08:00', '10:00', 'consultation');
+        $this->assertSame('IN', $this->tap($employee, '08:15')['action']);
+        $this->assertSame('OUT', $this->tap($employee, '09:45')['action']);
+        $consultation->delete();
+        $log = AttendanceLog::firstOrFail();
+        $this->assertSame('consultation', $log->schedule_type);
+        $this->assertSame(5400, $log->worked_seconds);
+        $dtr = app(DtrService::class)->build($employee, '2026-10-01', '2026-10-15');
+        $this->assertSame('consultation', $dtr['rows'][4]['sessions'][0]['schedule_type']);
+        $this->assertSame(1.5, $dtr['summary']['total_hours']);
+        $this->assertSame(150.0, app(PayrollComputationService::class)->calculate($employee, '2026-10-01', '2026-10-15')['gross_pay']);
     }
 
     public function test_snapshots_survive_schedule_changes_and_deletion(): void
@@ -129,6 +137,49 @@ class ClassAttendanceTest extends TestCase
         $this->assertSame('Programming', $session['subject']);
         $this->assertSame(2.0, $session['hours']);
         $this->assertSame(2.0, $dtr['summary']['total_hours']);
+    }
+
+    public function test_adjacent_class_and_consultation_need_separate_taps_and_breaks_are_unpaid(): void
+    {
+        $employee = $this->employee();
+        $this->block($employee, '08:00', '10:00');
+        $this->block($employee, '10:00', '11:00', 'consultation');
+        $employee->scheduleBreaks()->create(['day_of_week' => 1, 'schedule_type' => 'lunch_break', 'start_time' => '11:00', 'end_time' => '12:00']);
+        foreach (['08:00', '10:00', '10:00', '11:00'] as $index => $time) {
+            $this->assertSame($index % 2 ? 'OUT' : 'IN', $this->tap($employee, $time)['action']);
+        }
+        $this->assertSame('NO CLASS', $this->tap($employee, '11:01')['action']);
+        $this->assertDatabaseCount('attendance_logs', 2);
+        $dtr = app(DtrService::class)->build($employee, '2026-10-01', '2026-10-15');
+        $this->assertSame(3.0, $dtr['summary']['total_hours']);
+        $this->assertSame(3.0, $dtr['form_rows'][4]['margin_hours']);
+        $this->assertSame(300.0, app(PayrollComputationService::class)->calculate($employee, '2026-10-01', '2026-10-15')['gross_pay']);
+    }
+
+    public function test_consultation_without_complete_taps_never_gets_automatic_hours(): void
+    {
+        $employee = $this->employee();
+        $this->block($employee, '08:00', '10:00', 'consultation');
+        $this->assertSame(0.0, app(DtrService::class)->build($employee, '2026-10-01', '2026-10-15')['summary']['total_hours']);
+        $this->tap($employee, '08:00');
+        $this->assertSame(0.0, app(PayrollComputationService::class)->calculate($employee, '2026-10-01', '2026-10-15')['gross_pay']);
+        $this->assertNull(AttendanceLog::first()->time_out);
+    }
+
+    public function test_hardware_consultation_taps_are_payable_and_retries_are_idempotent(): void
+    {
+        $employee = $this->employee();
+        $this->block($employee, '08:00', '10:00', 'consultation');
+        $employee->rfidCards()->create(['rfid_uid' => 'CONSULT-CARD', 'status' => 'active']);
+        config(['services.hardware.api_key' => 'consultation-key']);
+        Carbon::setTestNow(Carbon::parse('2026-10-05 10:00', 'Asia/Manila'));
+        $payload = ['identifier' => 'CONSULT-CARD', 'method' => 'rfid', 'event_id' => 'consult-in', 'occurred_at' => '2026-10-05 08:15:00'];
+        $this->withHeader('X-Hardware-Key', 'consultation-key')->postJson('/api/hardware/tap', $payload)->assertOk()->assertJsonPath('action', 'IN');
+        $this->postJson('/api/hardware/tap', $payload)->assertOk()->assertJsonPath('action', 'IN');
+        $this->postJson('/api/hardware/tap', [...$payload, 'event_id' => 'consult-out', 'occurred_at' => '2026-10-05 09:45:00'])->assertOk()->assertJsonPath('action', 'OUT');
+        $this->assertDatabaseCount('attendance_logs', 1);
+        $this->assertSame('consultation', AttendanceLog::first()->schedule_type);
+        $this->assertSame(150.0, app(PayrollComputationService::class)->calculate($employee, '2026-10-01', '2026-10-15')['gross_pay']);
     }
 
     public function test_seconds_are_summed_before_pay_is_rounded(): void
@@ -176,7 +227,7 @@ class ClassAttendanceTest extends TestCase
         $employee = $this->employee();
         $existing = $this->block($employee);
         $admin = User::factory()->create(['role' => 'admin']);
-        $block = ['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'subject' => 'DCIT 21', 'section' => 'BSIT 1A', 'class_mode' => 'lecture'];
+        $block = ['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'subject' => 'DCIT 21A', 'section' => 'BSIT 1A', 'class_mode' => 'lecture'];
         $next = [...$block, 'start_time' => '10:00', 'end_time' => '12:00'];
         $this->actingAs($admin)->put('/employees/'.$employee->id.'/schedule', ['blocks' => [['id' => $existing->id, ...$block], $next]])->assertSessionHasNoErrors();
         $this->assertSame(2, $employee->schedules()->count());
@@ -226,16 +277,20 @@ class ClassAttendanceTest extends TestCase
         $this->assertEquals(999, $record->fresh()->net_pay);
     }
 
-    public function test_staff_can_correct_an_incomplete_session_after_schedule_removal(): void
+    public function test_manual_attendance_is_unavailable_for_all_roles_and_preserves_existing_taps(): void
     {
         $employee = $this->employee();
         $schedule = $this->block($employee);
         $this->tap($employee, '08:15');
         $schedule->delete();
-        $staff = User::factory()->create(['role' => 'payroll_staff']);
-        $this->actingAs($staff)->post('/attendance/manual', ['employee_id' => $employee->id, 'faculty_schedule_id' => $schedule->id, 'attendance_date' => '2026-10-05', 'time_in' => '08:15', 'time_out' => '09:45'])->assertSessionHasNoErrors();
-        $this->assertEquals(1.5, AttendanceLog::first()->total_hours);
-        $this->post('/attendance/manual', ['employee_id' => $employee->id, 'faculty_schedule_id' => $schedule->id, 'attendance_date' => '2026-10-05', 'time_in' => '10:00', 'time_out' => '09:00'])->assertSessionHasErrors('time_out');
+        foreach (['admin', 'payroll_staff', 'faculty'] as $role) {
+            $this->actingAs(User::factory()->create(['role' => $role, 'employee_id' => $role === 'faculty' ? $employee->id : null]))
+                ->post('/attendance/manual', ['employee_id' => $employee->id, 'faculty_schedule_id' => $schedule->id, 'attendance_date' => '2026-10-05', 'time_in' => '08:15', 'time_out' => '09:45'])->assertNotFound();
+            $this->post('/attendance/tap', ['identifier' => 'test-card', 'method' => 'rfid'])->assertNotFound();
+        }
+        $this->assertDatabaseCount('attendance_logs', 1);
+        $this->assertNull(AttendanceLog::first()->time_out);
+        $this->assertEquals(0, AttendanceLog::first()->total_hours);
     }
 
     public function test_conversion_reports_unmatched_sources_and_incomplete_pairs_remain_unpaid(): void
@@ -259,7 +314,7 @@ class ClassAttendanceTest extends TestCase
         $this->assertSame('NO CLASS', $this->tap($employee, '10:10')['action']);
         $staff = User::factory()->create(['role' => 'payroll_staff']);
         $this->actingAs($staff)->post('/attendance/manual', ['employee_id' => $employee->id, 'faculty_schedule_id' => $new->id,
-            'attendance_date' => '2026-10-05', 'time_in' => '09:00', 'time_out' => '11:00'])->assertSessionHasErrors('faculty_schedule_id');
+            'attendance_date' => '2026-10-05', 'time_in' => '09:00', 'time_out' => '11:00'])->assertNotFound();
         $this->assertDatabaseCount('attendance_logs', 1);
     }
 
@@ -273,7 +328,7 @@ class ClassAttendanceTest extends TestCase
             $this->tap($employee, $time);
         }
         $this->actingAs(User::factory()->create(['role' => 'admin']))->get('/')
-            ->assertInertia(fn (Assert $page) => $page->where('presentToday', 1)->where('attendanceTrend.6.count', 1));
+            ->assertInertia(fn (Assert $page) => $page->where('presentToday', 1)->has('attendanceTrend', 6)->where('attendanceTrend.5.count', 1));
     }
 
     public function test_generator_creates_separate_class_sessions_and_preserves_fill_missing(): void
@@ -286,7 +341,7 @@ class ClassAttendanceTest extends TestCase
         $staff = User::factory()->create(['role' => 'payroll_staff']);
         $data = ['target_mode' => 'selected', 'employee_ids' => [$employee->id], 'generation_mode' => 'fill_missing', 'start_date' => '2026-10-01', 'end_date' => '2026-10-15'];
         $this->actingAs($staff)->post('/attendance/generate-test', $data)->assertSessionHasNoErrors();
-        $this->assertDatabaseCount('attendance_logs', 2);
+        $this->assertDatabaseCount('attendance_logs', 3);
         foreach (AttendanceLog::all() as $log) {
             $this->assertNotNull($log->time_in);
             $this->assertNotNull($log->time_out);
@@ -303,9 +358,9 @@ class ClassAttendanceTest extends TestCase
         $employee = $this->employee();
         $admin = User::factory()->create(['role' => 'admin']);
         $this->actingAs($admin)->get('/employees/'.$employee->id.'/schedule')->assertInertia(fn (Assert $page) => $page
-            ->where('scheduleOptions.subjects', ['COSC 50', 'DCIT 21', 'DCIT 22', 'DCIT 24', 'DCIT 26', 'DCIT 50', 'INSY 55', 'ITEC 55', 'ITEC 80', 'ITEC 85', 'ITEC 90', 'ITEC 110', 'ITEC 111', 'ITEC 116'])
+            ->where('scheduleOptions.subjectsBySection.BSIT 1A', ['COSC 50A', 'CVSU 101', 'DCIT 21A', 'DCIT 22A', 'NSTP 1'])
             ->has('scheduleOptions.sections', 24)->where('scheduleOptions.sections.0', 'BSIT 1A')->where('scheduleOptions.sections.23', 'BSIT 4F'));
-        $block = ['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'subject' => 'DCIT 21', 'section' => 'BSIT 1A', 'class_mode' => 'laboratory'];
+        $block = ['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'subject' => 'DCIT 21A', 'section' => 'BSIT 1A', 'class_mode' => 'laboratory'];
         $this->put('/employees/'.$employee->id.'/schedule', ['blocks' => [$block]])->assertSessionHasNoErrors();
         $schedule = $employee->schedules()->firstOrFail();
         $this->assertSame('laboratory', $schedule->class_mode);

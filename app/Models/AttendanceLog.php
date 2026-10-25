@@ -10,7 +10,7 @@ class AttendanceLog extends Model
     use HidesArchivedFaculty;
 
     protected $fillable = [
-        'faculty_schedule_id', 'class_mode', 'subject', 'section', 'scheduled_start', 'scheduled_end',
+        'faculty_schedule_id', 'schedule_type', 'class_mode', 'subject', 'section', 'scheduled_start', 'scheduled_end',
         'worked_seconds', 'legacy_source_id', 'is_legacy',
         'employee_id',
         'attendance_date',

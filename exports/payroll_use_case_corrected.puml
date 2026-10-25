@@ -1,0 +1,55 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+actor Administrator as admin
+actor "Payroll Staff" as staff
+actor "COS Faculty" as faculty
+rectangle "Payroll Management System" {
+  usecase "Manage User Accounts" as a0
+  usecase "Manage Faculty Profiles" as a1
+  usecase "Manage Class Schedules" as a2
+  usecase "Manage RFID / Fingerprint" as a3
+  usecase "Manage Faculty Ranks and Rates" as a4
+  usecase "Back Up / Restore Database" as a5
+  usecase "View Attendance and DTR" as s0
+  usecase "Manage School Calendar" as s1
+  usecase "Review Leave Requests" as s2
+  usecase "Generate Payroll" as s3
+  usecase "Approve Payroll" as s4
+  usecase "Release Payslips" as s5
+  usecase "Time In / Out via RFID or Fingerprint" as f0
+  usecase "View Own Schedule" as f1
+  usecase "View Own Attendance and DTR" as f2
+  usecase "View Released Payslips" as f3
+  usecase "Submit Leave Request" as f4
+  usecase "Cancel Own Leave Request" as f5
+  usecase "Record / Correct Manual Attendance" as manual
+}
+admin -- a0
+admin -- a1
+admin -- a2
+admin -- a3
+admin -- a4
+admin -- a5
+admin -- s0
+staff -- s0
+admin -- s1
+staff -- s1
+admin -- s2
+staff -- s2
+admin -- s3
+staff -- s3
+admin -- s4
+staff -- s4
+admin -- s5
+staff -- s5
+faculty -- f0
+faculty -- f1
+faculty -- f2
+faculty -- f3
+faculty -- f4
+faculty -- f5
+staff -- manual
+note bottom of manual : Manual entry is restricted to Payroll Staff.
+@enduml

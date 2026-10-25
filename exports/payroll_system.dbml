@@ -1,0 +1,615 @@
+// Complete schema for ERD; no employee records, passwords, or attendance data.
+
+// Source: payroll_system.sql supplied by user; 28 tables; 19 enforced foreign keys.
+
+// Includes operation and requested_by from the project migration; database was not modified.
+
+// Columns without SQL foreign keys are not assigned invented relationships.
+
+Project payroll_system {
+
+  database_type: 'MySQL'
+
+}
+
+
+
+Enum attendance_logs_method_in_enum {
+  "rfid"
+  "fingerprint"
+  "manual"
+}
+
+Enum attendance_logs_method_out_enum {
+  "rfid"
+  "fingerprint"
+  "manual"
+}
+
+Enum attendance_logs_status_enum {
+  "present"
+  "late"
+  "absent"
+  "undertime"
+  "incomplete"
+}
+
+Enum calendar_events_scope_type_enum {
+  "campus"
+  "department"
+  "faculty"
+}
+
+Enum employees_rate_type_enum {
+  "daily"
+  "hourly"
+}
+
+Enum employees_status_enum {
+  "active"
+  "inactive"
+}
+
+Enum faculty_ranks_rate_type_enum {
+  "daily"
+  "hourly"
+}
+
+Enum fingerprint_templates_status_enum {
+  "active"
+  "inactive"
+}
+
+Enum hardware_attendance_events_method_enum {
+  "rfid"
+  "fingerprint"
+}
+
+Enum hardware_enrollments_method_enum {
+  "rfid"
+  "fingerprint"
+}
+
+Enum hardware_enrollments_operation_enum {
+  "replace"
+  "unlink"
+}
+
+Enum hardware_enrollments_status_enum {
+  "pending"
+  "processing"
+  "completed"
+  "failed"
+  "cancelled"
+  "expired"
+}
+
+Enum leave_requests_status_enum {
+  "pending"
+  "approved"
+  "rejected"
+  "cancelled"
+}
+
+Enum payroll_periods_status_enum {
+  "open"
+  "processing"
+  "finalized"
+}
+
+Enum payroll_records_status_enum {
+  "draft"
+  "approved"
+  "released"
+}
+
+Enum rfid_cards_status_enum {
+  "active"
+  "lost"
+  "inactive"
+}
+
+Table attendance_logs {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  employee_id "bigint(20) unsigned" [not null]
+  attendance_date date [not null]
+  time_in time [null, default: null]
+  time_out time [null, default: null]
+  method_in attendance_logs_method_in_enum [null, default: null]
+  method_out attendance_logs_method_out_enum [null, default: null]
+  late_minutes "int(10) unsigned" [not null, default: 0]
+  undertime_minutes "int(10) unsigned" [not null, default: 0]
+  total_hours decimal(8,4) [not null, default: 0.0000]
+  status attendance_logs_status_enum [not null, default: 'incomplete']
+  remarks text [null, default: null]
+  created_at timestamp [null, default: null]
+  updated_at timestamp [null, default: null]
+  faculty_schedule_id "bigint(20) unsigned" [null, default: null]
+  subject varchar(255) [null, default: null]
+  section varchar(100) [null, default: null]
+  scheduled_start time [null, default: null]
+  scheduled_end time [null, default: null]
+  worked_seconds "int(10) unsigned" [not null, default: 0]
+  legacy_source_id "bigint(20) unsigned" [null, default: null]
+  is_legacy tinyint(1) [not null, default: 1]
+  class_mode varchar(20) [null, default: null]
+
+  indexes {
+    (employee_id, attendance_date, faculty_schedule_id) [unique, name: 'attendance_class_unique']
+    employee_id [name: 'attendance_employee_session_index']
+    faculty_schedule_id [name: 'attendance_logs_faculty_schedule_id_index']
+    legacy_source_id [name: 'attendance_logs_legacy_source_id_index']
+  }
+}
+
+Table audit_trails {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  action varchar(255) [not null]
+  table_name varchar(255) [null, default: null]
+  record_id "bigint(20) unsigned" [null, default: null]
+  description text [null, default: null]
+  created_at timestamp [null, default: null]
+  updated_at timestamp [null, default: null]
+}
+
+Table cache {
+  key varchar(255) [pk, not null]
+  value mediumtext [not null]
+  expiration int(11) [not null]
+
+  indexes {
+    expiration [name: 'cache_expiration_index']
+  }
+}
+
+Table cache_locks {
+  key varchar(255) [pk, not null]
+  owner varchar(255) [not null]
+  expiration int(11) [not null]
+
+  indexes {
+    expiration [name: 'cache_locks_expiration_index']
+  }
+}
+
+Table calendar_events {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  title varchar(150) [not null]
+  type varchar(40) [not null]
+  start_date date [not null]
+  end_date date [not null]
+  is_paid tinyint(1) [not null, default: 1]
+  scope_type calendar_events_scope_type_enum [not null, default: 'campus']
+  department varchar(255) [null, default: null]
+  remarks text [null, default: null]
+  created_by "bigint(20) unsigned" [null, default: null]
+  created_at timestamp [null, default: null]
+  updated_at timestamp [null, default: null]
+
+  indexes {
+    created_by [name: 'calendar_events_created_by_foreign']
+    (start_date, end_date) [name: 'calendar_events_start_date_end_date_index']
+    (scope_type, department) [name: 'calendar_events_scope_type_department_index']
+  }
+}
+
+Table calendar_event_employee {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  calendar_event_id "bigint(20) unsigned" [not null]
+  employee_id "bigint(20) unsigned" [not null]
+
+  indexes {
+    (calendar_event_id, employee_id) [unique, name: 'calendar_event_employee_calendar_event_id_employee_id_unique']
+    employee_id [name: 'calendar_event_employee_employee_id_foreign']
+  }
+}
+
+Table dtr_signatories {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  name varchar(150) [not null]
+  designation varchar(100) [not null, default: 'Dean / In Charge']
+  effective_from date [not null]
+  effective_to date [null, default: null]
+  created_by "bigint(20) unsigned" [null, default: null]
+  created_at timestamp [null, default: null]
+  updated_at timestamp [null, default: null]
+
+  indexes {
+    created_by [name: 'dtr_signatories_created_by_foreign']
+    (effective_from, effective_to) [name: 'dtr_signatories_effective_from_effective_to_index']
+  }
+}
+
+Table employees {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  employee_no varchar(30) [not null]
+  first_name varchar(255) [not null]
+  middle_name varchar(255) [null, default: null]
+  last_name varchar(255) [not null]
+  suffix varchar(20) [null, default: null]
+  email varchar(255) [null, default: null]
+  contact_no varchar(20) [null, default: null]
+  tin_no varchar(30) [null, default: null]
+  gsis_no varchar(30) [null, default: null]
+  pag_ibig_no varchar(30) [null, default: null]
+  philhealth_no varchar(30) [null, default: null]
+  position varchar(255) [not null, default: 'COS Faculty Member']
+  department varchar(255) [not null, default: 'Department of Computer Studies']
+  employment_type varchar(255) [not null, default: 'Contract of Service']
+  faculty_rank_id "bigint(20) unsigned" [null, default: null]
+  rate_type employees_rate_type_enum [not null, default: 'daily']
+  rate_amount decimal(10,2) [not null]
+  contract_start date [null, default: null]
+  contract_end date [null, default: null]
+  status employees_status_enum [not null, default: 'active']
+  created_at timestamp [null, default: null]
+  updated_at timestamp [null, default: null]
+  highest_educational_attainment varchar(255) [null, default: null]
+  years_of_service decimal(5,2) [null, default: null]
+  service_start_date date [null, default: null]
+  archived_at timestamp [null, default: null]
+  archived_by "bigint(20) unsigned" [null, default: null]
+
+  indexes {
+    employee_no [unique, name: 'employees_employee_no_unique']
+    email [unique, name: 'employees_email_unique']
+    faculty_rank_id [name: 'employees_faculty_rank_id_foreign']
+    archived_at [name: 'employees_archived_at_index']
+  }
+}
+
+Table employment_histories {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  employee_id "bigint(20) unsigned" [not null]
+  employer varchar(255) [not null]
+  position varchar(255) [not null]
+  started_on date [not null]
+  ended_on date [null, default: null]
+  created_at timestamp [null, default: null]
+  updated_at timestamp [null, default: null]
+
+  indexes {
+    employee_id [name: 'employment_histories_employee_id_foreign']
+  }
+}
+
+Table faculty_ranks {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  name varchar(100) [not null]
+  salary_grade varchar(10) [null, default: null]
+  rate_type faculty_ranks_rate_type_enum [not null, default: 'daily']
+  rate_amount decimal(10,2) [not null]
+  monthly_salary decimal(12,2) [null, default: null]
+  is_active tinyint(1) [not null, default: 1]
+  created_at timestamp [null, default: null]
+  updated_at timestamp [null, default: null]
+
+  indexes {
+    name [unique, name: 'faculty_ranks_name_unique']
+  }
+}
+
+Table faculty_schedules {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  employee_id "bigint(20) unsigned" [not null]
+  day_of_week "tinyint(3) unsigned" [not null]
+  schedule_type varchar(24) [not null, default: 'class']
+  start_time time [not null]
+  end_time time [not null]
+  break_minutes "smallint(5) unsigned" [not null, default: 0]
+  created_at timestamp [null, default: null]
+  updated_at timestamp [null, default: null]
+  subject varchar(255) [null, default: null]
+  section varchar(100) [null, default: null]
+  class_mode varchar(20) [null, default: null]
+
+  indexes {
+    employee_id [name: 'faculty_schedules_employee_id_index']
+    (employee_id, day_of_week) [name: 'faculty_schedules_employee_day_index']
+  }
+}
+
+Table faculty_schedule_breaks {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  employee_id "bigint(20) unsigned" [not null]
+  day_of_week "tinyint(3) unsigned" [not null]
+  schedule_type varchar(24) [not null, default: 'lunch_break']
+  start_time time [not null]
+  end_time time [not null]
+  created_at timestamp [null, default: null]
+  updated_at timestamp [null, default: null]
+
+  indexes {
+    (employee_id, day_of_week) [name: 'faculty_schedule_breaks_employee_id_day_of_week_index']
+  }
+}
+
+Table failed_jobs {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  uuid varchar(255) [not null]
+  connection text [not null]
+  queue text [not null]
+  payload longtext [not null]
+  exception longtext [not null]
+  failed_at timestamp [not null, default: `current_timestamp()`]
+
+  indexes {
+    uuid [unique, name: 'failed_jobs_uuid_unique']
+  }
+}
+
+Table fingerprint_templates {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  employee_id "bigint(20) unsigned" [not null]
+  fingerprint_code varchar(255) [not null]
+  finger_label varchar(50) [null, default: null]
+  status fingerprint_templates_status_enum [not null, default: 'active']
+  registered_at timestamp [null, default: null]
+  created_at timestamp [null, default: null]
+  updated_at timestamp [null, default: null]
+
+  indexes {
+    fingerprint_code [unique, name: 'fingerprint_templates_fingerprint_code_unique']
+    employee_id [name: 'fingerprint_templates_employee_id_foreign']
+  }
+}
+
+Table hardware_attendance_events {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  event_id varchar(64) [not null]
+  employee_id "bigint(20) unsigned" [not null]
+  identifier varchar(100) [not null]
+  method hardware_attendance_events_method_enum [not null]
+  occurred_at datetime [not null]
+  response_payload longtext [not null]
+  created_at timestamp [null, default: null]
+  updated_at timestamp [null, default: null]
+
+  indexes {
+    event_id [unique, name: 'hardware_attendance_events_event_id_unique']
+    employee_id [name: 'hardware_attendance_events_employee_id_foreign']
+  }
+}
+
+Table hardware_enrollments {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  employee_id "bigint(20) unsigned" [not null]
+  requested_by "bigint(20) unsigned" [null, default: null, note: 'From project migration 2026_10_16; absent from supplied SQL export']
+  method hardware_enrollments_method_enum [not null]
+  operation hardware_enrollments_operation_enum [not null, default: 'replace', note: 'From project migration 2026_10_16; absent from supplied SQL export']
+  finger_label varchar(50) [null, default: null]
+  current_identifier varchar(100) [null, default: null]
+  identifier varchar(100) [null, default: null]
+  status hardware_enrollments_status_enum [not null, default: 'pending']
+  message varchar(255) [null, default: null]
+  expires_at timestamp [not null, default: `current_timestamp()`]
+  completed_at timestamp [null, default: null]
+  created_at timestamp [null, default: null]
+  updated_at timestamp [null, default: null]
+
+  indexes {
+    employee_id [name: 'hardware_enrollments_employee_id_foreign']
+    (status, expires_at) [name: 'hardware_enrollments_status_expires_at_index']
+  }
+}
+
+Table jobs {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  queue varchar(255) [not null]
+  payload longtext [not null]
+  attempts "tinyint(3) unsigned" [not null]
+  reserved_at "int(10) unsigned" [null, default: null]
+  available_at "int(10) unsigned" [not null]
+  created_at "int(10) unsigned" [not null]
+
+  indexes {
+    queue [name: 'jobs_queue_index']
+  }
+}
+
+Table job_batches {
+  id varchar(255) [pk, not null]
+  name varchar(255) [not null]
+  total_jobs int(11) [not null]
+  pending_jobs int(11) [not null]
+  failed_jobs int(11) [not null]
+  failed_job_ids longtext [not null]
+  options mediumtext [null, default: null]
+  cancelled_at int(11) [null, default: null]
+  created_at int(11) [not null]
+  finished_at int(11) [null, default: null]
+}
+
+Table leave_requests {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  employee_id "bigint(20) unsigned" [not null]
+  leave_type_id "bigint(20) unsigned" [not null]
+  start_date date [not null]
+  end_date date [not null]
+  reason text [not null]
+  status leave_requests_status_enum [not null, default: 'pending']
+  reviewed_by "bigint(20) unsigned" [null, default: null]
+  reviewed_at timestamp [null, default: null]
+  reviewer_remarks text [null, default: null]
+  created_at timestamp [null, default: null]
+  updated_at timestamp [null, default: null]
+
+  indexes {
+    leave_type_id [name: 'leave_requests_leave_type_id_foreign']
+    reviewed_by [name: 'leave_requests_reviewed_by_foreign']
+    (employee_id, start_date, end_date) [name: 'leave_requests_employee_id_start_date_end_date_index']
+    (status, start_date) [name: 'leave_requests_status_start_date_index']
+  }
+}
+
+Table leave_types {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  name varchar(100) [not null]
+  code varchar(30) [not null]
+  is_paid tinyint(1) [not null, default: 1]
+  is_active tinyint(1) [not null, default: 1]
+  created_at timestamp [null, default: null]
+  updated_at timestamp [null, default: null]
+
+  indexes {
+    code [unique, name: 'leave_types_code_unique']
+  }
+}
+
+Table migrations {
+  id "int(10) unsigned" [pk, not null, increment]
+  migration varchar(255) [not null]
+  batch int(11) [not null]
+}
+
+Table password_reset_tokens {
+  email varchar(255) [pk, not null]
+  token varchar(255) [not null]
+  created_at timestamp [null, default: null]
+}
+
+Table payroll_periods {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  period_name varchar(255) [not null]
+  start_date date [not null]
+  end_date date [not null]
+  pay_date date [null, default: null]
+  status payroll_periods_status_enum [not null, default: 'open']
+  created_at timestamp [null, default: null]
+  updated_at timestamp [null, default: null]
+}
+
+Table payroll_records {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  payroll_period_id "bigint(20) unsigned" [not null]
+  employee_id "bigint(20) unsigned" [not null]
+  total_days_worked decimal(6,2) [not null, default: 0.00]
+  total_hours_worked decimal(12,4) [not null, default: 0.0000]
+  gross_pay decimal(10,2) [not null, default: 0.00]
+  overtime_pay decimal(10,2) [not null, default: 0.00]
+  late_undertime_minutes "int(10) unsigned" [not null, default: 0]
+  absent_days decimal(6,2) [not null, default: 0.00]
+  other_earnings decimal(10,2) [not null, default: 0.00]
+  increase_amount decimal(10,2) [not null, default: 0.00]
+  total_earnings decimal(10,2) [not null, default: 0.00]
+  withholding_tax decimal(10,2) [not null, default: 0.00]
+  gsis_deduction decimal(10,2) [not null, default: 0.00]
+  philhealth_deduction decimal(10,2) [not null, default: 0.00]
+  pag_ibig_deduction decimal(10,2) [not null, default: 0.00]
+  multi_purpose_loan decimal(10,2) [not null, default: 0.00]
+  gsis_loan decimal(10,2) [not null, default: 0.00]
+  gsis_eplus_loan decimal(10,2) [not null, default: 0.00]
+  fea_dues decimal(10,2) [not null, default: 0.00]
+  oba_deduction decimal(10,2) [not null, default: 0.00]
+  cra_deduction decimal(10,2) [not null, default: 0.00]
+  total_deductions decimal(10,2) [not null, default: 0.00]
+  total_adjustments decimal(10,2) [not null, default: 0.00]
+  net_pay decimal(10,2) [not null, default: 0.00]
+  status payroll_records_status_enum [not null, default: 'draft']
+  generated_at timestamp [null, default: null]
+  created_at timestamp [null, default: null]
+  updated_at timestamp [null, default: null]
+
+  indexes {
+    (payroll_period_id, employee_id) [unique, name: 'payroll_records_payroll_period_id_employee_id_unique']
+    employee_id [name: 'payroll_records_employee_id_foreign']
+  }
+}
+
+Table rfid_cards {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  employee_id "bigint(20) unsigned" [not null]
+  rfid_uid varchar(255) [not null]
+  status rfid_cards_status_enum [not null, default: 'active']
+  registered_at timestamp [null, default: null]
+  created_at timestamp [null, default: null]
+  updated_at timestamp [null, default: null]
+
+  indexes {
+    rfid_uid [unique, name: 'rfid_cards_rfid_uid_unique']
+    employee_id [name: 'rfid_cards_employee_id_foreign']
+  }
+}
+
+Table sessions {
+  id varchar(255) [pk, not null]
+  user_id "bigint(20) unsigned" [null, default: null]
+  ip_address varchar(45) [null, default: null]
+  user_agent text [null, default: null]
+  payload longtext [not null]
+  last_activity int(11) [not null]
+
+  indexes {
+    user_id [name: 'sessions_user_id_index']
+    last_activity [name: 'sessions_last_activity_index']
+  }
+}
+
+Table system_settings {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  key varchar(255) [not null]
+  value text [null, default: null]
+  created_at timestamp [null, default: null]
+  updated_at timestamp [null, default: null]
+
+  indexes {
+    key [unique, name: 'system_settings_key_unique']
+  }
+}
+
+Table users {
+  id "bigint(20) unsigned" [pk, not null, increment]
+  employee_id "bigint(20) unsigned" [null, default: null]
+  name varchar(255) [not null]
+  email varchar(255) [not null]
+  email_verified_at timestamp [null, default: null]
+  password varchar(255) [not null]
+  must_change_password tinyint(1) [not null, default: 0]
+  role varchar(255) [not null, default: 'admin']
+  remember_token varchar(100) [null, default: null]
+  created_at timestamp [null, default: null]
+  updated_at timestamp [null, default: null]
+
+  indexes {
+    email [unique, name: 'users_email_unique']
+    employee_id [name: 'users_employee_id_foreign']
+  }
+}
+
+Ref attendance_logs_employee_id_foreign: attendance_logs.employee_id > employees.id [delete: cascade]
+
+Ref calendar_events_created_by_foreign: calendar_events.created_by > users.id [delete: set null]
+
+Ref calendar_event_employee_calendar_event_id_foreign: calendar_event_employee.calendar_event_id > calendar_events.id [delete: cascade]
+
+Ref calendar_event_employee_employee_id_foreign: calendar_event_employee.employee_id > employees.id [delete: cascade]
+
+Ref dtr_signatories_created_by_foreign: dtr_signatories.created_by > users.id [delete: set null]
+
+Ref employees_faculty_rank_id_foreign: employees.faculty_rank_id > faculty_ranks.id [delete: set null]
+
+Ref employment_histories_employee_id_foreign: employment_histories.employee_id > employees.id [delete: cascade]
+
+Ref faculty_schedules_employee_id_foreign: faculty_schedules.employee_id > employees.id [delete: cascade]
+
+Ref faculty_schedule_breaks_employee_id_foreign: faculty_schedule_breaks.employee_id > employees.id [delete: cascade]
+
+Ref fingerprint_templates_employee_id_foreign: fingerprint_templates.employee_id > employees.id [delete: cascade]
+
+Ref hardware_attendance_events_employee_id_foreign: hardware_attendance_events.employee_id > employees.id [delete: cascade]
+
+Ref hardware_enrollments_employee_id_foreign: hardware_enrollments.employee_id > employees.id [delete: cascade]
+
+Ref leave_requests_employee_id_foreign: leave_requests.employee_id > employees.id [delete: cascade]
+
+Ref leave_requests_leave_type_id_foreign: leave_requests.leave_type_id > leave_types.id
+
+Ref leave_requests_reviewed_by_foreign: leave_requests.reviewed_by > users.id [delete: set null]
+
+Ref payroll_records_employee_id_foreign: payroll_records.employee_id > employees.id [delete: cascade]
+
+Ref payroll_records_payroll_period_id_foreign: payroll_records.payroll_period_id > payroll_periods.id [delete: cascade]
+
+Ref rfid_cards_employee_id_foreign: rfid_cards.employee_id > employees.id [delete: cascade]
+
+Ref users_employee_id_foreign: users.employee_id > employees.id [delete: set null]

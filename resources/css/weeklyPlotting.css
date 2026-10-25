@@ -1,0 +1,45 @@
+.weekly-plotting { background: #fff; color: #262626; padding: 28px; border: 1px solid #d4d4d4; border-radius: 12px; }
+.wp-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.wp-legend > span { border: 1px solid #d4d4d4; padding: 5px 10px; border-radius: 5px; font-size: 11px; }
+.wp-scroll, .wp-summary { overflow-x: auto; }
+.wp-grid, .wp-summary table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.wp-grid { min-width: 940px; }
+.wp-grid .wp-time-col { width: 76px; }
+.weekly-plotting :is(th, td) { border: 1px solid #a3a3a3; text-align: center; padding: 5px; }
+.wp-grid thead th { background: transparent; color: inherit; font-size: 11px; height: 30px; }
+.wp-grid thead .wp-header-spacer { padding: 0; border-top: 0; height: 22px; }
+.wp-grid tbody th, .wp-time-to { font-size: 10px; font-weight: 400; white-space: nowrap; color: inherit; background: transparent; }
+.wp-grid tbody tr { height: 27px; }
+.wp-grid .wp-block { vertical-align: middle; padding: 7px 5px; line-height: 1.35; }
+.wp-block :is(strong, span, small) { display: block; overflow-wrap: anywhere; }
+.wp-block strong { font-size: 12px; }
+.wp-block span { font-size: 11px; margin-top: 2px; }
+.wp-block small { font-size: 9px; margin-top: 5px; }
+.wp-grid .wp-block.wp-lecture, .wp-legend .wp-lecture,
+#workspace .schedule-designer .sd-timeline-block.is-class:not(.is-laboratory) { background: #e4f3e8; color: #164d30; }
+.wp-grid .wp-block.wp-laboratory, .wp-legend .wp-laboratory,
+#workspace .schedule-designer .sd-timeline-block.is-laboratory { background: #e3edff; color: #204d82; }
+.wp-grid .wp-block.wp-consultation, .wp-legend .wp-consultation,
+#workspace .schedule-designer .sd-timeline-block.is-consultation { background: #fff3b8; color: #5a4710; }
+.wp-grid .wp-block.wp-lunch_break, .wp-legend .wp-lunch_break,
+#workspace .schedule-designer .sd-timeline-block.is-lunch_break { background: #f9e1c2; color: #674215; }
+#workspace .schedule-designer .sd-timeline-block { border-color: currentColor; }
+#workspace .schedule-designer .sd-timeline-block :is(strong, span) { color: inherit; }
+.wp-empty { background: #fff; }
+.wp-summary { margin-top: 20px; }
+.wp-summary table { min-width: 650px; font-size: 11px; }
+#workspace .wp-summary table { border: 1px solid #a3a3a3; }
+#workspace .wp-summary tbody tr:last-child > td { border-bottom: 1px solid #a3a3a3 !important; }
+html[data-theme='dark'] #workspace .wp-summary table,
+html[data-theme='dark'] #workspace .wp-summary tbody tr:last-child > td { border-color: #606060 !important; }
+.wp-summary th { background: transparent; color: inherit; }
+#workspace .weekly-plotting th { background: transparent !important; color: inherit !important; }
+.wp-summary p { margin: 12px 0 0; font-size: 12px; }
+.sd-view-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.sd-view-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
+.sd-view-toolbar .wp-legend { margin: 0; }
+.sd-daily-view { display: grid; gap: 22px; }
+html[data-theme='dark'] .weekly-plotting { background: #202020; color: #ededed; border-color: #606060; }
+html[data-theme='dark'] .weekly-plotting :is(th, td), html[data-theme='dark'] .wp-legend > span { border-color: #606060; }
+html[data-theme='dark'] .weekly-plotting :is(thead th, .wp-summary th, tbody th, .wp-time-to, .wp-empty) { background: transparent; color: inherit; }
+@media (max-width: 600px) { .weekly-plotting { padding: 16px; } }

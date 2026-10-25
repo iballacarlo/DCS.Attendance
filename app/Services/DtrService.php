@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\AttendanceLog;
 use App\Models\DtrSignatory;
 use App\Models\Employee;
+use App\Models\FacultySchedule;
 use Illuminate\Support\Carbon;
 
 class DtrService
@@ -21,7 +22,7 @@ class DtrService
 
         for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
             $dateString = $date->toDateString();
-            $schedules = $employee->schedules->where('schedule_type', 'class')->where('day_of_week', $date->dayOfWeek)->sortBy('start_time')->values();
+            $schedules = $employee->schedules->whereIn('schedule_type', FacultySchedule::PAYABLE_TYPES)->where('day_of_week', $date->dayOfWeek)->sortBy('start_time')->values();
             $sessions = $logs->get($dateString, collect());
             $historicalSchedules = $schedules->map(function ($schedule) use ($sessions) {
                 $snapshot = $sessions->firstWhere('faculty_schedule_id', $schedule->id);
@@ -35,8 +36,8 @@ class DtrService
                 }
             }
             $historicalSchedules = $historicalSchedules->sortBy('start_time')->values();
-            $scheduledHours = $historicalSchedules->sum(function ($schedule) use ($dateString) {
-                return Carbon::parse($dateString.' '.$schedule->start_time)->diffInSeconds(Carbon::parse($dateString.' '.$schedule->end_time)) / 3600;
+            $scheduledSeconds = $historicalSchedules->sum(function ($schedule) use ($dateString) {
+                return Carbon::parse($dateString.' '.$schedule->start_time)->diffInSeconds(Carbon::parse($dateString.' '.$schedule->end_time));
             });
             // Persisted snapshots remain authoritative after a schedule edit/removal.
             $seconds = $sessions->sum(fn ($session) => AttendanceCalculator::workedSeconds($session));
@@ -49,7 +50,8 @@ class DtrService
             $leave = $hasSchedule ? LeaveService::approvedLeaveFor($employee, $date) : null;
             $rows->push([
                 'date' => $dateString, 'day' => $date->day, 'weekday' => $date->format('D'),
-                'has_schedule' => $hasSchedule, 'scheduled_hours' => round($scheduledHours, 4),
+                'has_schedule' => $hasSchedule, 'scheduled_hours' => round($scheduledSeconds / 3600, 4),
+                'scheduled_seconds' => $scheduledSeconds,
                 'schedule_label' => $historicalSchedules->isEmpty() ? null : $this->shortTime($historicalSchedules->first()->start_time).'-'.$this->shortTime($historicalSchedules->last()->end_time),
                 'am_arrival' => $this->timeForColumn($first?->time_in, 'am'), 'am_departure' => $this->timeForColumn($last?->time_out, 'am'),
                 'pm_arrival' => $this->timeForColumn($first?->time_in, 'pm'), 'pm_departure' => $this->timeForColumn($last?->time_out, 'pm'),
@@ -61,7 +63,7 @@ class DtrService
                 'time_in' => $first?->time_in, 'time_out' => $last?->time_out, 'method_in' => $first?->method_in, 'method_out' => $last?->method_out,
                 'sessions' => $sessions->map(fn ($session) => [
                     'id' => $session->id, 'faculty_schedule_id' => $session->faculty_schedule_id,
-                    'subject' => $session->subject, 'section' => $session->section, 'class_mode' => $session->class_mode,
+                    'schedule_type' => $session->schedule_type, 'subject' => $session->subject, 'section' => $session->section, 'class_mode' => $session->class_mode,
                     'scheduled_start' => $session->scheduled_start, 'scheduled_end' => $session->scheduled_end,
                     'time_in' => $session->time_in, 'time_out' => $session->time_out,
                     'hours' => round(AttendanceCalculator::workedSeconds($session) / 3600, 4),
@@ -74,6 +76,30 @@ class DtrService
         $presentRows = $scheduledRows->filter(fn ($row) => $row['time_in']);
         $paidRows = $scheduledRows->filter(fn ($row) => $row['payable_hours'] > 0);
 
+        // Form 48 is always a 31-day sheet. These presentation rows never enter payroll totals.
+        $byDay = $rows->keyBy('day');
+        $month = $start->copy()->startOfMonth();
+        $formRows = collect(range(1, 31))->map(function ($day) use ($byDay, $month) {
+            $row = $byDay->get($day);
+            $validDay = $day <= $month->daysInMonth;
+            $hasTaps = $row && ($row['time_in'] || $row['time_out']);
+            $shortfallSeconds = $hasTaps ? max(0, $row['scheduled_seconds'] - $row['worked_seconds']) : 0;
+            $shortfallMinutes = (int) round($shortfallSeconds / 60, 0, PHP_ROUND_HALF_UP);
+            $completed = $row && $row['sessions']->contains(fn ($session) => $session['time_in'] && $session['time_out']);
+
+            return [
+                'day' => $day, 'date' => $validDay ? $month->copy()->day($day)->toDateString() : null,
+                'in_cutoff' => $row !== null, 'valid_day' => $validDay,
+                'schedule_label' => $row['schedule_label'] ?? null,
+                'am_arrival' => $row['am_arrival'] ?? null, 'am_departure' => $row['am_departure'] ?? null,
+                'pm_arrival' => $row['pm_arrival'] ?? null, 'pm_departure' => $row['pm_departure'] ?? null,
+                'shortfall_minutes' => $hasTaps ? $shortfallMinutes : null,
+                'undertime_hours' => $shortfallMinutes >= 60 ? intdiv($shortfallMinutes, 60) : null,
+                'undertime_minutes' => $shortfallSeconds > 0 ? $shortfallMinutes % 60 : null,
+                'margin_hours' => $completed && $shortfallSeconds <= 0 ? $row['payable_hours'] : null,
+            ];
+        });
+
         $signatory = DtrSignatory::whereDate('effective_from', '<=', $end->toDateString())
             ->where(fn ($query) => $query->whereNull('effective_to')->orWhereDate('effective_to', '>=', $end->toDateString()))
             ->orderByDesc('effective_from')->first();
@@ -84,8 +110,10 @@ class DtrService
 
         return [
             'employee' => $employee,
-            'cutoff' => ['start_date' => $start->toDateString(), 'end_date' => $end->toDateString()],
+            'cutoff' => ['start_date' => $start->toDateString(), 'end_date' => $end->toDateString(),
+                'label' => $start->format('F j').'-'.$end->format('j, Y')],
             'rows' => $rows->values(),
+            'form_rows' => $formRows,
             'signatory' => $dtrSignatory,
             'summary' => [
                 'scheduled_days' => $scheduledRows->count(),

@@ -1,0 +1,23 @@
+/* The form itself uses a shared millimetre layout; controls stay outside the document. */
+.form48-sheet { display: block; width: 794px; height: 1123px; min-width: 794px; margin: 0 auto; background: #fff; box-shadow: 0 3px 20px #0000000d; }
+.dtr-form-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; border-radius: 12px; }
+.dtr-form-controls label { display: grid; gap: 5px; min-width: 110px; font-size: 12px; font-weight: 700; }
+.dtr-form-controls .dtr-faculty-select { flex: 1 1 250px; max-width: 380px; }
+.dtr-form-controls .dtr-year-control { min-width: 90px; width: 90px; }
+.dtr-form-controls .dtr-year-control input { width: 100%; }
+.dtr-form-controls .dtr-year-error { flex-basis: 100%; margin: 0; color: var(--ui-red, #b52f37); font-size: 12px; line-height: 1.5; }
+.dtr-form-export-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.dtr-form-controls .dtr-excel-note { flex-basis: 100%; margin: 2px 0 0; font-size: 12px; line-height: 1.5; color: #4f6558; }
+html[data-theme='dark'] .dtr-excel-note { color: #b5c9bc; }
+@media (max-width: 560px) {
+    .dtr-form-controls > label, .dtr-form-controls .dtr-year-control { flex: 1 1 120px; width: auto; max-width: none; min-width: 0; }
+    .dtr-form-export-actions { width: 100%; margin-left: 0; }
+    .dtr-form-export-actions button { flex: 1 1 140px; }
+}
+@media print {
+    @page form48 { size: A4 portrait; margin: 0; }
+    body:has(.form48-sheet), body:has(.form48-sheet) .main { margin: 0 !important; padding: 0 !important; background: white !important; }
+    body:has(.form48-sheet) .print-hidden { display: none !important; }
+    .dtr-sheet-viewport { overflow: visible; padding: 0; page: form48; }
+    .form48-sheet { width: 210mm; min-width: 210mm; height: 297mm; margin: 0; box-shadow: none; break-inside: avoid; }
+}
