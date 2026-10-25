@@ -23,14 +23,16 @@ class AttendanceController extends Controller
         $faculty = $request->user()->role === 'faculty';
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'], 'cutoff_start' => ['nullable', 'date_format:Y-m-d'],
-            'status' => ['nullable', 'in:present,incomplete'], 'method' => ['nullable', 'in:rfid,fingerprint,manual'],
+            'employee_id' => ['nullable', 'integer', 'exists:employees,id'],
+            'status' => ['nullable', 'in:present,late_undertime'], 'method' => ['nullable', 'in:rfid,fingerprint,manual'],
         ]);
         [$start, $end] = CutoffService::range($filters['cutoff_start'] ?? null);
-        $filters = array_merge(['search' => '', 'status' => '', 'method' => ''], $filters, ['cutoff_start' => $start->toDateString()]);
+        $filters = array_merge(['search' => '', 'employee_id' => '', 'status' => '', 'method' => ''], $filters, ['cutoff_start' => $start->toDateString()]);
         $query = AttendanceLog::with('employee')->where('is_legacy', false)->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()]);
         if ($faculty) {
             $query->where('employee_id', $request->user()->employee_id ?? 0);
         } else {
+            $query->when($filters['employee_id'], fn ($q, $id) => $q->where('employee_id', $id));
             foreach (preg_split('/\s+/', trim($filters['search']), -1, PREG_SPLIT_NO_EMPTY) as $term) {
                 $query->whereHas('employee', fn ($q) => $q->where(function ($q) use ($term) {
                     foreach (['employee_no', 'first_name', 'middle_name', 'last_name', 'email'] as $field) {
@@ -39,15 +41,14 @@ class AttendanceController extends Controller
                 }));
             }
         }
-        $query->when($filters['status'], fn ($q, $status) => $q->where('status', $status))
+        $query->when($filters['status'], fn ($q, $status) => $q->attendanceStatus($status))
             ->when($filters['method'], fn ($q, $method) => $q->where(fn ($q) => $q->where('method_in', $method)->orWhere('method_out', $method)));
         $employee = $faculty ? Employee::with(['schedules', 'scheduleBreaks'])->find($request->user()->employee_id) : null;
 
         return Inertia::render('Attendance/Index', [
             'employees' => $faculty ? [] : Employee::with('schedules')->where('status', 'active')->orderBy('last_name')->get(),
-            'logs' => $query->orderByDesc('attendance_date')->orderBy('scheduled_start')->paginate(15)->withQueryString(),
+            'logs' => $query->orderByDesc('attendance_date')->orderByDesc('scheduled_start')->orderByDesc('time_in')->orderByDesc('id')->paginate(15)->withQueryString(),
             'filters' => $filters,
-            'cutoffOptions' => CutoffService::options(AttendanceLog::min('attendance_date') ?: $start->copy()->subYears(2)->toDateString(), $start),
             'dtr' => $employee ? app(DtrService::class)->build($employee, $start, $end) : null,
         ]);
     }
@@ -64,14 +65,20 @@ class AttendanceController extends Controller
         if ($start->diffInDays($end) > 31 || $start->isAfter(Carbon::today('Asia/Manila'))) {
             return back()->withErrors(['start_date' => 'Choose up to 31 days, starting no later than today.']);
         }
+        $replaceEnd = $end->copy();
         $end = $end->min(Carbon::today('Asia/Manila'));
-        $employees = Employee::with('schedules')->where('status', 'active')->when($data['target_mode'] === 'selected', fn ($q) => $q->whereIn('id', $data['employee_ids']))->get();
+        $employees = Employee::with('schedules')->where('status', 'active')->when($data['target_mode'] === 'selected', fn ($q) => $q->whereIn('id', $data['employee_ids']))->orderBy('id')->get();
         $created = 0;
-        foreach ($employees as $employee) {
-            DB::transaction(function () use ($employee, $start, $end, $data, $generator, &$created) {
+        $deleted = 0;
+        DB::transaction(function () use ($employees, $start, $end, $replaceEnd, $data, $generator, &$created, &$deleted) {
+            foreach ($employees as $employee) {
                 Employee::whereKey($employee->id)->lockForUpdate()->firstOrFail();
                 $now = Carbon::now('Asia/Manila');
                 $overwrite = $data['generation_mode'] === 'overwrite';
+                if ($overwrite) {
+                    $deleted += AttendanceLog::where('employee_id', $employee->id)
+                        ->whereBetween('attendance_date', [$start->toDateString(), $replaceEnd->toDateString()])->delete();
+                }
                 $days = [];
                 for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
                     $schedules = $employee->schedules->whereIn('schedule_type', FacultySchedule::PAYABLE_TYPES)->where('day_of_week', $date->dayOfWeek)->sortBy('start_time')->values();
@@ -90,15 +97,15 @@ class AttendanceController extends Controller
                         }
                         $log = AttendanceLog::firstOrNew(['employee_id' => $employee->id, 'attendance_date' => $dateString, 'faculty_schedule_id' => $schedule->id]);
                         $log->fill([...ClassAttendanceService::snapshot($schedule), 'time_in' => $pairs[$schedule->id]['in']->format('H:i:s'), 'time_out' => $pairs[$schedule->id]['out']->format('H:i:s'),
-                            'method_in' => 'rfid', 'method_out' => 'rfid', 'remarks' => 'Generated class test attendance.']);
+                            'method_in' => 'rfid', 'method_out' => 'rfid', 'legacy_source_id' => null, 'is_legacy' => false, 'remarks' => 'Generated class test attendance.']);
                         AttendanceCalculator::recalculate($log);
                         $created++;
                     }
                 }
-            });
-        }
+            }
+        });
 
         return redirect()->route('attendance.index', ['cutoff_start' => $start->copy()->day($start->day <= 15 ? 1 : 16)->toDateString()])
-            ->with('success', "Generated {$created} class attendance sessions through ".$end->format('m/d/Y').'.');
+            ->with('success', ($data['generation_mode'] === 'overwrite' ? "Replaced {$deleted} old logs in the selected range. " : '')."Generated {$created} class attendance sessions through ".$end->format('m/d/Y').'.');
     }
 }

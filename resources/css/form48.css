@@ -3,6 +3,30 @@
 .dtr-form-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; border-radius: 12px; }
 .dtr-form-controls label { display: grid; gap: 5px; min-width: 110px; font-size: 12px; font-weight: 700; }
 .dtr-form-controls .dtr-faculty-select { flex: 1 1 250px; max-width: 380px; }
+.faculty-combobox { position: relative; display: grid; gap: 5px; min-width: 0; }
+.faculty-combobox input { width: 100%; min-width: 0; font-weight: 700; }
+.faculty-combobox-list { position: absolute; top: calc(100% + 5px); left: 0; right: 0; z-index: 50; max-height: 260px; overflow-y: auto; border: 1px solid var(--ui-line, #cbd9cf); border-radius: 10px; background: var(--ui-paper, #fff); box-shadow: 0 8px 24px #183a2720; }
+#workspace .faculty-combobox-option { display: block; width: 100%; padding: 11px 14px; border: 0; border-radius: 0; text-align: left; font-size: 13px; font-weight: 700; line-height: 1.5; background: var(--ui-paper) !important; color: var(--ui-ink) !important; white-space: normal; }
+#workspace .faculty-combobox-option:is(:hover, .is-active) { background: var(--ui-soft-green) !important; }
+.faculty-combobox-empty { padding: 14px; color: var(--ui-muted, #4f6558); font-size: 13px; }
+.cutoff-picker { position: relative; min-width: 0; }
+#workspace .cutoff-picker-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+#workspace .cutoff-picker-fields > label { display: grid; flex: 0 1 138px; width: 138px; min-width: 0; gap: 6px; margin: 0; font-weight: 700; }
+#workspace .cutoff-picker-fields > .cutoff-picker-year { flex-basis: 110px; width: 110px; }
+#workspace .cutoff-picker-fields > label:last-child { flex-basis: 160px; width: 160px; }
+#workspace .cutoff-picker-fields :is(input, select) { width: 100%; min-width: 0; font-weight: 700; }
+#workspace .cutoff-picker-error { position: absolute; top: 100%; left: 0; margin: 2px 0 0; padding: 3px 6px; z-index: 2; border-radius: 4px; background: var(--ui-paper); color: var(--ui-red); font-size: 12px; }
+#workspace :is(.list-filters, .attendance-filter-fields, .leave-filter-bar) > .faculty-combobox { flex: 0 1 260px; width: 260px; min-width: 180px; }
+#workspace .faculty-combobox > label { width: auto; min-width: 0; margin: 0; flex: none; font-size: 12px; font-weight: 700; }
+#workspace .sd-faculty-switcher > .faculty-combobox { width: 270px; }
+#workspace .badge[data-status='late_undertime'] { background: var(--ui-soft-amber); color: var(--ui-amber); border-color: #d3ae5e; white-space: nowrap; }
+@media (max-width: 600px) {
+    #workspace .attendance-filter-fields > :is(.cutoff-picker, .faculty-combobox) { grid-column: 1 / -1; width: 100%; }
+    #workspace .sd-faculty-switcher > .faculty-combobox { flex: 1; width: auto; }
+    #workspace .cutoff-picker-fields > label { flex-grow: 1; }
+    #workspace .cutoff-picker { grid-column: 1 / -1; }
+    #workspace :is(.list-filters, .leave-filter-bar) > .faculty-combobox { width: 100%; min-width: 0; }
+}
 .dtr-form-controls .dtr-year-control { min-width: 90px; width: 90px; }
 .dtr-form-controls .dtr-year-control input { width: 100%; }
 .dtr-form-controls .dtr-year-error { flex-basis: 100%; margin: 0; color: var(--ui-red, #b52f37); font-size: 12px; line-height: 1.5; }
@@ -10,6 +34,7 @@
 .dtr-form-controls .dtr-excel-note { flex-basis: 100%; margin: 2px 0 0; font-size: 12px; line-height: 1.5; color: #4f6558; }
 html[data-theme='dark'] .dtr-excel-note { color: #b5c9bc; }
 @media (max-width: 560px) {
+    .dtr-form-controls .dtr-faculty-select { flex: 1 1 100%; max-width: none; }
     .dtr-form-controls > label, .dtr-form-controls .dtr-year-control { flex: 1 1 120px; width: auto; max-width: none; min-width: 0; }
     .dtr-form-export-actions { width: 100%; margin-left: 0; }
     .dtr-form-export-actions button { flex: 1 1 140px; }

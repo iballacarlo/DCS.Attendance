@@ -22,7 +22,7 @@ class DtrController extends Controller
         abort_unless($employeeId, 404, 'No faculty record is available for DTR generation.');
         $employee = Employee::findOrFail($employeeId);
         $start = isset($data['start_date']) ? Carbon::parse($data['start_date'], 'Asia/Manila') : $this->currentCutoffStart();
-        abort_unless($start->year >= 1900 && $start->year <= 2100, 422, 'Choose a DTR year from 1900 to 2100.');
+        abort_unless($start->year >= 2000 && $start->year <= 2100, 422, 'Choose a DTR year from 2000 to 2100.');
         [$start, $end] = $this->cutoff($start);
         $dtr = $dtrService->build($employee, $start, $end);
 

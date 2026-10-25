@@ -1,12 +1,25 @@
 /* Shared application surfaces, following the schedule designer's visual language. */
 @media screen {
-    #workspace .attendance-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 24px; padding: 18px; }
-    #workspace .attendance-filter-fields { display: flex; flex: 1 1 600px; flex-wrap: wrap; align-items: flex-end; gap: 12px; min-width: 0; }
-    #workspace .attendance-filter-fields label { display: grid; gap: 6px; margin: 0; width: 145px; min-width: 0; }
-    #workspace .attendance-filter-fields label:first-child { width: 225px; }
-    #workspace .attendance-filter-fields label:has(input) { width: 210px; }
+    #workspace .payroll-record-filters { display: flex; flex-wrap: nowrap; align-items: flex-end; gap: 14px; }
+    #workspace .payroll-record-filters > .cutoff-picker { flex: 1.8 1 380px; min-width: 290px; }
+    #workspace .payroll-record-filters .cutoff-picker-fields { display: grid; grid-template-columns: minmax(90px, 1fr) 85px minmax(125px, 1.15fr); gap: 12px; }
+    #workspace .list-filters.payroll-record-filters .cutoff-picker-fields > label { width: auto; min-width: 0; }
+    #workspace .list-filters.payroll-record-filters > .faculty-combobox { flex: 1.4 1 240px; width: auto; min-width: 140px; }
+    #workspace .payroll-record-filters > label { flex: .8 1 150px; min-width: 105px; }
+    #workspace .payroll-record-filters > .clear-filters { flex: 0 0 auto; margin: 0; }
+    #workspace .payroll-record-filters :is(input, select, button.clear-filters) { height: 44px; min-height: 44px; }
+    #workspace .attendance-toolbar { display: flex; flex-wrap: nowrap; align-items: flex-end; gap: 12px; padding: 18px; }
+    #workspace .attendance-filter-fields { display: flex; flex: 1 1 auto; flex-wrap: nowrap; align-items: flex-end; gap: 10px; min-width: 0; }
+    #workspace .attendance-filter-fields > label { display: grid; flex: 1 1 115px; gap: 6px; margin: 0; width: auto; min-width: 90px; }
+    #workspace .attendance-filter-fields > .cutoff-picker { flex: 1.6 1 340px; min-width: 285px; }
+    #workspace .attendance-filter-fields .cutoff-picker-fields { display: grid; grid-template-columns: minmax(80px, 1fr) 75px minmax(110px, 1.2fr); gap: 10px; }
+    #workspace .attendance-toolbar .attendance-filter-fields .cutoff-picker-fields > label { width: auto; min-width: 0; }
+    #workspace .attendance-toolbar .attendance-filter-fields > .faculty-combobox { flex: 1.2 1 200px; width: auto; min-width: 140px; }
+    #workspace .attendance-filter-fields > button { flex: 0 0 auto; white-space: nowrap; }
     #workspace .attendance-filter-fields :is(input, select) { width: 100%; min-width: 0; }
-    #workspace .attendance-toolbar-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-left: auto; }
+    #workspace .attendance-toolbar :is(input, select, .ui-action) { height: 44px; min-height: 44px; }
+    #workspace .attendance-toolbar .ui-action { padding-inline: 12px; font-size: 12px; }
+    #workspace .attendance-toolbar-actions { display: flex; flex: 0 0 auto; flex-wrap: nowrap; gap: 10px; margin-left: auto; }
     #workspace .attendance-toolbar-actions .button { display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
     #workspace .today-schedule-list { display: grid; gap: 12px; }
     #workspace .dashboard-panels .faculty-today-schedule { padding: 22px; min-width: 0; min-height: 0; height: auto; margin: 0; }
@@ -16,6 +29,7 @@
     #workspace .today-schedule-item > span { font-size: 12px; color: var(--ui-muted); }
     #workspace .today-schedule-item .today-schedule-time { color: var(--ui-green); font-weight: 700; }
     @media (max-width: 600px) {
+        #workspace .attendance-toolbar { flex-wrap: wrap; }
         #workspace .attendance-filter-fields { display: grid; flex-basis: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
         #workspace .attendance-filter-fields label { width: auto; }
         #workspace .attendance-filter-fields label:first-child, #workspace .attendance-filter-fields label:has(input) { grid-column: 1 / -1; width: auto; }
@@ -131,7 +145,7 @@
     #workspace .pagination a.active { background: var(--ui-green) !important; color: #fff !important; border-color: var(--ui-green); }
     #workspace :is(.badge, .payroll-status, .leave-status) { border: 1px solid var(--ui-line); padding: 5px 9px; border-radius: 6px; background: var(--ui-surface) !important; color: var(--ui-muted) !important; font-size: 10px; font-weight: 700; line-height: 1.4; }
     #workspace :is([data-status='active'], [data-status='present'], .payroll-status.is-released, .leave-status.is-approved) { color: #17613c !important; background: #eaf5ee !important; border-color: #acd0b8; }
-    #workspace :is([data-status='incomplete'], [data-status='late'], .payroll-status.is-draft, .leave-status.is-pending) { color: var(--ui-amber) !important; background: var(--ui-soft-amber) !important; border-color: #cfb778; }
+    #workspace :is([data-status='incomplete'], [data-status='late'], [data-status='late_undertime'], .payroll-status.is-draft, .leave-status.is-pending) { color: var(--ui-amber) !important; background: var(--ui-soft-amber) !important; border-color: #cfb778; }
     #workspace :is([data-status='inactive'], [data-status='absent'], .leave-status.is-rejected) { color: var(--ui-red) !important; background: var(--ui-soft-red) !important; border-color: #dc9ca4; }
     #workspace .payroll-status.is-approved { color: var(--ui-blue) !important; background: var(--ui-soft-blue) !important; border-color: #9ab7dd; }
     #workspace :is(.leave-card, .calendar-event-item, .signatory-item, .credential-row, .employment-history-card) { background: var(--ui-paper) !important; border: 1px solid var(--ui-line) !important; border-radius: 12px; }

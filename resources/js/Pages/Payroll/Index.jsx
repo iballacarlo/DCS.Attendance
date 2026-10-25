@@ -1,42 +1,16 @@
+import CutoffPicker from '../../components/CutoffPicker';
+import FacultyCombobox from '../../components/FacultyCombobox';
+import { currentCutoff } from '../../lib/cutoff';
 import DateInput from '../../components/DateInput';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
-import { BadgeCheck, Calculator, Search, Send, X } from 'lucide-react';
+import { BadgeCheck, Calculator, Send, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
 import Pagination from '../../components/Pagination';
 import useDebouncedFilters from '../../hooks/useDebouncedFilters';
 import useConfirmDialog from '../../hooks/useConfirmDialog';
 import useRealtimeReload from '../../hooks/useRealtimeReload';
-import { formatDate, dateToday, fullName, money } from '../../lib/format';
-
-function payrollCutoffOptions() {
-    const today = new Date(`${dateToday()}T00:00:00`);
-    const options = [];
-
-    for (let offset = 0; offset < 24; offset += 1) {
-        const month = new Date(today.getFullYear(), today.getMonth() - offset, 1);
-        const year = month.getFullYear();
-        const monthIndex = month.getMonth();
-        const monthNumber = String(monthIndex + 1).padStart(2, '0');
-        const monthName = month.toLocaleDateString('en-PH', { month: 'long' });
-        const lastDay = new Date(year, monthIndex + 1, 0).getDate();
-        const first = {
-            start: `${year}-${monthNumber}-01`,
-            end: `${year}-${monthNumber}-15`,
-            label: `${monthNumber}/01/${year} - ${monthNumber}/15/${year}`,
-        };
-        const second = {
-            start: `${year}-${monthNumber}-16`,
-            end: `${year}-${monthNumber}-${lastDay}`,
-            label: `${monthNumber}/16/${year} - ${monthNumber}/${lastDay}/${year}`,
-        };
-
-        options.push(today.getDate() <= 15 ? first : second);
-        options.push(today.getDate() <= 15 ? second : first);
-    }
-
-    return options;
-}
+import { formatDate, fullName, money } from '../../lib/format';
 
 function expectedPayDate(startDate, endDate) {
     if (!startDate || !endDate) return '';
@@ -89,16 +63,17 @@ function PeriodRow({ period, ask, canManage }) {
 }
 
 export default function PayrollIndex({ periods, records, filters = {} }) {
-    const { auth } = usePage().props;
+    const { auth, facultyChoices } = usePage().props;
     const isFaculty = auth.user.role === 'faculty';
     const canReview = !isFaculty;
     const canManage = ['admin', 'payroll_staff'].includes(auth.user.role);
     const { ask, dialog } = useConfirmDialog();
-    const cutoffOptions = payrollCutoffOptions();
-    const defaultCutoff = cutoffOptions[0];
+    const defaultCutoff = currentCutoff();
     const form = useForm({ period_name: defaultCutoff.label, start_date: defaultCutoff.start, end_date: defaultCutoff.end, pay_date: '' });
     const [listFilters, setListFilters] = useState({
         search: filters.search || '',
+        employee_id: filters.employee_id || '',
+        cutoff_start: filters.cutoff_start || defaultCutoff.start,
         period: filters.period || '',
         status: filters.status || '',
     });
@@ -107,7 +82,7 @@ export default function PayrollIndex({ periods, records, filters = {} }) {
     const payDate = expectedPayDate(form.data.start_date, form.data.end_date);
     const selectedRecords = records.data.filter((record) => selectedRecordIds.includes(record.id));
     const selectionPeriodId = selectedRecords[0]?.payroll_period?.id || '';
-    const activePeriodId = listFilters.period || selectionPeriodId;
+    const activePeriodId = periods.find((period) => period.start_date.slice(0, 10) === listFilters.cutoff_start)?.id || selectionPeriodId;
     const selectableRecords = canManage
         ? records.data.filter((record) => ['draft', 'approved'].includes(record.status)
             && (!activePeriodId || String(record.payroll_period?.id) === String(activePeriodId)))
@@ -121,7 +96,7 @@ export default function PayrollIndex({ periods, records, filters = {} }) {
     const selectedDrafts = selectedRecords.filter((record) => record.status === 'draft').length;
     const selectedApproved = selectedRecords.filter((record) => record.status === 'approved').length;
     const allVisibleSelected = selectAllIds.length > 0 && selectAllIds.every((id) => selectedRecordIds.includes(id));
-    useDebouncedFilters('/payroll', listFilters, { enabled: canReview });
+    useDebouncedFilters('/payroll', listFilters, { enabled: true });
     useRealtimeReload(['periods', 'records'], 10000);
     useEffect(() => {
         setSelectedRecordIds((current) => current.filter((id) => selectableIds.includes(id)));
@@ -131,11 +106,7 @@ export default function PayrollIndex({ periods, records, filters = {} }) {
         event.preventDefault();
         form.post('/payroll/periods');
     };
-    const selectCutoff = (value) => {
-        const cutoff = cutoffOptions.find((option) => `${option.start}|${option.end}` === value);
-        if (!cutoff) return;
-        form.setData({ ...form.data, period_name: cutoff.label, start_date: cutoff.start, end_date: cutoff.end });
-    };
+    const selectCutoff = (cutoff) => form.setData({ ...form.data, period_name: cutoff.label, start_date: cutoff.start, end_date: cutoff.end });
     const approveRecord = async (record) => {
         if (await ask({ title: 'Approve payslip?', message: `Approve the payslip for ${fullName(record.employee)}? It cannot be edited after approval.`, confirmLabel: 'Approve Payslip' })) {
             router.post(`/payroll/records/${record.id}/approve`, {}, { preserveScroll: true });
@@ -181,12 +152,7 @@ export default function PayrollIndex({ periods, records, filters = {} }) {
                 <section className={`content-grid payroll-overview${canManage ? '' : ' is-read-only'}`}>
                     {canManage && <form className="panel compact-form" onSubmit={submit}>
                         <h2>New Payroll Period</h2>
-                        <label>
-                            Cutoff Period
-                            <select value={`${form.data.start_date}|${form.data.end_date}`} onChange={(e) => selectCutoff(e.target.value)}>
-                                {cutoffOptions.map((option) => <option value={`${option.start}|${option.end}`} key={option.start}>{option.label}</option>)}
-                            </select>
-                        </label>
+                        <CutoffPicker value={form.data.start_date} onChange={selectCutoff} />
                         <label>
                             Pay Date
                             <DateInput value={payDate} readOnly />
@@ -226,7 +192,12 @@ export default function PayrollIndex({ periods, records, filters = {} }) {
 
             <div className="panel">
                 <div className="panel-heading"><h2>{isFaculty ? 'My Payroll Records' : 'Payroll Records'}</h2></div>
-                {canReview && <div className="list-filters payroll-record-filters"><label className="filter-search">Search Payroll<span className="search-control"><Search size={16} /><input placeholder="Faculty, employee number, or period" value={listFilters.search} onChange={(event) => changeListFilter('search', event.target.value)} /></span></label><label>Payroll Period<select value={listFilters.period} onChange={(event) => changeListFilter('period', event.target.value)}><option value="">All periods</option>{periods.map((period) => <option key={period.id} value={period.id}>{formatDate(period.start_date)} – {formatDate(period.end_date)}</option>)}</select></label><label>Status<select value={listFilters.status} onChange={(event) => changeListFilter('status', event.target.value)}><option value="">All statuses</option><option value="draft">Draft</option><option value="approved">Approved</option><option value="released">Released</option></select></label>{Object.values(listFilters).some(Boolean) && <button className="clear-filters ui-control ui-action ui-secondary" type="button" onClick={() => { setSelectedRecordIds([]); setListFilters({ search: '', period: '', status: '' }); }}><X size={15} />Clear</button>}</div>}
+                <div className="list-filters payroll-record-filters">
+                    <CutoffPicker value={listFilters.cutoff_start} onChange={(period) => { setSelectedRecordIds([]); setListFilters((current) => ({ ...current, cutoff_start: period.start, period: '' })); }} />
+                    {canReview && <FacultyCombobox label="Search Faculty" allowClear employees={facultyChoices} selectedId={listFilters.employee_id} onSelect={(id) => { setSelectedRecordIds([]); setListFilters((current) => ({ ...current, employee_id: id, search: '' })); }} />}
+                    {canReview && <label>Status<select value={listFilters.status} onChange={(event) => changeListFilter('status', event.target.value)}><option value="">All statuses</option><option value="draft">Draft</option><option value="approved">Approved</option><option value="released">Released</option></select></label>}
+                    <button className="clear-filters ui-control ui-action ui-secondary" type="button" onClick={() => { setSelectedRecordIds([]); setListFilters({ search: '', employee_id: '', cutoff_start: defaultCutoff.start, period: '', status: '' }); }}><X size={15} />Reset</button>
+                </div>
                 {canManage && <div className={`payroll-bulk-bar${activePeriodId ? ' is-ready' : ''}`}>
                     <div><strong>{selectedRecordIds.length ? `${selectedRecordIds.length} selected` : 'Select payslips'}</strong><span>{activePeriodId ? 'Selection is limited to one payroll period.' : 'Choose records below, or filter by cutoff for faster selection.'}</span></div>
                     <div className="payroll-bulk-actions"><button className="ui-control ui-action ui-primary" type="button" disabled={!selectedDrafts} onClick={() => bulkStatus('approve')}><BadgeCheck size={16} />Approve Selected{selectedDrafts ? ` (${selectedDrafts})` : ''}</button><button className="is-release ui-control ui-action ui-primary" type="button" disabled={!selectedApproved} onClick={() => bulkStatus('release')}><Send size={16} />Release Selected{selectedApproved ? ` (${selectedApproved})` : ''}</button></div>

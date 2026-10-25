@@ -8,7 +8,7 @@ export default function Form48({ dtr }) {
             return <g key={index} fill="#111" stroke="none">
                 {cell.border === 'box' && <rect x={box.x} y={box.y} width={box.width} height={box.height} fill="none" stroke="#111" strokeWidth="0.2" />}
                 {cell.border === 'bottom' && <line x1={box.x} y1={box.y + box.height} x2={box.x + box.width} y2={box.y + box.height} stroke="#111" strokeWidth="0.2" />}
-                {cellText(cell).map((line, i) => <text key={i} x={line.x} y={line.y} fontFamily="Arial, Helvetica, sans-serif" fontSize={cell.size * 25.4 / 72} fontWeight={cell.bold ? 700 : 400} textAnchor={cell.align === 'left' ? 'start' : cell.align === 'right' ? 'end' : 'middle'}>{line.text}</text>)}
+                {cellText(cell).map((line, i) => <text key={i} x={line.x} y={line.y} fontFamily="Arial, Helvetica, sans-serif" fontSize={cell.size * 25.4 / 72} fontWeight={cell.bold ? 700 : 400} textAnchor={cell.align === 'left' ? 'start' : cell.align === 'right' ? 'end' : 'middle'}>{cell.runs ? cell.runs.map((run, j) => <tspan key={j} fontWeight={run.bold ? 700 : 400}>{run.text}</tspan>) : line.text}</text>)}
             </g>;
         })}
     </svg>;

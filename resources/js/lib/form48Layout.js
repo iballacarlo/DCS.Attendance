@@ -3,7 +3,7 @@ import { fullName } from './format.js';
 // Coordinates in millimetres on A4. Every renderer uses these same cell boundaries.
 export const FORM48 = {
     width: 210, height: 297,
-    columns: [20, 45, 54, 73, 92, 111, 130, 147.5, 165, 190],
+    columns: [20, 45, 52, 63, 78, 89, 104, 115, 126, 190],
     rows: [10, 18, 24, 31, 38, 45, 50, 55, 61, 66, 71, 75, 82, 89,
         ...Array.from({ length: 32 }, (_, i) => 93 + i * 4),
         222, 226, 230, 234, 242, 249, 254, 261, 267],
@@ -17,23 +17,23 @@ export function form48Cells(dtr) {
     const cells = [];
     const add = (row, col, value = '', options = {}) => cells.push({ row, col, value, size: 9, align: 'center', ...options });
     const name = fullName(dtr.employee).toUpperCase();
-    add(0, 1, 'Civil Service Form No. 48', { endCol: 7, align: 'left', size: 10 });
+    add(0, 1, 'Civil Service Form No. 48', { endCol: 7, align: 'left', size: 10, padding: 6, excelIndent: 2 });
     add(2, 1, 'DAILY TIME RECORD', { endCol: 7, bold: true, size: 11 });
-    add(4, 1, name, { endCol: 7, bold: true, size: Math.min(11, Math.max(7, 630 / name.length)), border: 'bottom' });
-    add(5, 1, '(NAME)', { endCol: 7, size: 9 });
-    add(7, 1, 'For the month of', { endCol: 3, align: 'left' });
-    add(7, 4, dtr.cutoff.label, { endCol: 7, bold: true, border: 'bottom' });
-    add(8, 1, 'Official hours for arrival', { endCol: 3, align: 'left' });
-    add(9, 1, 'and departure', { endCol: 3 });
-    add(8, 4, 'Regular days', { endCol: 5, align: 'left' });
-    add(9, 4, 'Saturdays', { endCol: 5, align: 'left' });
-    add(8, 6, '', { endCol: 7, border: 'bottom' });
-    add(9, 6, '', { endCol: 7, border: 'bottom' });
+    add(4, 1, name, { endCol: 7, bold: true, size: Math.min(11, Math.max(6, 420 / name.length)), border: 'bottom' });
+    add(5, 1, '(NAME)', { endCol: 7, size: 9, bold: true });
+    add(7, 1, 'For the month of', { endCol: 2, right: 68, align: 'left', size: 8.5 });
+    add(7, 3, dtr.cutoff.label, { endCol: 7, left: 68, bold: true, border: 'bottom' });
+    add(8, 1, 'Official hours for arrival', { endCol: 3, align: 'left', size: 8.5 });
+    add(9, 1, 'and departure', { endCol: 3, align: 'left', size: 8.5 });
+    add(8, 5, 'Regular days', { endCol: 6, right: 108, align: 'left', size: 8 });
+    add(9, 5, 'Saturdays', { endCol: 6, right: 108, align: 'left', size: 8 });
+    add(8, 6, '', { endCol: 7, left: 108, border: 'bottom' });
+    add(9, 6, '', { endCol: 7, left: 108, border: 'bottom' });
     add(11, 1, 'Day', { endRow: 12, bold: true, border: 'box' });
     add(11, 2, 'AM', { endCol: 3, bold: true, border: 'box' });
     add(11, 4, 'PM', { endCol: 5, bold: true, border: 'box' });
     add(11, 6, 'UNDER\nTIME', { endCol: 7, bold: true, border: 'box', size: 8.5 });
-    ['Arrival', 'Departure', 'Arrival', 'Departure', 'Hours', 'Minutes'].forEach((text, i) => add(12, i + 2, text, { bold: true, border: 'box', size: 8 }));
+    ['Arrival', 'Departure', 'Arrival', 'Departure', 'Hours', 'Minutes'].forEach((text, i) => add(12, i + 2, text, { bold: true, border: 'box', size: i >= 4 ? 6.4 : 7 }));
     for (const day of dtr.form_rows) {
         const row = day.day + 12;
         add(row, 0, scheduleRange(day.schedule_label), { size: 8, align: 'right', padding: 2 });
@@ -50,17 +50,19 @@ export function form48Cells(dtr) {
         'I CERTIFY on my honor that above is a true and correct',
         'report of the hours of work performed, record of which was',
         'made daily at the time of arrival at and departure from office.',
-    ].forEach((text, i) => add(46 + i, 1, text, { endCol: 7, size: 8.5 }));
+    ].forEach((text, i) => add(46 + i, 1, text, { endCol: 7, size: 8.5, align: 'left', padding: i === 0 ? 6 : 0.5,
+        ...(i === 0 ? { excelIndent: 2, runs: [{ text: 'I CERTIFY', bold: true }, { text: text.slice('I CERTIFY'.length), bold: false }] } : {}),
+    }));
     add(49, 1, '', { endCol: 7, border: 'bottom' });
     add(50, 1, 'Verified as to the prescribed office hours:', { endCol: 7, bold: true, size: 8.5 });
     add(52, 1, dtr.signatory?.name || '', { endCol: 7, bold: true, size: 10, border: 'bottom' });
-    add(53, 1, 'In Charge', { endCol: 7, size: 9 });
+    add(53, 1, 'In Charge', { endCol: 7, size: 9, bold: true });
     return cells;
 }
 
 export function cellBounds(cell) {
-    const x = FORM48.columns[cell.col], y = FORM48.rows[cell.row];
-    return { x, y, width: FORM48.columns[(cell.endCol ?? cell.col) + 1] - x, height: FORM48.rows[(cell.endRow ?? cell.row) + 1] - y };
+    const x = cell.left ?? FORM48.columns[cell.col], y = FORM48.rows[cell.row];
+    return { x, y, width: (cell.right ?? FORM48.columns[(cell.endCol ?? cell.col) + 1]) - x, height: FORM48.rows[(cell.endRow ?? cell.row) + 1] - y };
 }
 
 export function cellText(cell) {

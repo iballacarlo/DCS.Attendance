@@ -19,12 +19,16 @@ class LeaveController extends Controller
         $canReview = in_array($request->user()->role, ['admin', 'payroll_staff'], true);
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
+            'employee_id' => ['nullable', 'integer', 'exists:employees,id'],
             'status' => ['nullable', Rule::in(['pending', 'approved', 'rejected', 'cancelled'])],
             'leave_type_id' => ['nullable', 'integer', 'exists:leave_types,id'],
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
         ]);
         $query = LeaveRequest::with(['employee', 'leaveType', 'reviewer']);
+        if ($canReview) {
+            $query->when($filters['employee_id'] ?? null, fn ($q, $id) => $q->where('employee_id', $id));
+        }
         if (! $canReview) {
             abort_unless($request->user()->employee_id, 403, 'Your account is not linked to a faculty record.');
             $query->where('employee_id', $request->user()->employee_id);

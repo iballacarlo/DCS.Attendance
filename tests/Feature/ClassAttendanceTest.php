@@ -205,7 +205,7 @@ class ClassAttendanceTest extends TestCase
         $user = User::factory()->create(['role' => 'faculty', 'employee_id' => $employee->id]);
         $this->actingAs($user)->get('/attendance?cutoff_start=2026-10-01&status=present&method=rfid')
             ->assertOk()->assertInertia(fn (Assert $page) => $page->has('logs.data', 1)->where('logs.data.0.employee_id', $employee->id)->where('dtr.summary.total_hours', 2));
-        $this->get('/attendance?cutoff_start=2026-10-01&status=incomplete')->assertInertia(fn (Assert $page) => $page->has('logs.data', 0));
+        $this->get('/attendance?cutoff_start=2026-10-01&status=late_undertime')->assertInertia(fn (Assert $page) => $page->has('logs.data', 0));
         $this->get('/attendance?cutoff_start=2026-10-16')->assertInertia(fn (Assert $page) => $page->has('logs.data', 0)->where('dtr.summary.total_hours', 0));
         $this->get('/attendance?cutoff_start=2026-10-02')->assertSessionHasErrors('cutoff_start');
     }
@@ -410,6 +410,24 @@ class ClassAttendanceTest extends TestCase
         $this->assertSame('DCIT 26', $edited->fresh()->subject);
         $this->assertSame('BSIT 3B', $edited->fresh()->section);
         $this->assertSame(2, $employee->schedules()->count());
+    }
+
+    public function test_staff_and_faculty_attendance_lists_show_latest_date_and_latest_class_first(): void
+    {
+        $employee = $this->employee();
+        $ids = [];
+        foreach ([['07:00', '10:00'], ['10:00', '12:00'], ['13:00', '16:00']] as [$start, $end]) {
+            $block = $this->block($employee, $start, $end);
+            $log = AttendanceLog::create(['employee_id' => $employee->id, 'attendance_date' => '2026-10-05', ...ClassAttendanceService::snapshot($block), 'time_in' => $start, 'time_out' => $end]);
+            $ids[] = $log->id;
+        }
+        $latest = AttendanceLog::create(['employee_id' => $employee->id, 'attendance_date' => '2026-10-06', ...ClassAttendanceService::snapshot($employee->schedules()->orderBy('start_time')->first()), 'time_in' => '07:00', 'time_out' => '10:00']);
+        $expected = [$latest->id, ...array_reverse($ids)];
+        foreach (['payroll_staff', 'faculty'] as $role) {
+            $this->actingAs(User::factory()->create(['role' => $role, 'employee_id' => $role === 'faculty' ? $employee->id : null]))
+                ->get('/attendance?cutoff_start=2026-10-01')->assertOk()->assertInertia(fn (Assert $page) => $page
+                ->where('logs.data', fn ($logs) => collect($logs)->pluck('id')->all() === $expected));
+        }
     }
 
     public function test_admin_can_switch_faculty_from_schedule_page_without_exposing_options_to_faculty(): void

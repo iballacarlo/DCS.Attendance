@@ -87,7 +87,7 @@ export default function Dashboard({ employeeCount, presentToday, openPeriods, at
                     <Link href="/attendance">View all <ArrowUpRight size={15} /></Link>
                 </header>
                 <div className="bento-table" tabIndex={0} role="region" aria-label="Recent attendance records"><table><thead><tr>{!isFaculty && <th>Faculty</th>}<th>Date</th><th>In</th><th>Out</th><th>Status</th></tr></thead><tbody>
-                    {recentAttendance.length ? recentAttendance.map((log) => <tr key={log.id}>{!isFaculty && <td><strong>{fullName(log.employee)}</strong></td>}<td>{formatDate(log.attendance_date)}</td><td>{time12(log.time_in)}</td><td>{time12(log.time_out)}</td><td><span data-status={log.status} className="badge">{log.status}</span></td></tr>) : <tr><td colSpan={isFaculty ? 4 : 5} className="empty-row">No attendance logs yet.</td></tr>}
+                    {recentAttendance.length ? recentAttendance.map((log) => <tr key={log.id}>{!isFaculty && <td><strong>{fullName(log.employee)}</strong></td>}<td>{formatDate(log.attendance_date)}</td><td>{time12(log.time_in)}</td><td>{time12(log.time_out)}</td><td>{log.display_status ? <span data-status={log.display_status} className="badge">{log.display_status === 'late_undertime' ? 'Late/Undertime' : 'Complete'}</span> : '—'}</td></tr>) : <tr><td colSpan={isFaculty ? 4 : 5} className="empty-row">No attendance logs yet.</td></tr>}
                 </tbody></table></div>
             </section>
 

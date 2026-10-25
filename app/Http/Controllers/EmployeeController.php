@@ -21,6 +21,7 @@ class EmployeeController extends Controller
     {
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
+            'employee_id' => ['nullable', 'integer', 'exists:employees,id'],
             'rank' => ['nullable', 'integer', 'exists:faculty_ranks,id'],
             'status' => ['nullable', 'in:active,inactive'],
             'sort' => ['nullable', 'in:employee_no,name,rank,rate,weekly_hours,status'],
@@ -29,6 +30,7 @@ class EmployeeController extends Controller
         $sort = $filters['sort'] ?? 'employee_no';
         $direction = $filters['direction'] ?? 'desc';
         $employees = Employee::with(['rfidCards', 'fingerprintTemplates', 'facultyRank', 'schedules', 'user'])
+            ->when($filters['employee_id'] ?? null, fn ($query, $id) => $query->where('employees.id', $id))
             ->when($filters['rank'] ?? null, fn ($query, $rank) => $query->where('faculty_rank_id', $rank))
             ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status));
         $terms = preg_split('/\s+/', trim($filters['search'] ?? ''), -1, PREG_SPLIT_NO_EMPTY);
@@ -82,6 +84,7 @@ class EmployeeController extends Controller
             'employees' => $employees,
             'filters' => [
                 'search' => $filters['search'] ?? '',
+                'employee_id' => $filters['employee_id'] ?? '',
                 'rank' => $filters['rank'] ?? '',
                 'status' => $filters['status'] ?? '',
                 'sort' => $sort,

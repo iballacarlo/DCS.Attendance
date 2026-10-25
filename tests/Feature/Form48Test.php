@@ -66,7 +66,7 @@ class Form48Test extends TestCase
         $this->assertSame(0.0, $dtr['summary']['total_hours']);
     }
 
-    public function test_shortfall_uses_class_totals_and_does_not_add_payroll_deductions(): void
+    public function test_shortfall_uses_daily_displayed_boundaries_and_does_not_add_payroll_deductions(): void
     {
         $employee = $this->faculty();
         foreach ([['08:00', '10:00', '08:15', '10:00'], ['10:00', '12:00', '10:00', '12:00'], ['14:00', '16:00', '14:00', '15:45']] as [$start, $end, $in, $out]) {
@@ -83,6 +83,7 @@ class Form48Test extends TestCase
         $this->assertNull($row['undertime_hours']);
         $this->assertSame(30, $row['undertime_minutes']);
         $this->assertNull($row['margin_hours']);
+        $this->assertSame(6.5, $row['worked_hours']);
         $this->assertSame(6.5, $dtr['summary']['total_hours']);
         $payroll = app(PayrollComputationService::class)->calculate($employee, '2026-10-01', '2026-10-15');
         $this->assertSame(650.0, $payroll['gross_pay']);
@@ -90,7 +91,7 @@ class Form48Test extends TestCase
         $this->assertDatabaseHas('attendance_logs', ['employee_id' => $employee->id, 'late_minutes' => 0, 'undertime_minutes' => 0]);
     }
 
-    public function test_full_class_hours_are_in_right_margin_and_gaps_are_not_paid(): void
+    public function test_report_caps_visible_taps_to_historical_schedule_intervals_without_gaps(): void
     {
         $employee = $this->faculty();
         $first = $this->block($employee, '08:00', '10:00');
@@ -101,6 +102,7 @@ class Form48Test extends TestCase
         $dtr = app(DtrService::class)->build($employee, '2026-10-01', '2026-10-15');
         $row = $dtr['form_rows'][4];
         $this->assertSame(4.0, $row['margin_hours']);
+        $this->assertSame(4.0, $dtr['summary']['total_hours']);
         $this->assertSame(0, $row['shortfall_minutes']);
         $this->assertNull($row['undertime_hours']);
         $this->assertNull($row['undertime_minutes']);
@@ -125,26 +127,62 @@ class Form48Test extends TestCase
         $this->assertNull($row['am_departure']);
         $this->assertNull($row['pm_departure']);
         $this->assertNull($row['margin_hours']);
-        $this->assertSame(2, $row['undertime_hours']);
+        $this->assertNull($row['undertime_hours']);
+        $this->assertNull($row['shortfall_minutes']);
         $this->assertSame(0.0, $dtr['summary']['total_hours']);
     }
 
-    public function test_seconds_are_summed_before_rounding_and_minutes_carry_into_hours(): void
+    public function test_report_matches_printed_minutes_and_ignores_middle_class_lateness(): void
     {
         $employee = $this->faculty();
         $this->log($employee, $this->block($employee, '08:00', '10:00'), '08:29:40', '10:00:00');
         $this->log($employee, $this->block($employee, '14:00', '16:00'), '14:29:40', '16:00:00');
         $row = app(DtrService::class)->build($employee, '2026-10-01', '2026-10-15')['form_rows'][4];
-        $this->assertSame(59, $row['shortfall_minutes']);
+        $this->assertSame(29, $row['shortfall_minutes']);
         $this->assertNull($row['undertime_hours']);
-        $this->assertSame(59, $row['undertime_minutes']);
-        // 59m40s rounds once to 60 minutes, normalized as 1 hour / 0 minutes.
+        $this->assertSame(29, $row['undertime_minutes']);
+        // Changing an intermediate IN does not change the daily taps printed on the form.
         $log = AttendanceLog::orderByDesc('id')->first();
         $log->time_in = '14:30:00';
         AttendanceCalculator::recalculate($log);
         $row = app(DtrService::class)->build($employee, '2026-10-01', '2026-10-15')['form_rows'][4];
+        $this->assertSame(29, $row['undertime_minutes']);
+        $first = AttendanceLog::orderBy('id')->first();
+        $first->time_in = '09:00';
+        AttendanceCalculator::recalculate($first);
+        $row = app(DtrService::class)->build($employee, '2026-10-01', '2026-10-15')['form_rows'][4];
         $this->assertSame(1, $row['undertime_hours']);
         $this->assertSame(0, $row['undertime_minutes']);
+    }
+
+    public function test_daily_report_excludes_gaps_without_changing_per_class_payroll(): void
+    {
+        $employee = $this->faculty();
+        foreach ([['08:00', '10:00', '08:00', '10:00'], ['10:00', '12:00', '10:10', '12:00'], ['13:00', '17:00', '13:00', '17:00']] as [$start, $end, $in, $out]) {
+            $this->log($employee, $this->block($employee, $start, $end), $in, $out);
+        }
+        $dtr = app(DtrService::class)->build($employee, '2026-10-01', '2026-10-15');
+        $row = $dtr['form_rows'][4];
+        $this->assertSame('08:00', $row['am_arrival']);
+        $this->assertSame('17:00', $row['pm_departure']);
+        $this->assertSame(8.0, $row['worked_hours']);
+        $this->assertSame(8.0, $row['margin_hours']);
+        $this->assertSame(0, $row['shortfall_minutes']);
+        $this->assertSame(7.8333, $dtr['summary']['total_hours']);
+        $payroll = app(PayrollComputationService::class)->calculate($employee, '2026-10-01', '2026-10-15');
+        $this->assertSame(783.33, $payroll['gross_pay']);
+    }
+
+    public function test_missing_middle_class_timeout_does_not_change_the_daily_visible_pair(): void
+    {
+        $employee = $this->faculty();
+        $this->log($employee, $this->block($employee, '08:00', '10:00'), '08:00', '10:00');
+        $this->log($employee, $this->block($employee, '10:00', '12:00'), '10:00', null);
+        $this->log($employee, $this->block($employee, '13:00', '17:00'), '13:00', '17:00');
+        $dtr = app(DtrService::class)->build($employee, '2026-10-01', '2026-10-15');
+        $this->assertSame(8.0, $dtr['form_rows'][4]['margin_hours']);
+        $this->assertSame(6.0, $dtr['summary']['total_hours']);
+        $this->assertNull(AttendanceLog::where('scheduled_start', '10:00')->first()->time_out);
     }
 
     public function test_date_controls_support_new_years_and_default_cutoffs_follow_manila_time(): void
@@ -164,5 +202,54 @@ class Form48Test extends TestCase
             ->where('dtr.form_rows.30.valid_day', false));
         $this->getJson('/attendance/dtr?start_date=2026-10-17')->assertUnprocessable()->assertJsonValidationErrors('cutoff_start');
         $this->getJson('/attendance/dtr?start_date=2101-01-01')->assertUnprocessable();
+        $this->getJson('/attendance/dtr?start_date=1999-01-01')->assertUnprocessable();
+        foreach (['2000-01-01', '2100-12-16'] as $boundary) {
+            $this->get('/attendance/dtr?start_date='.$boundary)->assertOk();
+        }
+    }
+
+    public static function scheduledDailyPairs(): array
+    {
+        return [
+            ['07:30', '17:30', 8.0, 0],
+            ['08:00', '17:00', 8.0, 0],
+            ['08:30', '16:45', 7.25, 45],
+            ['07:30', '16:30', 7.5, 30],
+            ['08:30', '18:00', 7.5, 30],
+            ['12:30', '17:00', 4.0, 240],
+            ['12:00', '13:00', 0.0, 480],
+            ['06:00', '07:00', 0.0, 480],
+        ];
+    }
+
+    #[DataProvider('scheduledDailyPairs')]
+    public function test_daily_taps_count_only_scheduled_class_and_consultation_time(string $in, string $out, float $hours, int $shortfall): void
+    {
+        $employee = $this->faculty();
+        $morning = $this->block($employee, '08:00', '12:00');
+        $this->block($employee, '13:00', '15:00');
+        $this->block($employee, '15:00', '17:00', 'consultation');
+        $employee->scheduleBreaks()->create(['day_of_week' => 1, 'schedule_type' => 'lunch_break', 'start_time' => '12:00', 'end_time' => '13:00']);
+        $this->log($employee, $morning, $in, $out);
+        $dtr = app(DtrService::class)->build($employee, '2026-10-01', '2026-10-15');
+        $row = $dtr['form_rows'][4];
+        $this->assertSame('8:00 AM-5:00 PM', $row['schedule_label']);
+        $this->assertSame($hours, $row['worked_hours']);
+        $this->assertSame($shortfall, $row['shortfall_minutes']);
+        $this->assertSame($shortfall ? null : $hours, $row['margin_hours']);
+        $this->assertSame($shortfall >= 60 ? intdiv($shortfall, 60) : null, $row['undertime_hours']);
+        $this->assertSame($shortfall ? $shortfall % 60 : null, $row['undertime_minutes']);
+    }
+
+    public function test_explicit_lunch_inside_a_legacy_full_day_schedule_is_excluded_once(): void
+    {
+        $employee = $this->faculty();
+        $block = $this->block($employee, '08:00', '17:00');
+        $employee->scheduleBreaks()->create(['day_of_week' => 1, 'schedule_type' => 'lunch_break', 'start_time' => '12:00', 'end_time' => '13:00']);
+        $this->log($employee, $block, '07:30', '18:00');
+        $row = app(DtrService::class)->build($employee, '2026-10-01', '2026-10-15')['form_rows'][4];
+        $this->assertSame(8.0, $row['worked_hours']);
+        $this->assertSame(8.0, $row['margin_hours']);
+        $this->assertSame(0, $row['shortfall_minutes']);
     }
 }

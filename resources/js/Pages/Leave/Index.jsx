@@ -1,6 +1,7 @@
+import FacultyCombobox from '../../components/FacultyCombobox';
 import { formatDate } from '../../lib/format';
 import DateInput from '../../components/DateInput';
-import { router, useForm } from '@inertiajs/react';
+import { router, useForm, usePage } from '@inertiajs/react';
 import { AlertTriangle, CalendarRange, Check, FileCheck2, RotateCcw, Search, Send, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
@@ -10,7 +11,7 @@ import useDebouncedFilters from '../../hooks/useDebouncedFilters';
 import { fullName } from '../../lib/format';
 
 const dateText = formatDate;
-const emptyFilters = { search: '', status: '', leave_type_id: '', date_from: '', date_to: '' };
+const emptyFilters = { employee_id: '', search: '', status: '', leave_type_id: '', date_from: '', date_to: '' };
 
 function RejectionDialog({ leaveRequest, form, onClose }) {
     const fieldRef = useRef(null);
@@ -48,6 +49,7 @@ export default function LeaveIndex({ requests, leaveTypes, canReview, filters = 
     const form = useForm({ leave_type_id: '', start_date: '', end_date: '', reason: '' });
     const rejectionForm = useForm({ status: 'rejected', reviewer_remarks: '' });
     const [rejecting, setRejecting] = useState(null);
+    const { facultyChoices } = usePage().props;
     const [filterValues, setFilterValues] = useState({ ...emptyFilters, ...filters });
     const { ask, dialog } = useConfirmDialog();
     useDebouncedFilters('/leave', filterValues);
@@ -90,7 +92,8 @@ export default function LeaveIndex({ requests, leaveTypes, canReview, filters = 
         <section className="panel leave-request-list">
             <div className="panel-heading"><div><span className="bento-eyebrow">{canReview ? 'Approval queue' : 'Request history'}</span><h2>{canReview ? 'Faculty Leave Requests' : 'My Leave Requests'}</h2></div><CalendarRange size={22} /></div>
             <div className="leave-filter-bar">
-                <label>{canReview ? 'Search faculty or reason' : 'Search reason'}<span className="leave-filter-search"><Search size={16} /><input type="search" value={filterValues.search} onChange={(event) => setFilter('search', event.target.value)} placeholder={canReview ? 'Name, employee no., or reason' : 'Reason'} /></span></label>
+                {canReview && <FacultyCombobox employees={facultyChoices} label="Search Faculty" allowClear selectedId={filterValues.employee_id} onSelect={(id) => setFilter('employee_id', id)} />}
+                <label>Search reason<span className="leave-filter-search"><Search size={16} /><input type="search" value={filterValues.search} onChange={(event) => setFilter('search', event.target.value)} placeholder="Reason" /></span></label>
                 <label>Status<select value={filterValues.status} onChange={(event) => setFilter('status', event.target.value)}><option value="">All statuses</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="cancelled">Cancelled</option></select></label>
                 <label>Leave type<select value={filterValues.leave_type_id} onChange={(event) => setFilter('leave_type_id', event.target.value)}><option value="">All types</option>{leaveTypes.map((type) => <option value={type.id} key={type.id}>{type.name}</option>)}</select></label>
                 <label>From<DateInput value={filterValues.date_from} onChange={(event) => setFilter('date_from', event.target.value)} /></label>

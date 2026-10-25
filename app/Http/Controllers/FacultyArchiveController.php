@@ -15,8 +15,9 @@ class FacultyArchiveController extends Controller
 {
     public function index(Request $request)
     {
-        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100']]);
+        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100'], 'employee_id' => ['nullable', 'integer']]);
         $query = Employee::withoutGlobalScope('not_archived')->whereNotNull('archived_at');
+        $query->when($filters['employee_id'] ?? null, fn ($q, $id) => $q->whereKey($id));
         foreach (preg_split('/\s+/', trim($filters['search'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) as $term) {
             $query->where(function ($names) use ($term) {
                 foreach (['employee_no', 'first_name', 'middle_name', 'last_name', 'email'] as $field) {
@@ -30,7 +31,8 @@ class FacultyArchiveController extends Controller
                 ->withCount(['schedules' => fn ($schedules) => $schedules->withoutGlobalScope('visible_faculty'),
                     'scheduleBreaks' => fn ($breaks) => $breaks->withoutGlobalScope('visible_faculty')])
                 ->orderByDesc('archived_at')->orderByDesc('id')->paginate(15)->withQueryString(),
-            'filters' => ['search' => $filters['search'] ?? ''],
+            'filters' => ['search' => $filters['search'] ?? '', 'employee_id' => $filters['employee_id'] ?? ''],
+            'archivedFacultyChoices' => Employee::withoutGlobalScope('not_archived')->whereNotNull('archived_at')->orderBy('last_name')->orderBy('first_name')->get(['id', 'first_name', 'middle_name', 'last_name', 'suffix']),
         ]);
     }
 

@@ -19,6 +19,7 @@ class DtrService
             ->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()])
             ->where('is_legacy', false)->orderBy('scheduled_start')->get()->groupBy(fn ($log) => Carbon::parse($log->attendance_date)->toDateString());
         $rows = collect();
+        $reportSchedules = [];
 
         for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
             $dateString = $date->toDateString();
@@ -36,6 +37,8 @@ class DtrService
                 }
             }
             $historicalSchedules = $historicalSchedules->sortBy('start_time')->values();
+            $reportSchedules[$date->day] = $this->reportIntervals($historicalSchedules,
+                $employee->scheduleBreaks->where('day_of_week', $date->dayOfWeek), $dateString);
             $scheduledSeconds = $historicalSchedules->sum(function ($schedule) use ($dateString) {
                 return Carbon::parse($dateString.' '.$schedule->start_time)->diffInSeconds(Carbon::parse($dateString.' '.$schedule->end_time));
             });
@@ -52,7 +55,8 @@ class DtrService
                 'date' => $dateString, 'day' => $date->day, 'weekday' => $date->format('D'),
                 'has_schedule' => $hasSchedule, 'scheduled_hours' => round($scheduledSeconds / 3600, 4),
                 'scheduled_seconds' => $scheduledSeconds,
-                'schedule_label' => $historicalSchedules->isEmpty() ? null : $this->shortTime($historicalSchedules->first()->start_time).'-'.$this->shortTime($historicalSchedules->last()->end_time),
+                'scheduled_day_start' => $historicalSchedules->min('start_time'), 'scheduled_day_end' => $historicalSchedules->max('end_time'),
+                'schedule_label' => $historicalSchedules->isEmpty() ? null : $this->shortTime($historicalSchedules->min('start_time')).'-'.$this->shortTime($historicalSchedules->max('end_time')),
                 'am_arrival' => $this->timeForColumn($first?->time_in, 'am'), 'am_departure' => $this->timeForColumn($last?->time_out, 'am'),
                 'pm_arrival' => $this->timeForColumn($first?->time_in, 'pm'), 'pm_departure' => $this->timeForColumn($last?->time_out, 'pm'),
                 'late_minutes' => 0, 'undertime_minutes' => 0, 'variance_hours' => 0, 'variance_minutes' => 0,
@@ -79,13 +83,28 @@ class DtrService
         // Form 48 is always a 31-day sheet. These presentation rows never enter payroll totals.
         $byDay = $rows->keyBy('day');
         $month = $start->copy()->startOfMonth();
-        $formRows = collect(range(1, 31))->map(function ($day) use ($byDay, $month) {
+        $formRows = collect(range(1, 31))->map(function ($day) use ($byDay, $month, $reportSchedules) {
             $row = $byDay->get($day);
             $validDay = $day <= $month->daysInMonth;
-            $hasTaps = $row && ($row['time_in'] || $row['time_out']);
-            $shortfallSeconds = $hasTaps ? max(0, $row['scheduled_seconds'] - $row['worked_seconds']) : 0;
+            // Use the daily taps printed on Form 48, capped to the day's scheduled intervals.
+            // Gaps and lunch breaks never count; per-session payroll totals above stay separate.
+            $in = $row['am_arrival'] ?? $row['pm_arrival'] ?? null;
+            $out = $row['am_departure'] ?? $row['pm_departure'] ?? null;
+            $arrival = $in ? Carbon::parse($row['date'].' '.$in, 'Asia/Manila') : null;
+            $departure = $out ? Carbon::parse($row['date'].' '.$out, 'Asia/Manila') : null;
+            $completed = $arrival && $departure && $departure->gt($arrival);
+            $intervals = $reportSchedules[$day] ?? [];
+            $reportSeconds = 0;
+            $reportScheduledSeconds = 0;
+            foreach ($intervals as [$from, $to]) {
+                $reportScheduledSeconds += $to - $from;
+                if ($completed) {
+                    $reportSeconds += max(0, min($departure->timestamp, $to) - max($arrival->timestamp, $from));
+                }
+            }
+            $computed = $completed && $reportScheduledSeconds > 0;
+            $shortfallSeconds = $computed ? max(0, $reportScheduledSeconds - $reportSeconds) : 0;
             $shortfallMinutes = (int) round($shortfallSeconds / 60, 0, PHP_ROUND_HALF_UP);
-            $completed = $row && $row['sessions']->contains(fn ($session) => $session['time_in'] && $session['time_out']);
 
             return [
                 'day' => $day, 'date' => $validDay ? $month->copy()->day($day)->toDateString() : null,
@@ -93,10 +112,12 @@ class DtrService
                 'schedule_label' => $row['schedule_label'] ?? null,
                 'am_arrival' => $row['am_arrival'] ?? null, 'am_departure' => $row['am_departure'] ?? null,
                 'pm_arrival' => $row['pm_arrival'] ?? null, 'pm_departure' => $row['pm_departure'] ?? null,
-                'shortfall_minutes' => $hasTaps ? $shortfallMinutes : null,
+                'worked_seconds' => $computed ? $reportSeconds : null,
+                'worked_hours' => $computed ? round($reportSeconds / 3600, 4) : null,
+                'shortfall_minutes' => $computed ? $shortfallMinutes : null,
                 'undertime_hours' => $shortfallMinutes >= 60 ? intdiv($shortfallMinutes, 60) : null,
                 'undertime_minutes' => $shortfallSeconds > 0 ? $shortfallMinutes % 60 : null,
-                'margin_hours' => $completed && $shortfallSeconds <= 0 ? $row['payable_hours'] : null,
+                'margin_hours' => $computed && $shortfallSeconds <= 0 ? round($reportSeconds / 3600, 4) : null,
             ];
         });
 
@@ -126,6 +147,51 @@ class DtrService
                 'undertime_minutes' => (int) $rows->sum('undertime_minutes'),
             ],
         ];
+    }
+
+    private function reportIntervals($schedules, $breaks, string $date): array
+    {
+        $intervals = [];
+        foreach ($schedules as $schedule) {
+            if (! $schedule->start_time || ! $schedule->end_time) {
+                continue;
+            }
+            $from = Carbon::parse($date.' '.substr($schedule->start_time, 0, 5), 'Asia/Manila')->timestamp;
+            $to = Carbon::parse($date.' '.substr($schedule->end_time, 0, 5), 'Asia/Manila')->timestamp;
+            if ($to > $from) {
+                $intervals[] = [$from, $to];
+            }
+        }
+        sort($intervals);
+        $merged = [];
+        foreach ($intervals as [$from, $to]) {
+            $last = count($merged) - 1;
+            if ($last >= 0 && $from <= $merged[$last][1]) {
+                $merged[$last][1] = max($merged[$last][1], $to);
+            } else {
+                $merged[] = [$from, $to];
+            }
+        }
+        foreach ($breaks->where('schedule_type', 'lunch_break') as $break) {
+            $breakStart = Carbon::parse($date.' '.substr($break->start_time, 0, 5), 'Asia/Manila')->timestamp;
+            $breakEnd = Carbon::parse($date.' '.substr($break->end_time, 0, 5), 'Asia/Manila')->timestamp;
+            $remaining = [];
+            foreach ($merged as [$from, $to]) {
+                if ($breakEnd <= $from || $breakStart >= $to) {
+                    $remaining[] = [$from, $to];
+                } else {
+                    if ($from < $breakStart) {
+                        $remaining[] = [$from, $breakStart];
+                    }
+                    if ($to > $breakEnd) {
+                        $remaining[] = [$breakEnd, $to];
+                    }
+                }
+            }
+            $merged = $remaining;
+        }
+
+        return $merged;
     }
 
     private function timeForColumn(?string $time, string $period): ?string

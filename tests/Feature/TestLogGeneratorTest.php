@@ -10,6 +10,7 @@ use App\Services\DtrService;
 use App\Services\TestAttendanceGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Tests\TestCase;
 
 class TestLogGeneratorTest extends TestCase
@@ -67,13 +68,108 @@ class TestLogGeneratorTest extends TestCase
             }
         }
         $dtr = app(DtrService::class)->build($employee, '2026-10-01', '2026-10-31');
-        $attended = $dtr['form_rows']->whereNotNull('shortfall_minutes');
+        $attended = $dtr['rows']->filter(fn ($row) => $row['time_in']);
         $this->assertCount(27, $attended);
-        $this->assertSame(22, $attended->where('shortfall_minutes', 0)->count());
-        $this->assertSame(5, $attended->where('shortfall_minutes', '>', 0)->count());
+        $this->assertSame(22, $attended->filter(fn ($row) => (int) $row['worked_seconds'] === (int) $row['scheduled_seconds'])->count());
+        $this->assertSame(5, $attended->filter(fn ($row) => $row['worked_seconds'] < $row['scheduled_seconds'])->count());
         $before = $logs->toArray();
         $this->post('/attendance/generate-test', $data)->assertSessionHasNoErrors();
         $this->assertSame($before, AttendanceLog::orderBy('attendance_date')->orderBy('scheduled_start')->get()->toArray());
+    }
+
+    public function test_overwrite_replaces_all_scoped_logs_including_legacy_orphan_incomplete_and_future_records(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-07 18:00', 'Asia/Manila'));
+        $employee = $this->employee();
+        $class = $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'subject' => 'DCIT 21A', 'section' => 'BSIT 1A']);
+        $consultation = $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'consultation', 'start_time' => '10:00', 'end_time' => '11:00']);
+        $source = AttendanceLog::create(['employee_id' => $employee->id, 'attendance_date' => '2026-10-05', 'is_legacy' => true, 'time_in' => '08:00', 'time_out' => '11:00']);
+        $old = collect([$source]);
+        foreach ([
+            ['attendance_date' => '2026-10-05', 'faculty_schedule_id' => $class->id, 'legacy_source_id' => $source->id, 'remarks' => 'Reconstructed from legacy daily attendance'],
+            ['attendance_date' => '2026-10-05', 'faculty_schedule_id' => $consultation->id, 'time_in' => '10:00', 'time_out' => null],
+            ['attendance_date' => '2026-10-06', 'subject' => 'Removed schedule', 'method_in' => 'manual'],
+            ['attendance_date' => '2026-10-12', 'faculty_schedule_id' => $class->id, 'method_in' => 'fingerprint'],
+        ] as $attributes) {
+            $old->push(AttendanceLog::create(['employee_id' => $employee->id, ...$attributes]));
+        }
+        $before = AttendanceLog::create(['employee_id' => $employee->id, 'attendance_date' => '2026-09-30', 'remarks' => 'Keep previous cutoff']);
+        $after = AttendanceLog::create(['employee_id' => $employee->id, 'attendance_date' => '2026-10-16', 'remarks' => 'Keep next cutoff']);
+        $other = $employee->replicate();
+        $other->employee_no = 'GEN-2';
+        $other->save();
+        $otherLog = AttendanceLog::create(['employee_id' => $other->id, 'attendance_date' => '2026-10-05', 'remarks' => 'Keep unselected faculty']);
+        $preserved = collect([$before, $after, $otherLog])->mapWithKeys(fn ($log) => [$log->id => $log->fresh()->toArray()]);
+        $request = ['target_mode' => 'selected', 'employee_ids' => [$employee->id], 'generation_mode' => 'overwrite', 'start_date' => '2026-10-01', 'end_date' => '2026-10-15'];
+        $this->actingAs(User::factory()->create(['role' => 'payroll_staff']))->post('/attendance/generate-test', $request)->assertSessionHasNoErrors();
+        foreach ($old as $log) {
+            $this->assertDatabaseMissing('attendance_logs', ['id' => $log->id]);
+        }
+        foreach ($preserved as $id => $attributes) {
+            $this->assertSame($attributes, AttendanceLog::findOrFail($id)->toArray());
+        }
+        $fresh = AttendanceLog::where('employee_id', $employee->id)->whereBetween('attendance_date', ['2026-10-01', '2026-10-15'])->get();
+        $this->assertCount(2, $fresh);
+        foreach ($fresh as $log) {
+            $this->assertNull($log->legacy_source_id);
+            $this->assertFalse($log->is_legacy);
+            $this->assertSame('Generated class test attendance.', $log->remarks);
+            $this->assertSame('present', $log->status);
+            $this->assertSame('rfid', $log->method_in);
+            $this->assertSame('rfid', $log->method_out);
+            $this->assertSame('2026-10-05', $log->attendance_date);
+        }
+        $sessions = app(DtrService::class)->build($employee->fresh(), '2026-10-01', '2026-10-15')['rows']->flatMap(fn ($row) => $row['sessions']);
+        $this->assertTrue($sessions->every(fn ($session) => ! $session['reconstructed']));
+        $this->post('/attendance/generate-test', $request)->assertSessionHasNoErrors();
+        $this->assertSame(2, AttendanceLog::where('employee_id', $employee->id)->whereBetween('attendance_date', ['2026-10-01', '2026-10-15'])->count());
+    }
+
+    public function test_fill_missing_does_not_delete_or_relabel_legacy_records(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-07 18:00', 'Asia/Manila'));
+        $employee = $this->employee();
+        $schedule = $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00']);
+        $source = AttendanceLog::create(['employee_id' => $employee->id, 'attendance_date' => '2026-10-05', 'is_legacy' => true]);
+        AttendanceLog::create(['employee_id' => $employee->id, 'attendance_date' => '2026-10-05', 'faculty_schedule_id' => $schedule->id, 'is_legacy' => false, 'legacy_source_id' => $source->id, 'remarks' => 'Reconstructed from legacy daily attendance']);
+        $before = AttendanceLog::orderBy('id')->get()->toArray();
+        $this->actingAs(User::factory()->create(['role' => 'payroll_staff']))->post('/attendance/generate-test', ['target_mode' => 'selected', 'employee_ids' => [$employee->id], 'generation_mode' => 'fill_missing', 'start_date' => '2026-10-01', 'end_date' => '2026-10-15'])->assertSessionHasNoErrors();
+        $this->assertSame($before, AttendanceLog::orderBy('id')->get()->toArray());
+    }
+
+    public function test_overwrite_rolls_back_every_faculty_if_generation_fails(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-07 18:00', 'Asia/Manila'));
+        $first = $this->employee();
+        $second = $first->replicate();
+        $second->employee_no = 'GEN-2';
+        $second->save();
+        foreach ([$first, $second] as $employee) {
+            $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00']);
+            AttendanceLog::create(['employee_id' => $employee->id, 'attendance_date' => '2026-10-05', 'is_legacy' => true, 'remarks' => 'Keep on failure']);
+        }
+        $before = AttendanceLog::orderBy('id')->get()->toArray();
+        $this->app->instance(TestAttendanceGenerator::class, new class extends TestAttendanceGenerator
+        {
+            private int $calls = 0;
+
+            public function pairs(Collection $schedules, Carbon $date, Carbon $now, Collection $existing, bool $overwrite, bool $shortfall): array
+            {
+                if (++$this->calls === 2) {
+                    throw new \RuntimeException('Generation failed for test');
+                }
+
+                return parent::pairs($schedules, $date, $now, $existing, $overwrite, $shortfall);
+            }
+        });
+        $this->withoutExceptionHandling();
+        try {
+            $this->actingAs(User::factory()->create(['role' => 'payroll_staff']))->post('/attendance/generate-test', ['target_mode' => 'all', 'generation_mode' => 'overwrite', 'start_date' => '2026-10-01', 'end_date' => '2026-10-15']);
+            $this->fail('Expected the injected generation failure.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('Generation failed for test', $exception->getMessage());
+        }
+        $this->assertSame($before, AttendanceLog::orderBy('id')->get()->toArray());
     }
 
     public function test_early_and_late_taps_do_not_overlap_adjacent_sessions_or_go_into_the_future(): void

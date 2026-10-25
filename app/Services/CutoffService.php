@@ -10,6 +10,9 @@ class CutoffService
     public static function range(?string $value = null): array
     {
         $start = $value ? Carbon::parse($value, 'Asia/Manila')->startOfDay() : Carbon::today('Asia/Manila');
+        if ($start->year < 2000 || $start->year > 2100) {
+            throw ValidationException::withMessages(['cutoff_start' => 'Enter a year from 2000 to 2100.']);
+        }
         if (! $value) {
             $start->day($start->day <= 15 ? 1 : 16);
         }

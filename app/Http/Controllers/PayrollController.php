@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRecord;
+use App\Services\CutoffService;
 use App\Services\PayrollComputationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -20,15 +21,22 @@ class PayrollController extends Controller
     {
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
+            'employee_id' => ['nullable', 'integer', 'exists:employees,id'],
+            'cutoff_start' => ['nullable', 'date_format:Y-m-d'],
             'period' => ['nullable', 'integer', 'exists:payroll_periods,id'],
             'status' => ['nullable', 'in:draft,approved,released'],
         ]);
         $records = PayrollRecord::with(['employee', 'payrollPeriod'])->latest();
+        $selectedPeriod = ! empty($filters['period']) ? PayrollPeriod::find($filters['period']) : null;
+        [$start, $end] = CutoffService::range($filters['cutoff_start'] ?? $selectedPeriod?->start_date);
+        $filters['cutoff_start'] = $start->toDateString();
+        $records->whereHas('payrollPeriod', fn ($q) => $q->whereDate('start_date', $start)->whereDate('end_date', $end));
 
         if (Auth::user()->role === 'faculty') {
             $records->where('employee_id', Auth::user()->employee_id)
                 ->where('status', 'released');
         } else {
+            $records->when($filters['employee_id'] ?? null, fn ($q, $id) => $q->where('employee_id', $id));
             $terms = preg_split('/\s+/', trim($filters['search'] ?? ''), -1, PREG_SPLIT_NO_EMPTY);
             foreach ($terms as $term) {
                 $records->where(function ($recordQuery) use ($term) {
@@ -52,8 +60,10 @@ class PayrollController extends Controller
         return Inertia::render('Payroll/Index', [
             'periods' => $periods,
             'records' => $records->paginate(15)->withQueryString(),
-            'filters' => Auth::user()->role === 'faculty' ? [] : [
+            'filters' => Auth::user()->role === 'faculty' ? ['cutoff_start' => $filters['cutoff_start'] ?? ''] : [
                 'search' => $filters['search'] ?? '',
+                'employee_id' => $filters['employee_id'] ?? '',
+                'cutoff_start' => $filters['cutoff_start'] ?? '',
                 'period' => $filters['period'] ?? '',
                 'status' => $filters['status'] ?? '',
             ],
@@ -64,7 +74,7 @@ class PayrollController extends Controller
     {
         $data = $request->validate([
             'period_name' => ['nullable', 'string', 'max:100'],
-            'start_date' => ['required', 'date'],
+            'start_date' => ['required', 'date', 'after_or_equal:2000-01-01', 'before_or_equal:2100-12-31'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'pay_date' => ['nullable', 'date'],
         ]);
@@ -91,7 +101,7 @@ class PayrollController extends Controller
 
         PayrollPeriod::create($data);
 
-        return redirect()->route('payroll.index')->with('success', 'Payroll period created.');
+        return redirect()->route('payroll.index', ['cutoff_start' => $start->toDateString()])->with('success', 'Payroll period created.');
     }
 
     public function generate(PayrollPeriod $period, PayrollComputationService $payrollCalculator)
@@ -115,7 +125,7 @@ class PayrollController extends Controller
 
         $period->update(['status' => 'processing']);
 
-        return redirect()->route('payroll.index')->with('success', 'Payroll generated from attendance logs.');
+        return redirect()->route('payroll.index', ['cutoff_start' => Carbon::parse($period->start_date)->toDateString()])->with('success', 'Payroll generated from attendance logs.');
     }
 
     public function show(PayrollRecord $record)

@@ -1,30 +1,38 @@
-import { FORM48, form48Cells } from './form48Layout.js';
+import { FORM48, cellBounds, form48Cells } from './form48Layout.js';
 
 export async function createForm48Workbook(dtr) {
     const { default: ExcelJS } = await import('exceljs');
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'DCS Payroll System';
+    const cells = form48Cells(dtr);
+    // Header underlines have their own boundaries; merge body cells across them.
+    const columns = [...new Set([...FORM48.columns, ...cells.flatMap((cell) => {
+        const box = cellBounds(cell);
+        return [box.x, box.x + box.width];
+    })])].sort((a, b) => a - b);
     const sheet = workbook.addWorksheet('Form 48', {
         views: [{ showGridLines: false }],
         pageSetup: {
             paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 1,
             horizontalCentered: true, verticalCentered: false,
             margins: { left: 20 / 25.4, right: 20 / 25.4, top: 10 / 25.4, bottom: 20 / 25.4, header: 0, footer: 0 },
-            printArea: 'A1:I54',
         },
     });
-    for (let col = 0; col < 9; col++) {
-        const pixels = (FORM48.columns[col + 1] - FORM48.columns[col]) * 96 / 25.4;
-        sheet.getColumn(col + 1).width = (pixels - 5) / 7;
+    for (let col = 0; col < columns.length - 1; col++) {
+        const pixels = (columns[col + 1] - columns[col]) * 96 / 25.4;
+        sheet.getColumn(col + 1).width = pixels < 12 ? pixels / 12 : (pixels - 5) / 7;
     }
+    sheet.pageSetup.printArea = `A1:${sheet.getColumn(columns.length - 1).letter}54`;
     for (let row = 0; row < FORM48.rows.length - 1; row++) sheet.getRow(row + 1).height = (FORM48.rows[row + 1] - FORM48.rows[row]) * 72 / 25.4;
-    for (const cell of form48Cells(dtr)) {
-        const row = cell.row + 1, col = cell.col + 1;
-        if (cell.endCol != null || cell.endRow != null) sheet.mergeCells(row, col, (cell.endRow ?? cell.row) + 1, (cell.endCol ?? cell.col) + 1);
+    for (const cell of cells) {
+        const box = cellBounds(cell);
+        const row = cell.row + 1, col = columns.indexOf(box.x) + 1;
+        const endCol = columns.indexOf(box.x + box.width);
+        if (endCol !== col || cell.endRow != null) sheet.mergeCells(row, col, (cell.endRow ?? cell.row) + 1, endCol);
         const target = sheet.getCell(row, col);
-        target.value = cell.value ?? null;
+        target.value = cell.runs ? { richText: cell.runs.map((run) => ({ text: run.text, font: { name: 'Arial', size: cell.size, bold: run.bold, color: { argb: 'FF111111' } } })) } : cell.value ?? null;
         target.font = { name: 'Arial', size: cell.size, bold: !!cell.bold, color: { argb: 'FF111111' } };
-        target.alignment = { horizontal: cell.align, vertical: 'middle', indent: cell.padding ? 1 : 0, wrapText: String(cell.value ?? '').includes('\n'), shrinkToFit: !String(cell.value ?? '').includes('\n') };
+        target.alignment = { horizontal: cell.align, vertical: 'middle', indent: cell.excelIndent ?? (cell.padding && cell.padding > 0.5 ? 1 : 0), wrapText: String(cell.value ?? '').includes('\n'), shrinkToFit: !String(cell.value ?? '').includes('\n') };
         target.protection = { locked: false };
         if (cell.format) target.numFmt = cell.format;
         const edge = { style: 'thin', color: { argb: 'FF111111' } };

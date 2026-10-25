@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Employee;
 use App\Models\SystemSetting;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -51,6 +52,8 @@ class HandleInertiaRequests extends Middleware
                 ] : null,
             ],
             'academicTerm' => fn () => SystemSetting::academicTerm(),
+            'facultyChoices' => fn () => $request->user() && in_array($request->user()->role, ['admin', 'payroll_staff'], true)
+                ? Employee::orderBy('last_name')->orderBy('first_name')->get(['id', 'first_name', 'middle_name', 'last_name', 'suffix']) : [],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'temporaryCredentials' => fn () => $request->session()->get('temporary_credentials'),

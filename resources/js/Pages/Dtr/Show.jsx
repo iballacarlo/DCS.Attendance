@@ -1,38 +1,22 @@
+import CutoffPicker from '../../components/CutoffPicker';
 import { router } from '@inertiajs/react';
 import { FileSpreadsheet, Printer } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
 import Form48 from '../../components/Form48';
+import FacultyCombobox from '../../components/FacultyCombobox';
 import useConfirmDialog from '../../hooks/useConfirmDialog';
 import { formatDate, fullName, time12 } from '../../lib/format';
 import { documentFilename, openPdfPrintWindow, sendPdfToPrint } from '../../lib/documents';
 
-const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const displayWorkedHours = (record, hours) => record.time_in || record.time_out ? Number(hours).toFixed(2) : '';
 
 export default function DtrShow({ dtr, employees, canSelectFaculty }) {
     const [action, setAction] = useState(null);
     const { ask, dialog } = useConfirmDialog();
     const { employee, cutoff } = dtr;
-    const [year, month, day] = cutoff.start_date.split('-');
-    const [yearDraft, setYearDraft] = useState(year);
-    const [yearError, setYearError] = useState('');
-    useEffect(() => { setYearDraft(year); setYearError(''); }, [cutoff.start_date]);
     const sessions = dtr.rows.flatMap((row) => row.sessions.map((session) => ({ ...session, date: row.date })));
     const reload = (values) => router.get('/attendance/dtr', { employee_id: employee.id, start_date: cutoff.start_date, ...values }, { preserveState: true, preserveScroll: true });
-    const changeDate = (nextYear = yearDraft, nextMonth = month, nextDay = day) => {
-        if (!/^\d{4}$/.test(nextYear) || Number(nextYear) < 1900 || Number(nextYear) > 2100) {
-            setYearError('Enter a year from 1900 to 2100.'); return;
-        }
-        reload({ start_date: `${nextYear}-${nextMonth}-${nextDay}` });
-    };
-    const applyYear = () => {
-        if (!/^\d{4}$/.test(yearDraft) || Number(yearDraft) < 1900 || Number(yearDraft) > 2100) {
-            setYearError('Enter a year from 1900 to 2100.'); return;
-        }
-        setYearError('');
-        if (yearDraft !== year) changeDate(yearDraft);
-    };
     const exportDocument = async (kind, operation) => {
         if (action) return;
         const popup = operation === 'print' ? openPdfPrintWindow() : null;
@@ -66,12 +50,9 @@ export default function DtrShow({ dtr, employees, canSelectFaculty }) {
 
     return <AppLayout title="Daily Time Record" subtitle="Civil Service Form No. 48 and separate class attendance reports.">
         <div className="dtr-export-toolbar dtr-form-controls print-hidden">
-            {canSelectFaculty && <label className="dtr-faculty-select">Faculty<select disabled={!!action} value={employee.id} onChange={(e) => reload({ employee_id: e.target.value })}>{employees.map((item) => <option value={item.id} key={item.id}>{fullName(item)} · {item.employee_no}</option>)}</select></label>}
-            <label>Month<select disabled={!!action} value={month} onChange={(e) => changeDate(undefined, e.target.value)}>{months.map((name, i) => <option value={String(i + 1).padStart(2, '0')} key={name}>{name}</option>)}</select></label>
-            <label className="dtr-year-control">Year<input aria-label="DTR year" type="number" min="1900" max="2100" step="1" disabled={!!action} value={yearDraft} onChange={(e) => setYearDraft(e.target.value)} onBlur={applyYear} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }} aria-invalid={!!yearError} aria-describedby={yearError ? 'dtr-year-error' : undefined} /></label>
-            <label>Cutoff<select disabled={!!action} value={day} onChange={(e) => changeDate(undefined, month, e.target.value)}><option value="01">1–15</option><option value="16">16–month end</option></select></label>
+            {canSelectFaculty && <FacultyCombobox employees={employees} selectedId={employee.id} disabled={!!action} onSelect={(id) => reload({ employee_id: id })} />}
+            <CutoffPicker value={cutoff.start_date} disabled={!!action} onChange={(period) => reload({ start_date: period.start })} />
             <div className="dtr-form-export-actions">{exportButton('form', 'print', 'Print DTR', Printer)}{exportButton('form', 'excel', 'Download Excel', FileSpreadsheet)}</div>
-            {yearError && <p className="dtr-year-error" id="dtr-year-error" role="alert">{yearError}</p>}
             <p className="dtr-excel-note">Excel cells can be edited manually after download. Changes to that file do not update attendance or payroll in the system.</p>
         </div>
         <div className="dtr-sheet-viewport"><Form48 dtr={dtr} /></div>

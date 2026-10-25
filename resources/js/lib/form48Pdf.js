@@ -7,7 +7,16 @@ export function drawForm48(pdf, dtr) {
         if (cell.border === 'box') pdf.rect(box.x, box.y, box.width, box.height);
         if (cell.border === 'bottom') pdf.line(box.x, box.y + box.height, box.x + box.width, box.y + box.height);
         pdf.setFont('helvetica', cell.bold ? 'bold' : 'normal'); pdf.setFontSize(cell.size);
-        for (const line of cellText(cell)) pdf.text(line.text, line.x, line.y, { align: cell.align });
+        for (const line of cellText(cell)) {
+            if (cell.runs) {
+                let x = line.x;
+                for (const run of cell.runs) {
+                    pdf.setFont('helvetica', run.bold ? 'bold' : 'normal');
+                    pdf.text(run.text, x, line.y);
+                    x += pdf.getTextWidth(run.text);
+                }
+            } else pdf.text(line.text, line.x, line.y, { align: cell.align });
+        }
     }
     return pdf;
 }
