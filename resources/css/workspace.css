@@ -23,7 +23,7 @@
     #workspace .payroll-record-filters > label { flex: .8 1 150px; min-width: 105px; }
     #workspace .payroll-record-filters > .clear-filters { flex: 0 0 auto; margin: 0; }
     #workspace .payroll-record-filters :is(input, select, button.clear-filters) { height: 44px; min-height: 44px; }
-    #workspace .attendance-toolbar { display: flex; flex-wrap: nowrap; align-items: flex-end; gap: 12px; padding: 18px; }
+    #workspace .attendance-toolbar { position: relative; z-index: 2; overflow: visible; display: flex; flex-wrap: nowrap; align-items: flex-end; gap: 12px; padding: 18px; }
     #workspace .attendance-filter-fields { display: flex; flex: 1 1 auto; flex-wrap: nowrap; align-items: flex-end; gap: 10px; min-width: 0; }
     #workspace .attendance-filter-fields > label { display: grid; flex: 1 1 115px; gap: 6px; margin: 0; width: auto; min-width: 90px; }
     #workspace .attendance-filter-fields > .cutoff-picker { flex: 1.6 1 340px; min-width: 285px; }

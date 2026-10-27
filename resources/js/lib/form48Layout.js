@@ -17,7 +17,7 @@ export function form48Cells(dtr) {
     const cells = [];
     const add = (row, col, value = '', options = {}) => cells.push({ row, col, value, size: 9, align: 'center', ...options });
     const name = fullName(dtr.employee).toUpperCase();
-    add(0, 1, 'Civil Service Form No. 48', { endCol: 7, align: 'left', size: 10, padding: 6, excelIndent: 2 });
+    add(0, 1, 'Civil Service Form No. 48', { endCol: 7, align: 'left', bold: true, size: 10, padding: 6, excelIndent: 2 });
     add(2, 1, 'DAILY TIME RECORD', { endCol: 7, bold: true, size: 11 });
     add(4, 1, name, { endCol: 7, bold: true, size: Math.min(11, Math.max(6, 420 / name.length)), border: 'bottom' });
     add(5, 1, '(NAME)', { endCol: 7, size: 9, bold: true });
