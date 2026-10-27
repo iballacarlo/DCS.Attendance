@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { ArrowDownLeft, ArrowUpRight, CheckCircle2, LogOut, Nfc, ScanLine, ShieldCheck, UserRound } from 'lucide-react';
 import '../../../css/kiosk.css';
+import { scanRfid } from '../../lib/scanRfid';
 
 export default function EntranceKiosk() {
     const { auth, flash } = usePage().props;
@@ -13,6 +14,10 @@ export default function EntranceKiosk() {
     const [previewError, setPreviewError] = useState('');
     const [revision, setRevision] = useState(0);
     const [checking, setChecking] = useState(false);
+    const [scanning, setScanning] = useState(false);
+    const [scanMessage, setScanMessage] = useState('');
+    const scanner = useRef(null);
+    useEffect(() => () => scanner.current?.abort(), []);
     const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(clock);
     const key = JSON.stringify([form.data.identifier.trim(), form.data.occurred_at, day]);
     useEffect(() => { const timer = setInterval(() => setClock(new Date()), 1000); return () => clearInterval(timer); }, []);
@@ -40,6 +45,30 @@ export default function EntranceKiosk() {
         form.post('/entrance-kiosk', { preserveScroll: true, onSuccess: () => { input.current?.focus(); input.current?.select(); }, onFinish: () => setRevision((value) => value + 1) });
     };
     const change = (field, value) => { form.clearErrors(); form.setData(field, value); };
+    const startScan = async () => {
+        if (scanner.current || form.processing) return;
+        const controller = new AbortController();
+        scanner.current = controller;
+        setScanning(true);
+        setScanMessage('Hold the RFID card near the back of this phone.');
+        setPreview(null);
+        change('identifier', '');
+        try {
+            const uid = await scanRfid({ signal: controller.signal, onReadingError: setScanMessage });
+            if (!controller.signal.aborted) {
+                change('identifier', uid);
+                setScanMessage('Card scanned. Check the faculty name, then record attendance.');
+                setRevision((value) => value + 1);
+            }
+        } catch (error) {
+            if (!controller.signal.aborted) setScanMessage(error.message);
+        } finally {
+            controller.abort();
+            if (scanner.current === controller) scanner.current = null;
+            setScanning(false);
+        }
+    };
+    const stopScan = () => { scanner.current?.abort(); setScanMessage('Scan stopped.'); };
     return <>
         <Head title="Entrance Kiosk | DCS Attendance & DTR" />
         <main className="guard-kiosk">
@@ -54,7 +83,8 @@ export default function EntranceKiosk() {
                 <div className="guard-kiosk-title"><div><span className="kiosk-eyebrow">RFID SIMULATOR</span><h2 id="kiosk-record-title">Record attendance</h2></div><span className="kiosk-title-icon"><ScanLine size={23} strokeWidth={1.6} /></span></div>
                 {flash?.success && !previewError && !Object.keys(form.errors).length && <div className="guard-kiosk-success" role="status"><CheckCircle2 size={18} /><span>{flash.success}</span></div>}
                 <form onSubmit={submit}>
-                    <label>RFID UID<span className="kiosk-uid-field"><ScanLine size={20} strokeWidth={1.6} /><input ref={input} autoFocus autoComplete="off" value={form.data.identifier} onChange={(e) => change('identifier', e.target.value.toUpperCase())} placeholder="Type or scan RFID UID" required maxLength={100} /></span></label>
+                    <div className="kiosk-nfc-controls"><button type="button" className="kiosk-scan-button" onClick={scanning ? stopScan : startScan} disabled={form.processing}><Nfc size={19} />{scanning ? 'Stop scanning' : 'Scan RFID'}</button><span role="status" aria-live="polite">{scanMessage}</span></div>
+                    <label>RFID UID<span className="kiosk-uid-field"><ScanLine size={20} strokeWidth={1.6} /><input ref={input} autoFocus autoComplete="off" value={form.data.identifier} onChange={(e) => { setScanMessage(''); change('identifier', e.target.value.toUpperCase()); }} placeholder="Type or scan RFID UID" required maxLength={100} disabled={scanning || form.processing} /></span></label>
                     <div className={`guard-kiosk-preview${previewError ? ' has-error' : ''}${current ? ' has-faculty' : ''}`} role="status"><UserRound size={19} /><span>{checking ? 'Checking RFID...' : previewError || (current ? `${current.employee}${!current.next_action ? ' · Attendance complete' : ''}` : 'Waiting for RFID')}</span>{current && !current.next_action && <CheckCircle2 size={18} />}</div>
                     <div className="guard-kiosk-actions" aria-label="Automatic attendance direction">{['IN', 'OUT'].map((action) => <span key={action} className={`guard-kiosk-direction is-${action.toLowerCase()}${next === action ? ' active' : ''}`} aria-current={next === action ? 'step' : undefined}>{action === 'IN' ? <ArrowDownLeft size={23} /> : <ArrowUpRight size={23} />}<span><small>{action === 'IN' ? 'ARRIVAL' : 'DEPARTURE'}</small><strong>School {action}</strong></span>{next === action && <span className="kiosk-active-dot" />}</span>)}</div>
                     <div className="guard-kiosk-test"><label>Test date/time (optional)<input type="datetime-local" value={form.data.occurred_at} onChange={(e) => change('occurred_at', e.target.value)} /></label>{form.data.occurred_at && <button type="button" onClick={() => change('occurred_at', '')}>Use current time</button>}</div>

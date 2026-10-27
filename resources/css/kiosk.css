@@ -29,6 +29,12 @@
 .guard-kiosk-title h2 { margin: 0; color: var(--kiosk-ink); font-size: 24px; font-weight: 700; letter-spacing: -.8px; }
 .kiosk-title-icon { width: 42px; height: 42px; flex-shrink: 0; border: 1px solid #dce7de; color: #59836a; background: #f7faf7; border-radius: 12px; display: grid; place-items: center; }
 .guard-kiosk-card form { display: grid; gap: 15px; }
+.kiosk-nfc-controls { display: grid; gap: 7px; }
+.guard-kiosk .kiosk-scan-button { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 42px; border: 1px solid #aac7b4; border-radius: 9px; background: #f0f7f2; color: #155c40; font-size: 13px; font-weight: 700; box-shadow: none; }
+.guard-kiosk .kiosk-scan-button:hover:not(:disabled) { background: #e2f0e6; }
+.guard-kiosk .kiosk-scan-button:disabled { opacity: .5; cursor: not-allowed; }
+.kiosk-nfc-controls > span { color: #536b5b; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.kiosk-nfc-controls > span:empty { display: none; }
 .guard-kiosk .guard-kiosk-card label { display: grid; gap: 8px; color: #385244; font-size: 12px; font-weight: 700; }
 .kiosk-uid-field { display: flex; align-items: center; gap: 11px; padding: 0 14px; border: 1px solid #c7d9cd; border-radius: 10px; color: #60836d; background: #fafcfb; }
 .kiosk-uid-field:focus-within { outline: 3px solid #3b8b5e18; border-color: #3b8b5e; background: white; }
