@@ -54,7 +54,7 @@ class SelectiveBackupTest extends TestCase
         $block = $this->schedule($first);
         $this->schedule($second);
         $this->actingAs(User::factory()->create(['role' => 'admin']));
-        $this->get('/settings/backup')->assertOk()->assertInertia(fn (Assert $page) => $page->has('backupGroups', 10)->has('facultyChoices', 2));
+        $this->get('/settings/backup')->assertOk()->assertInertia(fn (Assert $page) => $page->has('backupGroups', 9)->has('facultyChoices', 2));
         $backup = $this->download(['schedules'], [$first->id]);
         $this->assertSame(2, $backup['version']);
         $this->assertSame([$first->id], array_column($backup['tables']['employees'], 'id'));
@@ -171,7 +171,7 @@ class SelectiveBackupTest extends TestCase
     {
         $employee = $this->faculty('ONE');
         $this->schedule($employee);
-        foreach (['faculty', 'payroll_staff'] as $role) {
+        foreach (['faculty'] as $role) {
             $this->actingAs(User::factory()->create(['role' => $role, 'employee_id' => $role === 'faculty' ? $employee->id : null]));
             $this->get('/settings/backup')->assertForbidden();
             $this->get('/settings/backup/download')->assertForbidden();

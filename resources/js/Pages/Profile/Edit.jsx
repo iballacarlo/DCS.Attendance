@@ -110,16 +110,14 @@ export default function ProfileEdit({ profileUser }) {
                     <button className="add-history-button ui-control ui-action ui-primary" type="button" onClick={addEmployment}><Plus size={16} />Add Employment</button>
                     <ErrorMessage message={form.errors.employment_history} />
                 </div>
-                <div className="form-section-title"><span><BriefcaseBusiness size={17} /></span><div><strong>Employment details</strong><small>Managed by the payroll administrator</small></div></div>
+                <div className="form-section-title"><span><BriefcaseBusiness size={17} /></span><div><strong>Employment details</strong><small>Managed by the system administrator</small></div></div>
                 <div className="profile-employment-grid">
                     <label>Employee Number<input value={employee.employee_no || '-'} readOnly /></label>
                     <label>Rank<input value={employee.faculty_rank?.name || '-'} readOnly /></label>
-                    <label>Hourly Rate<input value={money(employee.rate_amount)} readOnly /></label>
                     <label>Employment Status<input value={employee.status || '-'} readOnly /></label>
                     <label>Contract Start<input value={formatDate(employee.contract_start)} readOnly /></label>
                     <label>Contract End<input value={formatDate(employee.contract_end)} readOnly /></label>
                 </div>
-                <p className="profile-readonly-note">Contact an administrator to correct employment, rank, rate, contract, or status information.</p>
             </> : <div className="profile-contact-fields">
                 <label>Display Name<input autoComplete="name" value={form.data.name} onChange={(event) => form.setData('name', event.target.value)} required /><ErrorMessage message={form.errors.name} /></label>
                 <label>Email Address<input type="email" autoComplete="email" value={form.data.email} onChange={(event) => form.setData('email', event.target.value)} required /><ErrorMessage message={form.errors.email} /></label>

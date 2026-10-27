@@ -1,135 +1,17 @@
-import { formatDate } from '../lib/format';
-import { Link, usePage } from '@inertiajs/react';
-import { ArrowUpRight, CalendarCheck2, CalendarClock, CalendarDays, Clock3, GraduationCap, Wallet } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import AppLayout from '../Layouts/AppLayout';
+import { Link, router, usePage } from '@inertiajs/react';
 import useRealtimeReload from '../hooks/useRealtimeReload';
-import { fullName, money, time12 } from '../lib/format';
+import AppLayout from '../Layouts/AppLayout';
+import ClassAnalytics from '../components/ClassAnalytics';
+import { fullName, time12, formatDate } from '../lib/format';
 
-function MetricTile({ href, icon: Icon, label, value, tone }) {
-    return <Link href={href} className={`bento-metric ${tone}`}>
-        <span className="metric-icon"><Icon size={19} strokeWidth={1.8} /></span>
-        <span className="metric-copy"><small>{label}</small><strong>{value}</strong></span>
-        <ArrowUpRight className="metric-arrow" size={17} />
-    </Link>;
-}
-
-function AcademicTermContext({ canEdit, value }) {
-    return <section className="dashboard-academic-context" aria-label="Current academic term">
-        <CalendarDays size={18} strokeWidth={1.8} />
-        <span>Academic Period</span>
-        <strong>{value || '-'}</strong>
-        {canEdit && <Link href="/settings/general">Edit <ArrowUpRight size={14} /></Link>}
-    </section>;
-}
-
-function FacultyDashboardOverview({ academicTermLabel, user }) {
-    const [clock, setClock] = useState(new Date());
-
-    useEffect(() => {
-        const timer = window.setInterval(() => setClock(new Date()), 1000);
-        return () => window.clearInterval(timer);
-    }, []);
-
-    const clockTime = new Intl.DateTimeFormat('en-PH', {
-        timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
-    }).format(clock);
-    const employee = user.employee;
-
-    return <section className="faculty-dashboard-overview" aria-label="Faculty account overview">
-        <div className="faculty-dashboard-identity">
-            <h2>{fullName(employee)}</h2>
-            <p>{employee?.employee_no || '-'} <i></i> {employee?.department || 'Cavite State University - Imus Campus'}</p>
-        </div>
-        <div className="faculty-dashboard-term">
-            <small>Current Academic Term</small>
-            <strong>{academicTermLabel || '-'}</strong>
-        </div>
-        <div className="faculty-dashboard-clock" aria-label="Current Philippine time">
-            <small>Philippine Time</small>
-            <strong>{clockTime}</strong>
-        </div>
-    </section>;
-}
-
-export default function Dashboard({ employeeCount, presentToday, openPeriods, attendanceTrend = [], latestPayrolls, recentAttendance, contractWarnings = [], todaySchedule = [], scheduleDate }) {
-    const { academicTerm, auth } = usePage().props;
-    const isFaculty = auth.user.role === 'faculty';
-    const academicTermLabel = academicTerm?.semester && academicTerm?.school_year
-        ? `${academicTerm.semester.toUpperCase()} SY ${academicTerm.school_year}`
-        : academicTerm?.label;
-    const highestAttendance = Math.max(1, ...attendanceTrend.map((item) => item.count));
-
-    useRealtimeReload(isFaculty
-        ? ['latestPayrolls', 'recentAttendance', 'contractWarnings', 'todaySchedule', 'scheduleDate']
-        : ['employeeCount', 'presentToday', 'openPeriods', 'attendanceTrend', 'latestPayrolls', 'recentAttendance', 'contractWarnings'], 5000);
-
-    return <AppLayout title="Dashboard" subtitle={isFaculty ? 'Your attendance and payroll summary.' : 'Overview of faculty attendance and payroll activity.'}>
-        {contractWarnings.length > 0 && <section className="contract-warning" role="status">
-            <span className="contract-warning-icon"><CalendarClock size={20} /></span>
-            <div><strong>Contract expiration reminder</strong><span>{contractWarnings.map((employee) => `${fullName(employee)} - ${employee.days_remaining === 0 ? 'ends today' : `${employee.days_remaining} day${employee.days_remaining === 1 ? '' : 's'} left`}`).join(' | ')}</span></div>
-            {!isFaculty && <Link href="/employees">Review faculty <ArrowUpRight size={15} /></Link>}
-        </section>}
-        {isFaculty
-            ? <FacultyDashboardOverview academicTermLabel={academicTermLabel} user={auth.user} />
-            : <AcademicTermContext canEdit={auth.user.role === 'admin'} value={academicTermLabel} />}
-        <section className={`bento-dashboard${isFaculty ? ' faculty-bento' : ''}`}>
-            {!isFaculty && <>
-                <MetricTile href={auth.user.role === 'admin' ? '/employees' : '/attendance'} icon={GraduationCap} label="Faculty" value={employeeCount} tone="metric-green" />
-                <MetricTile href="/attendance" icon={Clock3} label="Present today" value={presentToday} tone="metric-gold" />
-                <MetricTile href="/payroll" icon={Wallet} label="Open payroll periods" value={openPeriods} tone="metric-blue" />
-            </>}
-
-            <div className="dashboard-panels">
-            <section className="bento-panel attendance-bento">
-                <header className="bento-heading">
-                    <div><span className="bento-eyebrow">{isFaculty ? 'My attendance' : 'Attendance'}</span><h2>{isFaculty ? 'My recent activity' : 'Recent activity'}</h2></div>
-                    <Link href="/attendance">View all <ArrowUpRight size={15} /></Link>
-                </header>
-                <div className="bento-table" tabIndex={0} role="region" aria-label="Recent attendance records"><table><thead><tr>{!isFaculty && <th>Faculty</th>}<th>Date</th><th>In</th><th>Out</th><th>Status</th></tr></thead><tbody>
-                    {recentAttendance.length ? recentAttendance.map((log) => <tr key={log.id}>{!isFaculty && <td><strong>{fullName(log.employee)}</strong></td>}<td>{formatDate(log.attendance_date)}</td><td>{time12(log.time_in)}</td><td>{time12(log.time_out)}</td><td>{log.display_status ? <span data-status={log.display_status} className="badge">{log.display_status === 'late_undertime' ? 'Late/Undertime' : 'Complete'}</span> : '—'}</td></tr>) : <tr><td colSpan={isFaculty ? 4 : 5} className="empty-row">No attendance logs yet.</td></tr>}
-                </tbody></table></div>
-            </section>
-
-                <div className="dashboard-side-panels">
-            {isFaculty && <section className="bento-panel faculty-today-schedule">
-                <header className="bento-heading"><div><span className="bento-eyebrow">{formatDate(scheduleDate)}</span><h2>Today's schedule</h2></div><Link href="/my-schedule">View all <ArrowUpRight size={15} /></Link></header>
-                <div className="today-schedule-list">{todaySchedule.length ? todaySchedule.map((block) => <div className="today-schedule-item" key={`${block.schedule_type}-${block.id}`}>
-                    <span className="today-schedule-time">{time12(block.start_time)} – {time12(block.end_time)}</span>
-                    <strong>{block.schedule_type === 'consultation' ? 'Consultation' : block.schedule_type === 'lunch_break' ? 'Break' : block.subject || 'Not specified'}</strong>
-                    {block.schedule_type === 'class' && <span>{block.section || 'Not specified'} · {block.class_mode === 'lecture' ? 'Lecture' : block.class_mode === 'laboratory' ? 'Laboratory' : 'Not specified'}</span>}
-                </div>) : <div className="bento-empty">No schedule for today.</div>}</div>
-            </section>}
-            {!isFaculty && <section className="trend-bento">
-                <header className="bento-heading">
-                    <div><span className="bento-eyebrow">Monday–Saturday</span><h2>Attendance pulse</h2></div>
-                    <span className="trend-icon"><CalendarCheck2 size={19} /></span>
-                </header>
-                <div className="trend-chart" style={{ gridTemplateColumns: `repeat(${Math.max(1, attendanceTrend.length)}, minmax(0, 1fr))` }} aria-label="Attendance during the past week, excluding Sunday">
-                    {attendanceTrend.map((day) => {
-                        const height = (day.count / highestAttendance) * 100;
-                        return <div className="trend-column" key={day.label} title={`${day.label}: ${day.count}`}>
-                            <div className="trend-bar-area"><span className="trend-value" style={{ bottom: `calc(${height}% + 4px)` }}>{day.count}</span><i style={{ height: `${height}%` }} /></div>
-                            <small>{day.label}</small>
-                        </div>;
-                    })}
-                </div>
-            </section>}
-
-            <section className="bento-panel payroll-bento">
-                <header className="bento-heading">
-                    <div><span className="bento-eyebrow">{isFaculty ? 'My payroll' : 'Payroll'}</span><h2>{isFaculty ? 'My latest payslips' : 'Latest records'}</h2></div>
-                    <Link href="/payroll">{isFaculty ? 'View all' : 'Manage'} <ArrowUpRight size={15} /></Link>
-                </header>
-                <div className="payroll-stack" tabIndex={0} role="region" aria-label="Latest payroll records">
-                    {latestPayrolls.length ? latestPayrolls.map((record) => <Link href={`/payroll/records/${record.id}`} className="payroll-item" key={record.id}>
-                        <span><strong>{fullName(record.employee)}</strong><small>{formatDate(record.payroll_period?.start_date)} – {formatDate(record.payroll_period?.end_date)}</small></span>
-                        <strong className="payroll-amount">{money(record.net_pay)}</strong>
-                    </Link>) : <div className="bento-empty">{isFaculty ? 'No released payslips yet.' : 'No payroll records yet.'}</div>}
-                </div>
-            </section>
-                </div>
-            </div>
-        </section>
+export default function Dashboard({ employeeCount, entrance, presentToday, incompleteToday, classAnalytics, todaySchedule, scheduleDate, contractWarnings }) {
+    const faculty = usePage().props.auth.user.role === 'faculty';
+    useRealtimeReload(['classAnalytics', 'entrance', 'presentToday', 'incompleteToday'], 15000, !faculty);
+    return <AppLayout title="Dashboard">
+        <div className="attendance-metrics">{!faculty && <article className="panel"><small>Active COS faculty</small><strong>{employeeCount}</strong></article>}<article className="panel"><small>School arrivals today</small><strong>{presentToday}</strong></article><article className="panel"><small>Awaiting school OUT</small><strong>{incompleteToday}</strong></article></div>
+        <div className="panel"><div className="panel-heading"><h2>School attendance · {formatDate(scheduleDate)}</h2><Link href="/entrance">{faculty ? 'My attendance' : 'View school attendance'}</Link></div><div className="table-wrap"><table><thead><tr><th>Faculty</th><th>School IN</th><th>School OUT</th></tr></thead><tbody>{entrance.length ? entrance.map((log) => <tr key={log.id}><td>{fullName(log.employee)}</td><td>{time12(log.time_in)}</td><td>{time12(log.time_out)}</td></tr>) : <tr><td colSpan={3}>No school arrivals recorded today.</td></tr>}</tbody></table></div><Link href="/attendance/dtr">Open Daily Time Record</Link></div>
+        {faculty && <section className="panel"><h2>Today’s schedule</h2>{todaySchedule.length ? todaySchedule.map((s) => <p key={`${s.schedule_type}-${s.id}`}><strong>{s.subject || s.schedule_type.replaceAll('_', ' ')}</strong> · {time12(s.start_time)} – {time12(s.end_time)} {s.section}</p>) : <p>No assigned sessions today.</p>}</section>}
+        {classAnalytics && <><div className="panel-heading"><div><h2>Class attendance · Last 7 days</h2></div><Link href="/class-reports">Reports &amp; analytics</Link></div><ClassAnalytics report={classAnalytics} onSelect={(selection) => router.get('/class-reports', { ...classAnalytics.filters, ...selection })} /></>}
+        {contractWarnings.length > 0 && <section className="panel"><h2>Contracts ending within 7 days</h2>{contractWarnings.map((e) => <p key={e.id}>{fullName(e)} · {formatDate(e.contract_end)}</p>)}</section>}
     </AppLayout>;
 }

@@ -3,7 +3,7 @@ import { FORM48, cellBounds, form48Cells } from './form48Layout.js';
 export async function createForm48Workbook(dtr) {
     const { default: ExcelJS } = await import('exceljs');
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'DCS Payroll System';
+    workbook.creator = 'DCS Attendance & DTR';
     const cells = form48Cells(dtr);
     // Header underlines have their own boundaries; merge body cells across them.
     const columns = [...new Set([...FORM48.columns, ...cells.flatMap((cell) => {

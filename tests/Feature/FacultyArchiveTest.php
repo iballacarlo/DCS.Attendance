@@ -68,9 +68,9 @@ class FacultyArchiveTest extends TestCase
         $this->assertDatabaseHas('hardware_enrollments', ['id' => $enrollment->id, 'status' => 'cancelled']);
         $this->get('/employees?sort=name')->assertOk()->assertInertia(fn (Assert $page) => $page->has('employees.data', 1)->where('employees.data.0.id', $visible->id));
         $this->get('/attendance?cutoff_start=2026-10-01')->assertInertia(fn (Assert $page) => $page->has('logs.data', 1)->where('logs.data.0.id', $visibleLog->id));
-        $this->get('/payroll?cutoff_start=2026-10-01')->assertInertia(fn (Assert $page) => $page->has('records.data', 1)->where('records.data.0.id', $visibleRecord->id)->where('periods.0.records_count', 1));
+        $this->get('/payroll?cutoff_start=2026-10-01')->assertNotFound();
         $this->get('/leave')->assertInertia(fn (Assert $page) => $page->has('requests.data', 0));
-        $this->get('/')->assertInertia(fn (Assert $page) => $page->where('employeeCount', 1)->has('latestPayrolls', 1)->has('recentAttendance', 1));
+        $this->get('/')->assertInertia(fn (Assert $page) => $page->where('employeeCount', 1)->missing('latestPayrolls')->where('classAnalytics.summary.expected', 1));
         foreach (['/employees/'.$employee->id.'/edit', '/employees/'.$employee->id.'/schedule', '/attendance/dtr?employee_id='.$employee->id, '/payroll/records/'.$record->id, '/settings/accounts/'.$faculty->id.'/edit'] as $url) {
             $this->get($url)->assertNotFound();
         }
@@ -104,7 +104,7 @@ class FacultyArchiveTest extends TestCase
     {
         [$employee, $faculty] = $this->faculty();
         $staff = User::factory()->create(['role' => 'payroll_staff']);
-        foreach ([$staff, $faculty] as $user) {
+        foreach ([$faculty] as $user) {
             $this->actingAs($user)->get('/archived-faculty')->assertForbidden();
             $this->post('/employees/archive', ['employee_ids' => [$employee->id]])->assertForbidden();
             $this->post('/archived-faculty/'.$employee->id.'/restore')->assertForbidden();

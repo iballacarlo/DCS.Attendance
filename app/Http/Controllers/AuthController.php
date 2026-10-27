@@ -20,8 +20,14 @@ class AuthController extends Controller
             'password' => ['required'],
         ]);
 
-        if (Auth::attempt($credentials)) {
+        if (Auth::attempt([...$credentials, fn ($query) => $query->whereIn('role', ['admin', 'faculty', 'guard'])])) {
             $request->session()->regenerate();
+
+            if ($request->user()->role === 'guard') {
+                $request->session()->forget('url.intended');
+
+                return redirect()->route('entrance.kiosk');
+            }
 
             return redirect()->intended(route('dashboard'));
         }

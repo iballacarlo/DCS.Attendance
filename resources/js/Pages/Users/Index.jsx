@@ -27,7 +27,7 @@ export default function UsersIndex({ users, filters }) {
             <div className="panel-heading"><h2>Accounts</h2><Link className="button ui-control ui-action ui-primary" href="/settings/accounts/create"><Plus size={16} />Add Account</Link></div>
             <div className="list-filters account-filters">
                 <label className="filter-search">Search Accounts<span className="search-control"><Search size={16} /><input placeholder="Name, email, or employee number" value={listFilters.search} onChange={(event) => setListFilters((current) => ({ ...current, search: event.target.value }))} /></span></label>
-                <label>Role<select value={listFilters.role} onChange={(event) => setListFilters((current) => ({ ...current, role: event.target.value }))}><option value="">All roles</option><option value="admin">Administrator</option><option value="payroll_staff">HR</option><option value="faculty">Faculty</option></select></label>
+                <label>Role<select value={listFilters.role} onChange={(event) => setListFilters((current) => ({ ...current, role: event.target.value }))}><option value="">All roles</option><option value="admin">Administrator</option><option value="faculty">Faculty</option><option value="guard">Guard</option></select></label>
                 {(listFilters.search || listFilters.role) && <button className="clear-filters ui-control ui-action ui-secondary" type="button" onClick={() => setListFilters({ search: '', role: '' })}><X size={15} />Clear</button>}
             </div>
             <div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Linked Faculty</th><th className="table-actions-heading">Actions</th></tr></thead><tbody>

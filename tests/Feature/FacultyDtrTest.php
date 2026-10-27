@@ -15,7 +15,7 @@ class FacultyDtrTest extends TestCase
 {
     use RefreshDatabase, \Tests\CreatesClassSessions;
 
-    public function test_faculty_online_dtr_only_contains_their_live_attendance_data(): void
+    public function test_faculty_online_dtr_only_contains_their_own_class_attendance_data(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-09-25 10:30:00', 'Asia/Manila'));
         $employee = $this->employee('EMP-001', 'Ada');
@@ -56,11 +56,7 @@ class FacultyDtrTest extends TestCase
                 ->has('employees', 0)
                 ->has('logs.data', 1)
                 ->where('logs.data.0.employee_id', $employee->id)
-                ->where('dtr.employee.id', $employee->id)
-                ->has('dtr.rows.9.sessions', 1)
-                ->where('dtr.summary.days_present', 1)
-                ->where('dtr.summary.scheduled_days', 2)
-                ->where('dtr.summary.absent_days', 1)
+                ->missing('dtr')
             );
 
         Carbon::setTestNow();

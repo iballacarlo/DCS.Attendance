@@ -9,7 +9,7 @@ class PayrollComputationService
 {
     public function calculate(Employee $employee, string $startDate, string $endDate): array
     {
-        $dtr = app(DtrService::class)->build($employee, $startDate, $endDate);
+        $dtr = app(LegacyPayrollDtrService::class)->build($employee, $startDate, $endDate);
         $hoursWorked = (float) $dtr['summary']['total_hours'];
         $rateAmount = (float) $employee->rate_amount;
 

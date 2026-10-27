@@ -12,7 +12,7 @@ class SelectiveBackupService
     public const GROUPS = [
         'faculty' => ['label' => 'Faculty profiles', 'description' => 'Profiles, ranks, and employment history.', 'tables' => ['employees', 'faculty_ranks', 'employment_histories']],
         'schedules' => ['label' => 'Schedules', 'description' => 'Weekly class, consultation, and break blocks.', 'tables' => ['faculty_schedules', 'faculty_schedule_breaks']],
-        'attendance' => ['label' => 'Attendance logs', 'description' => 'Taps, class snapshots, legacy records, and hardware events.', 'tables' => ['attendance_logs', 'hardware_attendance_events']],
+        'attendance' => ['label' => 'Attendance logs', 'description' => 'School entrance records, class snapshots, and hardware events.', 'tables' => ['attendance_logs', 'hardware_attendance_events', 'entrance_attendances']],
         'payroll' => ['label' => 'Payroll records', 'description' => 'Payslips, adjustments, and their payroll periods.', 'tables' => ['payroll_records', 'payroll_periods']],
         'credentials' => ['label' => 'Attendance credentials', 'description' => 'RFID cards and fingerprint registrations.', 'tables' => ['rfid_cards', 'fingerprint_templates']],
         'accounts' => ['label' => 'User accounts', 'description' => 'Linked faculty accounts; all accounts when backing up all faculty.', 'tables' => ['users']],
@@ -65,7 +65,7 @@ class SelectiveBackupService
             $userIds = array_column($tables['users'] ?? [], 'id');
             foreach ($tables as &$rows) {
                 foreach ($rows as &$row) {
-                    foreach (['created_by', 'reviewed_by', 'archived_by'] as $field) {
+                    foreach (['created_by', 'reviewed_by', 'archived_by', 'recorded_by', 'out_recorded_by'] as $field) {
                         if (isset($row[$field]) && ! in_array($row[$field], $userIds)) {
                             $row[$field] = null;
                         }
@@ -75,7 +75,7 @@ class SelectiveBackupService
             }
             unset($rows);
 
-            return ['application' => 'CvSU Payroll System', 'version' => 2, 'created_at' => now()->toIso8601String(),
+            return ['application' => 'DCS Attendance & DTR', 'version' => 2, 'created_at' => now()->toIso8601String(),
                 'selection' => ['groups' => $groups, 'faculty_scope' => $scope, 'employee_ids' => $employeeIds,
                     'recovery' => 'add_missing_keep_existing'],
                 'tables' => $tables];
@@ -93,6 +93,9 @@ class SelectiveBackupService
         if (! is_array($groups) || ! $groups || count(array_filter($groups, 'is_string')) !== count($groups) || array_diff($groups, array_keys(self::GROUPS)) || ! in_array($scope, ['all', 'selected'], true)
             || ($scope === 'selected' && in_array('audit', $groups, true)) || ! is_array($backup['tables'] ?? null)) {
             $this->invalid('The custom backup selection is invalid.');
+        }
+        if (! isset($backup['tables']['entrance_attendances']) && in_array('attendance', $groups, true)) {
+            $backup['tables']['entrance_attendances'] = [];
         }
         $required = $this->tables($groups);
         if (array_diff($required, array_keys($backup['tables'])) || array_diff(array_keys($backup['tables']), $required)) {
@@ -143,6 +146,13 @@ class SelectiveBackupService
                             }
 
                             continue;
+                        }
+                        if ($table === 'entrance_attendances') {
+                            foreach (['recorded_by', 'out_recorded_by'] as $key) {
+                                if (! empty($row[$key]) && ! DB::table('users')->where('id', $row[$key])->exists()) {
+                                    $row[$key] = null;
+                                }
+                            }
                         }
                         DB::table($table)->insert($row);
                         $inserted++;

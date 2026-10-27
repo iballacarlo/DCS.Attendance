@@ -28,8 +28,9 @@ export const formatDate = (value) => {
 
 export const roleLabel = (role) => ({
     admin: 'Administrator',
-    payroll_staff: 'HR',
+    payroll_staff: 'Disabled legacy staff',
     faculty: 'Faculty',
+    guard: 'Guard',
 }[role] || role);
 
 export const dateLabel = (date = new Date()) => formatDate(date);

@@ -14,7 +14,8 @@ const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const months = Array.from({ length: 12 }, (_, index) => new Date(2026, index, 1).toLocaleDateString('en-PH', { month: 'long' }));
 const iso = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
-export default function CalendarIndex({ month, events, employees, departments, canManage }) {
+export default function CalendarIndex({ month, events: manualEvents, employees, departments, canManage, regularHolidays = [] }) {
+    const events = [...manualEvents, ...regularHolidays.filter((holiday) => !manualEvents.some((event) => event.type === 'regular_holiday' && event.scope_type === 'campus' && event.start_date.slice(0, 10) <= holiday.start_date && event.end_date.slice(0, 10) >= holiday.end_date))];
     const [editingEvent, setEditingEvent] = useState(null);
     const form = useForm(blankEvent);
     const { ask, dialog } = useConfirmDialog();
@@ -57,7 +58,7 @@ export default function CalendarIndex({ month, events, employees, departments, c
     };
     const visibleEvents = events.filter((event) => event.start_date.slice(0, 7) <= month && event.end_date.slice(0, 7) >= month);
 
-    return <AppLayout title="School Calendar" subtitle="Review holidays, official school activities, asynchronous days, and campus suspensions.">
+    return <AppLayout title="School Calendar">
         <section className="school-calendar-shell">
             <header className="school-calendar-toolbar"><button className="ui-control ui-action ui-secondary" type="button" title="Previous month" onClick={() => navigate(-1)}><ChevronLeft size={19} /></button><div className="calendar-period-controls"><label><span>Month</span><select aria-label="Calendar month" value={monthDate.getMonth()} onChange={(event) => jumpTo(monthDate.getFullYear(), Number(event.target.value))}>{months.map((name, index) => <option value={index} key={name}>{name}</option>)}</select></label><label><span>Year</span><select aria-label="Calendar year" value={monthDate.getFullYear()} onChange={(event) => jumpTo(Number(event.target.value), monthDate.getMonth())}>{Array.from({ length: 9 }, (_, index) => monthDate.getFullYear() - 4 + index).map((year) => <option value={year} key={year}>{year}</option>)}</select></label><button type="button" className="calendar-today-button ui-control ui-action ui-secondary" onClick={today}>Today</button></div><button className="ui-control ui-action ui-secondary" type="button" title="Next month" onClick={() => navigate(1)}><ChevronRight size={19} /></button></header>
             <h2 className="calendar-current-period">{monthLabel}</h2>
@@ -73,11 +74,10 @@ export default function CalendarIndex({ month, events, employees, departments, c
             {form.data.scope_type === 'department' && <label>Department<select value={form.data.department} onChange={(e) => form.setData('department', e.target.value)} required><option value="">Select department</option>{departments.map((department) => <option key={department}>{department}</option>)}</select></label>}
             {form.data.scope_type === 'faculty' && <FacultyCombobox employees={employees} multiple selectedIds={form.data.employee_ids} onSelect={(ids) => form.setData('employee_ids', ids.map(Number))} />}
             <label>Remarks<textarea rows="2" value={form.data.remarks} onChange={(e) => form.setData('remarks', e.target.value)} /></label>
-            <p className="form-note">Calendar entries are informational. Pay is computed only from completed class attendance.</p>
             <div className="form-actions">{editingEvent && <button type="button" className="secondary ui-control ui-action ui-secondary" onClick={reset}>Cancel</button>}<button className="ui-control ui-action ui-primary" disabled={form.processing}><Save size={17} />Save Event</button></div>
         </form>}
 
-        <section className="panel calendar-event-list"><div className="panel-heading"><h2>{monthLabel} Events</h2><span>{visibleEvents.length} event(s)</span></div>{visibleEvents.length ? visibleEvents.map((event) => <article className={`calendar-event-item is-${event.type}`} key={event.id}><span className="calendar-event-date"><strong>{formatDate(event.start_date)}</strong><small>{event.start_date.slice(0, 10) === event.end_date.slice(0, 10) ? 'One day' : `to ${formatDate(event.end_date)}`}</small></span><div><span>{eventLabels[event.type]}</span><h3>{event.title}</h3><p>{event.scope_type === 'campus' ? 'Entire campus' : event.scope_type === 'department' ? event.department : `${event.employees.length} selected faculty`} · Calendar entry (no automatic paid hours)</p></div>{canManage && <div className="row-actions"><button className="ui-control ui-action ui-secondary" type="button" title="Edit" onClick={() => editEvent(event)}><Edit3 size={16} /></button><button className="ui-control ui-action ui-danger" type="button" title="Delete" onClick={() => remove(event)}><Trash2 size={16} /></button></div>}</article>) : <p className="empty-row">No events in this month.</p>}</section>
+        <section className="panel calendar-event-list"><div className="panel-heading"><h2>{monthLabel} Events</h2><span>{visibleEvents.length} event(s)</span></div>{visibleEvents.length ? visibleEvents.map((event) => <article className={`calendar-event-item is-${event.type}`} key={event.id}><span className="calendar-event-date"><strong>{formatDate(event.start_date)}</strong><small>{event.start_date.slice(0, 10) === event.end_date.slice(0, 10) ? 'One day' : `to ${formatDate(event.end_date)}`}</small></span><div><span>{eventLabels[event.type]}</span><h3>{event.title}</h3><p>{event.scope_type === 'campus' ? 'Entire campus' : event.scope_type === 'department' ? event.department : `${event.employees.length} selected faculty`}</p></div>{canManage && !event.automatic && <div className="row-actions"><button className="ui-control ui-action ui-secondary" type="button" title="Edit" onClick={() => editEvent(event)}><Edit3 size={16} /></button><button className="ui-control ui-action ui-danger" type="button" title="Delete" onClick={() => remove(event)}><Trash2 size={16} /></button></div>}</article>) : <p className="empty-row">No events in this month.</p>}</section>
         {dialog}
     </AppLayout>;
 }

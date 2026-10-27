@@ -37,20 +37,21 @@ class FacultyRankTest extends TestCase
 
         $this->actingAs($admin)
             ->delete("/faculty-ranks/{$rank->id}")
-            ->assertMethodNotAllowed();
+            ->assertNotFound();
 
         $this->assertDatabaseCount('faculty_ranks', 19);
     }
 
-    public function test_hourly_rate_can_still_be_updated(): void
+    public function test_salary_update_endpoint_is_removed_and_retained_rate_is_unchanged(): void
     {
         $rank = FacultyRank::where('name', 'Instructor I')->firstOrFail();
 
+        $original = (float) $rank->rate_amount;
         $this->actingAs(User::factory()->create(['role' => 'admin']))
-            ->put(route('ranks.update', $rank), ['rate_amount' => 250.50])
-            ->assertSessionHasNoErrors();
+            ->put('/faculty-ranks/'.$rank->id, ['rate_amount' => 250.50])
+            ->assertNotFound();
 
-        $this->assertSame(250.50, (float) $rank->fresh()->rate_amount);
+        $this->assertSame($original, (float) $rank->fresh()->rate_amount);
     }
 
     public function test_all_fixed_rank_rates_use_the_monthly_reference_divisor(): void

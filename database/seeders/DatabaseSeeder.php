@@ -123,13 +123,6 @@ class DatabaseSeeder extends Seeder
             'role' => 'admin',
         ]);
 
-        User::updateOrCreate(['email' => 'payroll@dcs.test'], [
-            'name' => 'Human Resources',
-            'email' => 'payroll@dcs.test',
-            'password' => Hash::make('password'),
-            'role' => 'payroll_staff',
-        ]);
-
         User::updateOrCreate(['email' => 'faculty@dcs.test'], [
             'name' => $firstEmployee->full_name,
             'email' => 'faculty@dcs.test',

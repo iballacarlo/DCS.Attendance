@@ -24,7 +24,7 @@ class EmployeeController extends Controller
             'employee_id' => ['nullable', 'integer', 'exists:employees,id'],
             'rank' => ['nullable', 'integer', 'exists:faculty_ranks,id'],
             'status' => ['nullable', 'in:active,inactive'],
-            'sort' => ['nullable', 'in:employee_no,name,rank,rate,weekly_hours,status'],
+            'sort' => ['nullable', 'in:employee_no,name,rank,weekly_hours,status'],
             'direction' => ['nullable', 'in:asc,desc'],
         ]);
         $sort = $filters['sort'] ?? 'employee_no';
@@ -51,8 +51,7 @@ class EmployeeController extends Controller
             $employees->leftJoin('faculty_ranks as sorted_ranks', 'employees.faculty_rank_id', '=', 'sorted_ranks.id')
                 ->select('employees.*')
                 ->orderBy('sorted_ranks.name', $direction);
-        } elseif ($sort === 'rate') {
-            $employees->orderBy('rate_amount', $direction);
+
         } elseif ($sort === 'weekly_hours') {
             $scheduleHours = DB::table('faculty_schedules')
                 ->selectRaw('employee_id, SUM(TIMESTAMPDIFF(MINUTE, start_time, end_time)) as weekly_minutes')
@@ -90,8 +89,7 @@ class EmployeeController extends Controller
                 'sort' => $sort,
                 'direction' => $direction,
             ],
-            'ranks' => FacultyRank::get(['id', 'name', 'salary_grade'])
-                ->sortBy(fn (FacultyRank $rank) => (int) preg_replace('/\D/', '', $rank->salary_grade ?? '999'))
+            'ranks' => FacultyRank::get(['id', 'name'])->sortBy('id')
                 ->values(),
         ]);
     }
@@ -239,15 +237,16 @@ class EmployeeController extends Controller
                 'required',
                 Rule::exists('faculty_ranks', 'id')->where(fn ($query) => $query->where('is_active', true)),
             ],
-            'rate_amount' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
             'contract_start' => ['nullable', 'required_with:contract_end', 'date'],
             'contract_end' => ['nullable', 'required_with:contract_start', 'date', 'after_or_equal:contract_start'],
             'status' => ['required', 'in:active,inactive'],
         ]);
 
-        $rank = FacultyRank::where('is_active', true)->findOrFail($data['faculty_rank_id']);
-        $data['rate_type'] = 'hourly';
-        $data['rate_amount'] = $rank->rate_amount;
+        // Retained legacy columns are initialized only for new profiles.
+        if ($isCreating) {
+            $data['rate_type'] = 'hourly';
+            $data['rate_amount'] = 0;
+        }
         $data['position'] = 'COS Faculty Member';
         $data['department'] = 'Department of Computer Studies';
         $data['employment_type'] = 'Contract of Service';

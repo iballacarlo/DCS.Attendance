@@ -36,56 +36,11 @@ class SchoolCalendarDtrTest extends TestCase
         $otherRow = app(DtrService::class)->build($other, '2026-10-01', '2026-10-15')['rows']->firstWhere('date', '2026-10-05');
 
         $this->assertSame('ASYNCHRONOUS', $row['event']['label']);
-        $this->assertSame(0.0, $row['payable_hours']);
+        $this->assertNull($row['worked_hours']);
         $this->assertNull($row['time_in']);
         $this->assertNull($row['time_out']);
         $this->assertNull($otherRow['event']);
-        $this->assertSame(0.0, $otherRow['payable_hours']);
-    }
-
-    public function test_calendar_event_does_not_replace_existing_class_hours(): void
-    {
-        $employee = $this->employee('EMP-001', 'Ada');
-        $this->mondaySchedule($employee);
-        $this->classLog([
-            'employee_id' => $employee->id, 'attendance_date' => '2026-10-05',
-            'time_in' => '09:00', 'time_out' => '16:00', 'late_minutes' => 60,
-            'undertime_minutes' => 60, 'total_hours' => 6, 'status' => 'late',
-        ]);
-        CalendarEvent::create([
-            'title' => 'Campus Suspension', 'type' => 'suspension',
-            'start_date' => '2026-10-05', 'end_date' => '2026-10-05',
-            'is_paid' => true, 'scope_type' => 'campus',
-        ]);
-
-        $row = app(DtrService::class)->build($employee, '2026-10-01', '2026-10-15')['rows']->firstWhere('date', '2026-10-05');
-
-        $this->assertSame(7.0, $row['payable_hours']);
-        $this->assertSame(0, $row['late_minutes']);
-        $this->assertSame('09:00', $row['time_in']);
-        $this->assertDatabaseHas('attendance_logs', ['employee_id' => $employee->id, 'time_in' => '09:00']);
-    }
-
-    public function test_dtr_shows_worked_hours_without_undertime_penalty(): void
-    {
-        $employee = $this->employee('EMP-001', 'Ada');
-        $this->mondaySchedule($employee);
-        $this->classLog([
-            'employee_id' => $employee->id,
-            'attendance_date' => '2026-10-05',
-            'time_in' => '08:00',
-            'time_out' => '16:12',
-            'late_minutes' => 0,
-            'undertime_minutes' => 48,
-            'total_hours' => 7.2,
-            'status' => 'undertime',
-        ]);
-
-        $row = app(DtrService::class)->build($employee, '2026-10-01', '2026-10-15')['rows']->firstWhere('date', '2026-10-05');
-
-        $this->assertSame(0, $row['undertime_minutes']);
-        $this->assertSame(8.2, $row['payable_hours']);
-        $this->assertSame(8.2, $row['margin_hours']);
+        $this->assertNull($otherRow['worked_hours']);
     }
 
     public function test_unscheduled_tap_is_retained_for_audit_but_hidden_from_dtr(): void
@@ -103,7 +58,7 @@ class SchoolCalendarDtrTest extends TestCase
         $this->assertFalse($row['has_schedule']);
         $this->assertNull($row['time_in']);
         $this->assertNull($row['time_out']);
-        $this->assertSame(0.0, $row['payable_hours']);
+        $this->assertNull($row['worked_hours']);
         $this->assertSame('not_scheduled', $row['status']);
         $this->assertDatabaseHas('attendance_logs', ['employee_id' => $employee->id, 'attendance_date' => '2026-10-06']);
     }
@@ -145,8 +100,8 @@ class SchoolCalendarDtrTest extends TestCase
         $row = $dtr['rows']->firstWhere('date', '2026-10-05');
 
         $this->assertSame('REGULAR HOLIDAY', $row['event']['label']);
-        $this->assertSame(0.0, $row['payable_hours']);
-        $this->assertSame(0.0, $row['margin_hours']);
+        $this->assertNull($row['worked_hours']);
+        $this->assertNull($row['margin_hours']);
         $this->assertNull($row['time_in']);
         $this->assertNull($row['time_out']);
     }
@@ -178,8 +133,8 @@ class SchoolCalendarDtrTest extends TestCase
             ->firstWhere('date', '2026-10-05');
 
         $this->assertSame('OFFICIAL SCHOOL ACTIVITY', $row['event']['label']);
-        $this->assertSame(0.0, $row['payable_hours']);
-        $this->assertSame(0.0, $row['margin_hours']);
+        $this->assertNull($row['worked_hours']);
+        $this->assertNull($row['margin_hours']);
         $this->assertNull($row['time_in']);
         $this->assertNull($row['time_out']);
     }

@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Archive, CalendarDays, ChartNoAxesCombined, ChevronLeft, ChevronRight, Clock3, FileCheck2, GraduationCap, KeyRound, LayoutDashboard, LogOut, MailWarning, Moon, Settings2, ShieldCheck, Sun, UserRound, Wallet } from 'lucide-react';
+import { Archive, CalendarDays, ChartNoAxesCombined, ChevronLeft, ChevronRight, Clock3, FileCheck2, GraduationCap, KeyRound, LayoutDashboard, LogOut, MailWarning, Moon, Settings2, ShieldCheck, Sun, UserRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { dateLabel, fullName, roleLabel } from '../lib/format';
 
@@ -8,13 +8,15 @@ const navigation = [
     { label: 'Faculty', group: 'Faculty Management', href: '/employees', icon: GraduationCap, tone: 'nav-faculty', roles: ['admin'], active: (url) => url.startsWith('/employees') },
     { label: 'Archived Faculty', group: 'Faculty Management', href: '/archived-faculty', icon: Archive, tone: 'nav-faculty', roles: ['admin'], active: (url) => url.startsWith('/archived-faculty') },
     { label: 'Ranks', group: 'Faculty Management', href: '/faculty-ranks', icon: ChartNoAxesCombined, tone: 'nav-ranks', roles: ['admin'], active: (url) => url.startsWith('/faculty-ranks') },
-    { label: 'Attendance', group: 'Operations', href: '/attendance', icon: Clock3, tone: 'nav-attendance', active: (url) => url.startsWith('/attendance') },
+    { label: 'School Attendance', group: 'Operations', href: '/entrance', icon: Clock3, tone: 'nav-attendance', roles: ['admin'], active: (url) => url.startsWith('/entrance') },
+    { label: 'School Attendance', group: 'Operations', href: '/entrance', icon: Clock3, tone: 'nav-attendance', roles: ['faculty'], active: (url) => url.startsWith('/entrance') },
+    { label: 'Daily Time Record', group: 'Operations', href: '/attendance/dtr', icon: FileCheck2, tone: 'nav-attendance', active: (url) => url.startsWith('/attendance/dtr') },
+    { label: 'Class Reports & Analytics', group: 'Operations', href: '/class-reports', icon: ChartNoAxesCombined, tone: 'nav-attendance', roles: ['admin'], active: (url) => url.startsWith('/class-reports') },
+    { label: 'Class Attendance', group: 'Operations', href: '/attendance', icon: Clock3, tone: 'nav-attendance', active: (url) => url === '/attendance' || url.startsWith('/attendance?') },
     { label: 'My Schedule', group: 'Operations', href: '/my-schedule', icon: CalendarDays, tone: 'nav-calendar', roles: ['faculty'], active: (url) => url.startsWith('/my-schedule') },
-    { label: 'Payroll', group: 'Operations', href: '/payroll', icon: Wallet, tone: 'nav-payroll', active: (url) => url.startsWith('/payroll') },
     { label: 'Leave', group: 'Operations', href: '/leave', icon: FileCheck2, tone: 'nav-leave', active: (url) => url.startsWith('/leave') },
     { label: 'School Calendar', group: 'Operations', href: '/school-calendar', icon: CalendarDays, tone: 'nav-calendar', active: (url) => url.startsWith('/school-calendar') },
     { label: 'Settings', group: 'Administration', href: '/settings/accounts', icon: Settings2, tone: 'nav-settings', roles: ['admin'], active: (url) => url.startsWith('/settings') },
-    { label: 'DTR Signatory', group: 'Administration', href: '/settings/dtr-signatories', icon: KeyRound, tone: 'nav-settings', roles: ['payroll_staff'], active: (url) => url.startsWith('/settings/dtr-signatories') },
     { label: 'My Profile', group: 'Account', href: '/profile', icon: UserRound, tone: 'nav-profile', active: (url) => url.startsWith('/profile') },
 ];
 
@@ -54,13 +56,12 @@ export default function AppLayout({ title, subtitle, children }) {
                 : url.startsWith('/profile') ? 'profile'
                 : url.startsWith('/attendance') ? 'attendance'
                     : url.startsWith('/school-calendar') ? 'calendar'
-                    : url.startsWith('/payroll') ? 'payroll'
                         : 'dashboard';
     const logout = () => router.post('/logout');
 
     return (
         <>
-            <Head title={`${title} | Payroll System`} />
+            <Head title={`${title} | DCS Attendance & DTR`} />
             <aside className={`sidebar${sidebarCollapsed ? ' is-collapsed' : ''}`}>
                 <div className="brand">
                     <Link className="brand-logo-link" href="/" aria-label="Go to dashboard">
@@ -71,7 +72,7 @@ export default function AppLayout({ title, subtitle, children }) {
                     <div className="brand-copy">
                         <small>Cavite State University</small>
                         <strong>Imus Campus</strong>
-                        <span>DCS Payroll</span>
+                        <span>DCS Attendance & DTR</span>
                     </div>
                 </div>
                 <nav aria-label="Main navigation">
@@ -96,7 +97,7 @@ export default function AppLayout({ title, subtitle, children }) {
                     <Link className="mobile-logo-link" href="/" aria-label="Go to dashboard">
                         <img src="/images/cvsu-logo.png" alt="Cavite State University logo" />
                     </Link>
-                    <span><small>Cavite State University</small><strong>Imus Campus</strong><b>DCS Payroll</b></span>
+                    <span><small>Cavite State University</small><strong>Imus Campus</strong><b>DCS Attendance & DTR</b></span>
                 </div>
                 <div className="mobile-branding-actions">
                     <button className="mobile-theme-toggle" type="button" onClick={toggleTheme} aria-label={darkMode ? 'Use light mode' : 'Use dark mode'} title={darkMode ? 'Use light mode' : 'Use dark mode'}>{darkMode ? <Sun size={18} /> : <Moon size={18} />}</button>
@@ -117,7 +118,7 @@ export default function AppLayout({ title, subtitle, children }) {
                     <div className="editorial-heading">
                         <div>
                             <h1>{title}</h1>
-                            <p>{subtitle}</p>
+                            {subtitle && <p>{subtitle}</p>}
                         </div>
                     </div>
                     <div className="topbar-meta">

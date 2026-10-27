@@ -11,6 +11,8 @@ class Employee extends Model
 {
     use HasFactory;
 
+    protected $hidden = ['rate_type', 'rate_amount', 'tin_no', 'gsis_no', 'pag_ibig_no', 'philhealth_no'];
+
     protected $fillable = [
         'employee_no',
         'first_name',

@@ -1,4 +1,5 @@
 import '../css/app.css';
+import '../css/attendance.css';
 import '../css/workspace.css';
 import '../css/form48.css';
 import '../css/weeklyPlotting.css';

@@ -10,7 +10,7 @@ import useConfirmDialog from '../../hooks/useConfirmDialog';
 export default function Backup({ backupGroups }) {
     const { facultyChoices } = usePage().props;
     const [mode, setMode] = useState('full');
-    const [groups, setGroups] = useState(['faculty', 'schedules', 'attendance', 'payroll']);
+    const [groups, setGroups] = useState(['faculty', 'schedules', 'attendance']);
     const [scope, setScope] = useState('all');
     const [selected, setSelected] = useState([]);
     const [recoveryKind, setRecoveryKind] = useState(null);
@@ -37,7 +37,7 @@ export default function Backup({ backupGroups }) {
         try {
             const data = JSON.parse(await file.text());
             if (request !== fileRequest.current) return;
-            if (data.application !== 'CvSU Payroll System' || ![1, 2].includes(data.version)) throw new Error();
+            if (!['CvSU Payroll System', 'DCS Attendance & DTR'].includes(data.application) || ![1, 2].includes(data.version)) throw new Error();
             setRecoveryKind(data.version === 2 ? 'custom' : 'full');
             form.setData('backup_file', file);
         } catch {
@@ -59,14 +59,14 @@ export default function Backup({ backupGroups }) {
                 <span className="settings-tool-icon"><DatabaseBackup size={22} /></span>
                 <div><span className="bento-eyebrow">Backup</span><h2>Download system data</h2><p>Save the whole system, or choose the data and faculty to include.</p></div>
                 <label>Backup type<select value={mode} onChange={(event) => setMode(event.target.value)}><option value="full">Full system backup</option><option value="custom">Custom backup</option></select></label>
-                {mode === 'full' ? <p className="backup-note">Includes all system data and all faculty, including archived faculty.</p> : <>
+                {mode === 'custom' && <>
                     <fieldset className="backup-options"><legend>Data to include</legend><div className="backup-category-grid">{backupGroups.map((group) => {
                         const disabled = group.value === 'audit' && scope === 'selected';
-                        return <label className={`backup-category${disabled ? ' is-disabled' : ''}`} key={group.value}><input type="checkbox" disabled={disabled} checked={groups.includes(group.value)} onChange={(event) => setGroups((current) => event.target.checked ? [...current, group.value] : current.filter((value) => value !== group.value))} /><span><strong>{group.label}</strong><small>{group.description}</small></span></label>;
+                        return <label className={`backup-category${disabled ? ' is-disabled' : ''}`} key={group.value}><input type="checkbox" disabled={disabled} checked={groups.includes(group.value)} onChange={(event) => setGroups((current) => event.target.checked ? [...current, group.value] : current.filter((value) => value !== group.value))} /><span><strong>{group.label}</strong></span></label>;
                     })}</div></fieldset>
                     <label>Faculty to include<select value={scope} onChange={(event) => { setScope(event.target.value); if (event.target.value === 'selected') setGroups((current) => current.filter((value) => value !== 'audit')); }}><option value="all">All faculty (including archived)</option><option value="selected">Selected faculty only</option></select></label>
                     {scope === 'selected' && <div className="backup-faculty-picker"><FacultyCombobox label="Choose faculty" employees={facultyChoices} multiple selectedIds={selected} onSelect={setSelected} /><div className="backup-selected-faculty">{selected.map((id) => <button type="button" className="ui-control ui-action ui-secondary" key={id} onClick={() => setSelected((current) => current.filter((value) => value !== id))} aria-label={`Remove ${fullName(facultyChoices.find((item) => item.id === id))}`}>{fullName(facultyChoices.find((item) => item.id === id))} ×</button>)}</div><small>{selected.length} faculty selected</small></div>}
-                    <p className="backup-note">Related faculty profiles and required reference data are included automatically. Calendar and system settings include shared records. Unselected user accounts are excluded.</p>
+
                     {!groups.length && <p className="field-error" role="alert">Select at least one type of data.</p>}
                     {scope === 'selected' && !selected.length && <p className="field-error">Choose at least one faculty member.</p>}
                 </>}
@@ -85,7 +85,7 @@ export default function Backup({ backupGroups }) {
                         </span>
                     </label>
                     {form.errors.backup_file && <div className="form-note">{form.errors.backup_file}</div>}
-                    {recoveryKind && <p className="backup-note">{recoveryKind === 'custom' ? 'Custom backup: recover missing records only. Existing schedules, payroll, and other records will be kept.' : 'Full system backup: replaces existing system records.'}</p>}
+                    {recoveryKind && <p className="backup-note">{recoveryKind === 'custom' ? 'Custom backup: recover missing records only. Existing records will be kept.' : 'Full system backup: replaces existing system records.'}</p>}
                     <button className={`ui-control ui-action ${recoveryKind === 'custom' ? 'ui-primary' : 'ui-danger'}`} type="submit" disabled={form.processing || !form.data.backup_file}><RotateCcw size={17} />{form.processing ? 'Restoring...' : recoveryKind === 'custom' ? 'Recover missing records' : 'Restore backup'}</button>
                 </form>
             </article>

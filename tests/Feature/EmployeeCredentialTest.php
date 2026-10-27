@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Employee;
 use App\Models\FacultyRank;
+use App\Models\HardwareEnrollment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -18,7 +19,7 @@ class EmployeeCredentialTest extends TestCase
     public function test_hardware_can_observe_cancelled_and_expired_enrollments(): void
     {
         config(['services.hardware.api_key' => 'device-secret']);
-        $enrollment = \App\Models\HardwareEnrollment::create([
+        $enrollment = HardwareEnrollment::create([
             'employee_id' => $this->employee()->id,
             'method' => 'rfid',
             'status' => 'cancelled',
@@ -323,9 +324,10 @@ class EmployeeCredentialTest extends TestCase
         $this->assertDatabaseMissing('users', ['email' => 'incomplete.faculty@cvsu.edu.ph']);
     }
 
-    public function test_selected_rank_automatically_controls_the_employee_hourly_rate(): void
+    public function test_rank_changes_and_submitted_salary_do_not_change_retained_historical_rates(): void
     {
         $employee = $this->employee();
+        $oldRate = (float) $employee->rate_amount;
         $rank = FacultyRank::where('is_active', true)
             ->where('id', '!=', $employee->faculty_rank_id)
             ->firstOrFail();
@@ -337,7 +339,7 @@ class EmployeeCredentialTest extends TestCase
             ]))
             ->assertSessionHasNoErrors();
 
-        $this->assertSame((float) $rank->rate_amount, (float) $employee->fresh()->rate_amount);
+        $this->assertSame($oldRate, (float) $employee->fresh()->rate_amount);
     }
 
     public function test_fingerprint_hardware_registration_requires_a_finger_label(): void
@@ -389,12 +391,12 @@ class EmployeeCredentialTest extends TestCase
         ]);
         $employee->rfidCards()->create(['rfid_uid' => 'KEEP-CARD', 'status' => 'active']);
         foreach (['pending', 'processing', 'completed'] as $status) {
-            \App\Models\HardwareEnrollment::create([
+            HardwareEnrollment::create([
                 'employee_id' => $employee->id, 'method' => 'fingerprint',
                 'status' => $status, 'current_identifier' => 'FP-1', 'expires_at' => now()->addMinutes(5),
             ]);
         }
-        $rfid = \App\Models\HardwareEnrollment::create([
+        $rfid = HardwareEnrollment::create([
             'employee_id' => $employee->id, 'method' => 'rfid',
             'status' => 'pending', 'expires_at' => now()->addMinutes(5),
         ]);
@@ -405,8 +407,8 @@ class EmployeeCredentialTest extends TestCase
         $this->assertNotNull($employee->fresh());
         $this->assertNotNull($other->fresh());
         $this->assertSame('pending', $rfid->fresh()->status);
-        $this->assertSame(2, \App\Models\HardwareEnrollment::where('method', 'fingerprint')->where('status', 'cancelled')->count());
-        $this->assertSame(1, \App\Models\HardwareEnrollment::where('method', 'fingerprint')->where('status', 'completed')->count());
+        $this->assertSame(2, HardwareEnrollment::where('method', 'fingerprint')->where('status', 'cancelled')->count());
+        $this->assertSame(1, HardwareEnrollment::where('method', 'fingerprint')->where('status', 'completed')->count());
     }
 
     private function employee(string $employeeNumber = 'COS-9001'): Employee

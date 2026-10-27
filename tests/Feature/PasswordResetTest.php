@@ -29,7 +29,7 @@ class PasswordResetTest extends TestCase
 
         $request = Http::recorded()->first()[0];
         $this->assertSame($user->email, $request['recipient']);
-        $this->assertStringContainsString('Reset your CvSU Payroll password', $request['subject']);
+        $this->assertStringContainsString('Reset your DCS Attendance & DTR password', $request['subject']);
         $this->assertMatchesRegularExpression('/reset-password\/[A-Za-z0-9]+\?email=/', $request['message']);
         preg_match('/reset-password\/([A-Za-z0-9]+)\?email=/', $request['message'], $matches);
 

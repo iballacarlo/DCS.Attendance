@@ -4,8 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
-use App\Models\PayrollRecord;
-use App\Services\PayrollComputationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -16,7 +14,7 @@ class LeaveController extends Controller
 {
     public function index(Request $request)
     {
-        $canReview = in_array($request->user()->role, ['admin', 'payroll_staff'], true);
+        $canReview = in_array($request->user()->role, ['admin'], true);
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'employee_id' => ['nullable', 'integer', 'exists:employees,id'],
@@ -115,39 +113,9 @@ class LeaveController extends Controller
             'reviewed_by' => $request->user()->id,
             'reviewed_at' => now(),
         ]);
-        if ($data['status'] === 'approved') {
-            $this->recalculateDraftPayroll($leaveRequest);
-        }
         $this->audit($request, 'leave.'.$data['status'], $leaveRequest, ucfirst($data['status']).' a leave request.');
 
-        return back()->with('success', 'Leave request '.$data['status'].'. Affected draft payroll records were updated.');
-    }
-
-    private function recalculateDraftPayroll(LeaveRequest $leave): void
-    {
-        $records = PayrollRecord::with(['employee', 'payrollPeriod'])
-            ->where('employee_id', $leave->employee_id)
-            ->where('status', 'draft')
-            ->whereHas('payrollPeriod', fn ($period) => $period
-                ->whereDate('start_date', '<=', $leave->end_date->toDateString())
-                ->whereDate('end_date', '>=', $leave->start_date->toDateString())
-                ->where('status', '!=', 'finalized'))
-            ->get();
-
-        foreach ($records as $record) {
-            $computed = app(PayrollComputationService::class)->calculate(
-                $record->employee,
-                $record->payrollPeriod->start_date,
-                $record->payrollPeriod->end_date,
-            );
-            $additionalEarnings = (float) $record->overtime_pay + (float) $record->other_earnings + (float) $record->increase_amount;
-            $totalEarnings = round($computed['gross_pay'] + $additionalEarnings, 2);
-            $record->update([
-                ...$computed,
-                'total_earnings' => $totalEarnings,
-                'net_pay' => max(0, round($totalEarnings - (float) $record->total_deductions, 2)),
-            ]);
-        }
+        return back()->with('success', 'Leave request '.$data['status'].'.');
     }
 
     private function audit(Request $request, string $action, LeaveRequest $leave, string $description): void

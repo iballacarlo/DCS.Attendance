@@ -24,10 +24,10 @@ class ClassAttendanceService
             $now = $occurredAt->copy()->setTimezone('Asia/Manila');
             $date = $now->toDateString();
             $logs = AttendanceLog::where('employee_id', $employee->id)->where('attendance_date', $date)
-                ->where('is_legacy', false)->lockForUpdate()->get();
+                ->where('is_legacy', false)->where('schedule_type', 'class')->lockForUpdate()->get();
             $latest = $logs->sortByDesc('scheduled_start')->first();
             $open = $latest && $latest->time_in && ! $latest->time_out ? $latest : null;
-            $schedules = $employee->schedules()->whereIn('schedule_type', FacultySchedule::PAYABLE_TYPES)
+            $schedules = $employee->schedules()->where('schedule_type', 'class')
                 ->where('day_of_week', $now->dayOfWeek)->orderBy('start_time')->get();
             $eligible = $schedules->filter(function ($schedule) use ($now, $date, $logs) {
                 $start = Carbon::parse($date.' '.$schedule->start_time, 'Asia/Manila');
@@ -52,7 +52,7 @@ class ClassAttendanceService
                 return ['action' => 'OUT', 'message' => 'Scheduled session time out recorded.', 'time' => $now->format('h:i A'), 'log' => $open->fresh()];
             }
             if (! $schedule) {
-                return ['action' => 'NO CLASS', 'message' => 'No eligible class or consultation. Time in is available 30 minutes before the scheduled session.', 'time' => '', 'log' => null];
+                return ['action' => 'NO CLASS', 'message' => 'No eligible class. Time in is available 30 minutes before the scheduled session.', 'time' => '', 'log' => null];
             }
             $log = AttendanceLog::create(['employee_id' => $employee->id, 'attendance_date' => $date,
                 ...self::snapshot($schedule), 'time_in' => $now->format('H:i:s'), 'method_in' => $method]);

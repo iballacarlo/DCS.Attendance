@@ -52,7 +52,7 @@ class HandleInertiaRequests extends Middleware
                 ] : null,
             ],
             'academicTerm' => fn () => SystemSetting::academicTerm(),
-            'facultyChoices' => fn () => $request->user() && in_array($request->user()->role, ['admin', 'payroll_staff'], true)
+            'facultyChoices' => fn () => $request->user() && in_array($request->user()->role, ['admin'], true)
                 ? Employee::orderBy('last_name')->orderBy('first_name')->get(['id', 'first_name', 'middle_name', 'last_name', 'suffix']) : [],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

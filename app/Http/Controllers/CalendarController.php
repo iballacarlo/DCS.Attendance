@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CalendarEvent;
 use App\Models\Employee;
+use App\Services\RegularHolidayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -17,7 +18,7 @@ class CalendarController extends Controller
         abort_unless(preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month), 422, 'Invalid calendar month.');
         $year = (int) substr($month, 0, 4);
         $year = max(2000, min(2100, $year));
-        $canManage = in_array($request->user()->role, ['admin', 'payroll_staff'], true);
+        $canManage = in_array($request->user()->role, ['admin'], true);
         $employee = $request->user()->employee;
         $events = CalendarEvent::with('employees:id,employee_no,first_name,middle_name,last_name,suffix')
             ->whereYear('start_date', '<=', $year)
@@ -39,6 +40,8 @@ class CalendarController extends Controller
             'employees' => $canManage ? Employee::where('status', 'active')->orderBy('last_name')->get() : [],
             'departments' => $canManage ? Employee::whereNotNull('department')->distinct()->orderBy('department')->pluck('department') : [],
             'canManage' => $canManage,
+            'regularHolidays' => RegularHolidayService::calendarRows($year),
+            'holidayPreset' => RegularHolidayService::info($year),
         ]);
     }
 
@@ -88,7 +91,7 @@ class CalendarController extends Controller
             $this->audit($request, 'calendar.updated', $calendarEvent, "Updated {$calendarEvent->title}.");
         });
 
-        return back()->with('success', 'Calendar event updated. Regenerate draft payroll to apply the change.');
+        return back()->with('success', 'Calendar event updated.');
     }
 
     public function destroy(Request $request, CalendarEvent $calendarEvent)

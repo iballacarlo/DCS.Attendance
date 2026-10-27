@@ -6,8 +6,6 @@ use App\Models\AttendanceLog;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
-use App\Models\PayrollPeriod;
-use App\Models\PayrollRecord;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -80,42 +78,6 @@ class RecordFiltersTest extends TestCase
         $this->actingAs(User::factory()->create(['role' => 'faculty', 'employee_id' => $second->id]))
             ->get('/attendance?cutoff_start=2026-10-01&employee_id='.$first->id)->assertOk()
             ->assertInertia(fn (Assert $page) => $page->has('facultyChoices', 0)->has('logs.data', 1)->where('logs.data.0.id', $own->id));
-    }
-
-    public function test_payroll_cutoff_and_faculty_filters_keep_only_the_selected_period_and_authorized_records(): void
-    {
-        $first = $this->faculty('FIRST');
-        $second = $this->faculty('SECOND');
-        $feb = PayrollPeriod::create(['period_name' => 'Leap February', 'start_date' => '2028-02-16', 'end_date' => '2028-02-29', 'status' => 'processing']);
-        $march = PayrollPeriod::create(['period_name' => 'March', 'start_date' => '2028-03-01', 'end_date' => '2028-03-15', 'status' => 'processing']);
-        $selected = PayrollRecord::create(['employee_id' => $first->id, 'payroll_period_id' => $feb->id, 'status' => 'released']);
-        PayrollRecord::create(['employee_id' => $second->id, 'payroll_period_id' => $feb->id, 'status' => 'released']);
-        PayrollRecord::create(['employee_id' => $first->id, 'payroll_period_id' => $march->id, 'status' => 'released']);
-        $url = '/payroll?cutoff_start=2028-02-16&employee_id='.$first->id;
-        $this->actingAs(User::factory()->create(['role' => 'admin']))->get($url)->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->has('records.data', 1)->where('records.data.0.id', $selected->id));
-        $this->get('/payroll?cutoff_start=2028-02-17')->assertSessionHasErrors('cutoff_start');
-        $this->get('/payroll?cutoff_start=2101-01-01')->assertSessionHasErrors('cutoff_start');
-        $this->get('/payroll?cutoff_start=1999-12-16')->assertSessionHasErrors('cutoff_start');
-        $this->actingAs(User::factory()->create(['role' => 'faculty', 'employee_id' => $first->id]))
-            ->get('/payroll?cutoff_start=2028-02-16&employee_id='.$second->id)->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->has('records.data', 1)->where('records.data.0.id', $selected->id));
-    }
-
-    public function test_payroll_defaults_to_current_manila_cutoff_instead_of_all_periods(): void
-    {
-        Carbon::setTestNow(Carbon::parse('2026-10-16 00:00', 'Asia/Manila'));
-        $employee = $this->faculty('DEFAULT');
-        foreach ([['2026-10-01', '2026-10-15'], ['2026-10-16', '2026-10-31']] as [$start, $end]) {
-            $period = PayrollPeriod::create(['period_name' => $start, 'start_date' => $start, 'end_date' => $end, 'status' => 'processing']);
-            PayrollRecord::create(['employee_id' => $employee->id, 'payroll_period_id' => $period->id, 'status' => 'released']);
-        }
-        foreach (['admin', 'faculty'] as $role) {
-            $this->actingAs(User::factory()->create(['role' => $role, 'employee_id' => $role === 'faculty' ? $employee->id : null]))
-                ->get('/payroll')->assertOk()->assertInertia(fn (Assert $page) => $page
-                ->where('filters.cutoff_start', '2026-10-16')->has('records.data', 1)
-                ->where('records.data.0.payroll_period.start_date', '2026-10-16'));
-        }
     }
 
     public function test_employee_archive_and_leave_selectors_filter_by_id_and_keep_archived_choices_separate(): void

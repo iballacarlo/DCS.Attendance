@@ -31,7 +31,7 @@ class LeaveManagementTest extends TestCase
         $tuesday = $dtr['rows']->firstWhere('date', '2026-10-06');
 
         $this->assertSame('VL - LEAVE', $monday['event']['label']);
-        $this->assertSame(0.0, $monday['payable_hours']);
+        $this->assertNull($monday['worked_hours']);
         $this->assertNull($monday['time_in']);
         $this->assertFalse($tuesday['has_schedule']);
         $this->assertNull($tuesday['event']);
@@ -52,8 +52,8 @@ class LeaveManagementTest extends TestCase
         $row = $dtr['rows']->firstWhere('date', '2026-10-05');
 
         $this->assertSame('on_leave', $row['status']);
-        $this->assertSame(0.0, $row['payable_hours']);
-        $this->assertSame(0.0, $row['margin_hours']);
+        $this->assertNull($row['worked_hours']);
+        $this->assertNull($row['margin_hours']);
         $this->assertSame(1, $dtr['summary']['absent_days']);
     }
 

@@ -14,7 +14,7 @@ class BackupController extends Controller
 {
     private const TABLES = [
         'faculty_ranks', 'employees', 'users', 'rfid_cards', 'fingerprint_templates', 'employment_histories',
-        'faculty_schedules', 'faculty_schedule_breaks', 'attendance_logs', 'hardware_attendance_events',
+        'faculty_schedules', 'faculty_schedule_breaks', 'attendance_logs', 'hardware_attendance_events', 'entrance_attendances',
         'calendar_events', 'calendar_event_employee', 'dtr_signatories',
         'leave_types', 'leave_requests',
         'payroll_periods', 'payroll_records', 'audit_trails', 'system_settings',
@@ -22,7 +22,7 @@ class BackupController extends Controller
 
     public function index()
     {
-        return Inertia::render('Settings/Backup', ['backupGroups' => collect(SelectiveBackupService::GROUPS)
+        return Inertia::render('Settings/Backup', ['backupGroups' => collect(SelectiveBackupService::GROUPS)->except('payroll')
             ->map(fn ($group, $key) => ['value' => $key, 'label' => $group['label'], 'description' => $group['description']])->values()]);
     }
 
@@ -48,7 +48,7 @@ class BackupController extends Controller
         }
 
         $backup = $custom ? $service->create($data['groups'], $data['faculty_scope'], $data['employee_ids'] ?? [], self::TABLES) : [
-            'application' => 'CvSU Payroll System',
+            'application' => 'DCS Attendance & DTR',
             'version' => 1,
             'created_at' => now()->toIso8601String(),
             'tables' => collect(self::TABLES)->mapWithKeys(
@@ -68,8 +68,8 @@ class BackupController extends Controller
         $request->validate(['backup_file' => ['required', 'file', 'max:20480']]);
         $backup = json_decode($request->file('backup_file')->get(), true);
 
-        if (! is_array($backup) || ($backup['application'] ?? null) !== 'CvSU Payroll System' || ! in_array($backup['version'] ?? null, [1, 2], true)) {
-            throw ValidationException::withMessages(['backup_file' => 'The selected file is not a valid payroll system backup.']);
+        if (! is_array($backup) || ! in_array($backup['application'] ?? null, ['CvSU Payroll System', 'DCS Attendance & DTR'], true) || ! in_array($backup['version'] ?? null, [1, 2], true)) {
+            throw ValidationException::withMessages(['backup_file' => 'The selected file is not a valid attendance system backup.']);
         }
         if ($backup['version'] === 2) {
             $count = $service->restore($backup, self::TABLES);
@@ -78,7 +78,7 @@ class BackupController extends Controller
         }
 
         foreach (array_diff(self::TABLES, [
-            'employment_histories', 'system_settings', 'hardware_attendance_events',
+            'entrance_attendances', 'employment_histories', 'system_settings', 'hardware_attendance_events',
             'calendar_events', 'calendar_event_employee', 'dtr_signatories',
             'leave_types', 'leave_requests',
         ]) as $table) {

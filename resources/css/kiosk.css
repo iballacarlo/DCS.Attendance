@@ -1,0 +1,94 @@
+.guard-kiosk { --kiosk-green: #155c40; --kiosk-ink: #193c2c; --kiosk-muted: #718077; box-sizing: border-box; min-height: 100dvh; padding: 22px 36px 16px; display: flex; flex-direction: column; gap: 22px; background: #f2f5f2; color: var(--kiosk-ink); font-family: Arial, Helvetica, sans-serif; }
+.guard-kiosk *, .guard-kiosk *::before, .guard-kiosk *::after { box-sizing: border-box; }
+.guard-kiosk-header { width: 100%; max-width: 1060px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.kiosk-brand { display: flex; align-items: center; gap: 12px; }
+.kiosk-brand img { width: 42px; height: 42px; }
+.kiosk-brand > span { display: grid; gap: 5px; }
+.kiosk-brand strong { font-size: 15px; color: var(--kiosk-ink); letter-spacing: -.25px; }
+.kiosk-brand small { font-size: 11px; color: var(--kiosk-muted); }
+.guard-kiosk .kiosk-signout { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 9px 13px; border: 1px solid #d5ded7; border-radius: 8px; background: transparent; color: #526559; box-shadow: none; font-size: 12px; }
+.guard-kiosk .kiosk-signout:hover { background: white; color: var(--kiosk-green); }
+.kiosk-station { width: 100%; max-width: 1000px; margin: auto; display: grid; grid-template-columns: .82fr 1.18fr; border: 1px solid #d8e1da; border-radius: 22px; background: white; box-shadow: 0 18px 60px #193c2c0c; overflow: hidden; }
+.kiosk-welcome { padding: 30px; display: flex; flex-direction: column; justify-content: space-between; gap: 25px; min-width: 0; background: radial-gradient(ellipse at 0 70%, #29684b 0, transparent 70%), #103e2c; color: white; position: relative; }
+.kiosk-station-label { display: flex; align-items: center; gap: 8px; font-size: 10px; letter-spacing: 1.8px; font-weight: 700; color: #b2d0bd; }
+.kiosk-station-label > span { width: 6px; height: 6px; border-radius: 50%; background: #e8c46b; }
+.kiosk-welcome-body { display: grid; align-content: center; gap: 20px; }
+.kiosk-rfid-mark { display: grid; place-items: center; width: 80px; height: 80px; border: 1px solid #ffffff24; border-radius: 24px; background: #ffffff08; color: #d7e7d8; }
+.kiosk-welcome h1 { margin: 0; font-size: clamp(32px, 3.8vw, 45px); line-height: 1.12; font-weight: 600; letter-spacing: -1.7px; color: white; }
+.guard-kiosk-clock { display: grid; gap: 8px; }
+.guard-kiosk-clock strong { color: #f5dc9e; font-size: clamp(25px, 3vw, 34px); font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; letter-spacing: -1px; }
+.guard-kiosk-clock > span { color: #b5cebe; font-size: 12px; line-height: 1.5; }
+.kiosk-guard { display: flex; align-items: center; gap: 10px; padding-top: 18px; border-top: 1px solid #ffffff24; }
+.kiosk-guard-icon { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: #ffffff10; color: #c0d8c6; flex-shrink: 0; }
+.kiosk-guard > div { display: grid; min-width: 0; gap: 4px; }
+.kiosk-guard small { font-size: 9px; letter-spacing: 1.3px; color: #a1c1ae; }
+.kiosk-guard strong { font-size: 12px; font-weight: 600; color: white; overflow-wrap: anywhere; }
+.guard-kiosk-card { padding: 28px 32px; min-width: 0; background: white; }
+.guard-kiosk-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
+.kiosk-eyebrow { display: block; font-size: 9px; font-weight: 700; letter-spacing: 1.6px; color: #76897b; margin-bottom: 7px; }
+.guard-kiosk-title h2 { margin: 0; color: var(--kiosk-ink); font-size: 24px; font-weight: 700; letter-spacing: -.8px; }
+.kiosk-title-icon { width: 42px; height: 42px; flex-shrink: 0; border: 1px solid #dce7de; color: #59836a; background: #f7faf7; border-radius: 12px; display: grid; place-items: center; }
+.guard-kiosk-card form { display: grid; gap: 15px; }
+.guard-kiosk .guard-kiosk-card label { display: grid; gap: 8px; color: #385244; font-size: 12px; font-weight: 700; }
+.kiosk-uid-field { display: flex; align-items: center; gap: 11px; padding: 0 14px; border: 1px solid #c7d9cd; border-radius: 10px; color: #60836d; background: #fafcfb; }
+.kiosk-uid-field:focus-within { outline: 3px solid #3b8b5e18; border-color: #3b8b5e; background: white; }
+.kiosk-uid-field svg { flex-shrink: 0; }
+.guard-kiosk .kiosk-uid-field input { min-width: 0; width: 100%; height: 48px; padding: 0; border: 0; background: transparent; color: #193c2c; font-size: 17px; font-weight: 500; letter-spacing: 1px; outline: none; box-shadow: none; }
+.guard-kiosk .kiosk-uid-field input:focus { outline: none; box-shadow: none; }
+.guard-kiosk .kiosk-uid-field input::placeholder { font-size: 13px; letter-spacing: 0; color: #8a998e; }
+.guard-kiosk-preview { display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 10px 12px; border: 1px solid #e5ebe6; border-radius: 9px; color: #88948b; background: #fafbfa; font-size: 12px; line-height: 1.5; }
+.guard-kiosk-preview > svg { flex-shrink: 0; }
+.guard-kiosk-preview > span { flex: 1; overflow-wrap: anywhere; }
+.guard-kiosk-preview.has-faculty { color: #235b3d; background: #f2f8f3; border-color: #d9e9dc; font-weight: 600; }
+.guard-kiosk-preview.has-error { color: #a24646; background: #fff5f3; border-color: #edd7d1; }
+.guard-kiosk-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.guard-kiosk-direction { display: flex; align-items: center; gap: 9px; min-height: 65px; padding: 12px; border: 1px solid #e0e7e1; border-radius: 11px; background: #fafbfa; color: #a6b1a9; user-select: none; }
+.guard-kiosk-direction > svg { flex-shrink: 0; }
+.guard-kiosk-direction > span:not(.kiosk-active-dot) { display: grid; gap: 4px; }
+.guard-kiosk-direction small { color: inherit; font-size: 8px; font-weight: 700; letter-spacing: 1px; }
+.guard-kiosk-direction strong { color: inherit; font-size: 16px; font-weight: 700; }
+.guard-kiosk-direction.active { border-color: #3d8057; background: #edf7ef; color: #226442; box-shadow: inset 0 0 0 1px #3d805716; }
+.guard-kiosk-direction.is-out.active { background: #fff8e8; border-color: #c49c44; color: #896515; }
+.kiosk-active-dot { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; margin-left: auto; background: currentColor; }
+.guard-kiosk-test { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+.guard-kiosk .guard-kiosk-test input { width: 100%; min-width: 0; height: 39px; padding: 8px 10px; border: 1px solid #d8e2da; border-radius: 8px; color: #536b5b; background: white; font: inherit; font-size: 12px; font-weight: 500; }
+.guard-kiosk-test input:focus { outline: 2px solid #3b8b5e25; border-color: #3b8b5e; }
+.guard-kiosk .guard-kiosk-test button { min-height: 39px; padding: 8px 10px; border: 1px solid #d8e2da; border-radius: 8px; background: white; color: #526b5b; box-shadow: none; font-size: 11px; }
+.guard-kiosk .guard-kiosk-submit { width: 100%; min-height: 46px; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 12px 18px; border: 1px solid #155c40; border-radius: 10px; color: white; background: #155c40; font-size: 14px; font-weight: 600; box-shadow: 0 3px 7px #155c4012; }
+.guard-kiosk .guard-kiosk-submit:hover:not(:disabled) { background: #0e4931; }
+.guard-kiosk .guard-kiosk-submit:disabled { background: #e8eeea; border-color: #e0e7e1; color: #94a398; box-shadow: none; cursor: not-allowed; }
+.guard-kiosk-success { display: flex; align-items: flex-start; gap: 9px; margin-bottom: 15px; padding: 10px 12px; border: 1px solid #d0e4d5; border-radius: 9px; background: #f0f8f2; color: #25603f; font-size: 12px; line-height: 1.5; }
+.guard-kiosk-success svg { flex-shrink: 0; margin-top: 1px; }
+.guard-kiosk-error { border: 1px solid #e8d0cb; border-radius: 9px; padding: 8px 12px; background: #fff5f2; color: #a24646; font-size: 12px; line-height: 1.5; }
+.guard-kiosk-error p { margin: 3px 0; }
+.guard-kiosk > footer { width: 100%; max-width: 1060px; margin: 0 auto; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; color: #93a095; font-size: 10px; }
+@media (max-height: 720px) and (min-width: 741px) {
+    .guard-kiosk { padding: 14px 28px 12px; gap: 14px; }
+    .kiosk-welcome { padding: 24px; gap: 18px; }
+    .kiosk-welcome-body { gap: 16px; }
+    .kiosk-rfid-mark { width: 62px; height: 62px; border-radius: 18px; }
+    .kiosk-rfid-mark svg { width: 43px; }
+    .kiosk-welcome h1 { font-size: 36px; }
+    .guard-kiosk-card { padding: 22px 26px; }
+    .guard-kiosk-title { margin-bottom: 16px; }
+    .guard-kiosk-card form { gap: 12px; }
+    .guard-kiosk-direction { min-height: 58px; }
+}
+@media (max-width: 740px) {
+    .guard-kiosk { padding: 16px; gap: 16px; }
+    .kiosk-station { grid-template-columns: minmax(0, 1fr); max-width: 500px; border-radius: 16px; }
+    .kiosk-welcome { padding: 18px 22px; gap: 12px; }
+    .kiosk-welcome-body { display: block; }
+    .kiosk-welcome h1, .kiosk-rfid-mark, .kiosk-guard { display: none; }
+    .guard-kiosk-clock strong { font-size: 29px; }
+    .guard-kiosk-clock > span { font-size: 11px; }
+    .guard-kiosk-card { padding: 22px; }
+    .guard-kiosk-title { margin-bottom: 16px; }
+    .guard-kiosk-title h2 { font-size: 22px; }
+    .guard-kiosk-card form { gap: 12px; }
+    .kiosk-brand small { font-size: 9px; }
+    .kiosk-brand strong { font-size: 12px; }
+    .kiosk-brand img { width: 35px; height: 35px; }
+    .guard-kiosk .kiosk-signout { padding: 9px; }
+    .kiosk-signout > span { display: none; }
+}

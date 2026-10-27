@@ -10,10 +10,15 @@ class SchoolCalendarService
 {
     public static function paidEventFor(Employee $employee, Carbon|string $date): ?CalendarEvent
     {
+        return self::eventFor($employee, $date, true);
+    }
+
+    public static function eventFor(Employee $employee, Carbon|string $date, bool $paidOnly = false): ?CalendarEvent
+    {
         $day = ($date instanceof Carbon ? $date : Carbon::parse($date, 'Asia/Manila'))->toDateString();
 
-        return CalendarEvent::query()
-            ->where(fn ($event) => $event->where('is_paid', true)->orWhere('type', 'regular_holiday'))
+        $event = CalendarEvent::query()
+            ->when($paidOnly, fn ($query) => $query->where(fn ($event) => $event->where('is_paid', true)->orWhere('type', 'regular_holiday')))
             ->whereDate('start_date', '<=', $day)
             ->whereDate('end_date', '>=', $day)
             ->where(function ($query) use ($employee) {
@@ -30,5 +35,8 @@ class SchoolCalendarService
             ->orderByRaw("CASE type WHEN 'suspension' THEN 1 WHEN 'official_school_activity' THEN 2 WHEN 'asynchronous' THEN 3 WHEN 'special_holiday' THEN 4 ELSE 5 END")
             ->orderBy('id')
             ->first();
+
+        // Keep migration-only paidEventFor behavior tied to retained database data.
+        return $event ?? ($paidOnly ? null : RegularHolidayService::eventFor($day));
     }
 }

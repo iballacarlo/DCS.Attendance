@@ -15,7 +15,7 @@ class UserController extends Controller
     {
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
-            'role' => ['nullable', 'in:admin,payroll_staff,faculty'],
+            'role' => ['nullable', 'in:admin,faculty,guard'],
         ]);
         $users = User::with('employee')->latest();
         $terms = preg_split('/\s+/', trim($filters['search'] ?? ''), -1, PREG_SPLIT_NO_EMPTY);
@@ -88,7 +88,7 @@ class UserController extends Controller
         $rules = [
             'name' => ['required', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users')->ignore($user?->id)],
-            'role' => ['required', 'in:admin,payroll_staff,faculty'],
+            'role' => ['required', 'in:admin,faculty,guard'],
             'employee_id' => ['nullable', Rule::exists('employees', 'id')->whereNull('archived_at')],
             'password' => [$user ? 'nullable' : 'required', 'min:6'],
         ];
