@@ -15,6 +15,7 @@
 #include <freertos/queue.h>
 #include <time.h>
 #include "device_config.h"
+#include "railway_root_ca.h"
 
 #ifndef HARDWARE_ROOT_CA
 #error "Configure HARDWARE_ROOT_CA with the API server trusted root CA before uploading."
@@ -33,7 +34,7 @@
 #define FINGER_RX_PIN 13
 #define FINGER_TX_PIN 14
 
-const char* API_BASE_URL = "https://payroll-system.up.railway.app/api/hardware";
+const char* API_BASE_URL = "https://dcsattendance.up.railway.app/api/hardware";
 
 MFRC522 rfid(RFID_SS_PIN, RFID_RST_PIN);
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -424,7 +425,7 @@ void maintainWiFi() {
 void showClock() {
   time_t currentTime = time(nullptr);
   if (currentTime < 100000) {
-    showMessage("Payroll System", "Time syncing...");
+    showMessage("DCS Attendance", "Time syncing...");
     return;
   }
 
@@ -820,11 +821,16 @@ void showAttendanceResponse(int code, const String& response) {
     String action = jsonValue(response, "action");
     String displayTime = jsonValue(response, "display_time");
     showMessage(jsonValue(response, "display_name"), attendanceDisplayLine(action, displayTime));
-    if (action == "ALREADY OUT") doneSignal();
-    else successSignal();
+    if (action == "IN" || action == "OUT") successSignal();
+    else if (action == "WAIT" || action == "ALREADY OUT") doneSignal();
+    else {
+      errorSignal();
+      showMessage(jsonValue(response, "display_name"),
+                  action == "NO CLASS" ? "NO CLASS" : "Server response");
+    }
   } else if (code == 409) {
     errorSignal();
-    showMessage(jsonValue(response, "display_name"), "NO SCHEDULE");
+    showMessage("Record conflict", "See admin");
   } else {
     errorSignal();
     showMessage(code == 404 ? "Not registered" : "Server error", "Code " + String(code));
@@ -911,7 +917,7 @@ void syncNextOfflineAttendance() {
   attendanceBusy = false;
 
   Serial.println("Offline sync HTTP " + String(code) + ": " + response);
-  if (code >= 200 && code < 300) {
+  if (code == 200 && jsonValue(response, "action") != "") {
     acknowledgeOfflineRecord();
     Serial.println("Offline attendance synced. Remaining: " + String(pendingOfflineRecordCount()));
   } else if (!shouldQueueAttendance(code)) {
@@ -953,6 +959,7 @@ void processFingerprintAttendance() {
 }
 
 String attendanceDisplayLine(String action, String displayTime) {
+  if (action == "WAIT") return "OUT at " + displayTime;
   if (action == "ALREADY OUT") return "DONE " + displayTime;
   return action + " " + displayTime;
 }
@@ -992,7 +999,7 @@ void setup() {
   } else {
     Serial.println("Could not create the enrollment request queue.");
   }
-  showMessage("Payroll System", "Ready to tap");
+  showMessage("DCS Attendance", "Ready to tap");
   digitalWrite(YELLOW_LED_PIN, LOW);
   delay(1000);
 }

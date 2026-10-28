@@ -3,6 +3,7 @@ name: Tests
 on:
   push:
     branches:
+      - main
       - master
       - '*.x'
   pull_request:
@@ -42,6 +43,21 @@ jobs:
 
       - name: Generate app key
         run: php artisan key:generate
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend assets
+        run: npm run build
+
+      - name: Execute JavaScript tests
+        run: node --test tests/js/*.test.mjs
 
       - name: Execute tests
         run: php artisan test

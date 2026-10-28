@@ -1,7 +1,7 @@
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
-#include "../PayrollHardwareTFT/cvsu_logo.h"
-#include "../PayrollHardwareTFT/dcs_logo.h"
+#include "../DCSAttendanceTFT/cvsu_logo.h"
+#include "../DCSAttendanceTFT/dcs_logo.h"
 
 constexpr int TFT_SCK_PIN = 32;
 constexpr int TFT_MOSI_PIN = 33;

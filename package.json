@@ -1,5 +1,6 @@
 {
     "$schema": "https://www.schemastore.org/package.json",
+    "name": "dcs-attendance",
     "private": true,
     "type": "module",
     "scripts": {

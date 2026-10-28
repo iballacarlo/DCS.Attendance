@@ -1,7 +1,42 @@
-# Payroll Hardware - 3.5-inch ILI9488 TFT
+# DCS Attendance Hardware - 3.5-inch ILI9488 TFT
 
-This is the TFT variant of the payroll attendance firmware. The original
-16x2 I2C version remains in `hardware/PayrollHardware`.
+This is the maintained TFT attendance firmware for DCS Attendance & DTR.
+
+## Railway and per-class attendance
+
+Open `DCSAttendanceTFT.ino` from this complete sketch folder in Arduino IDE.
+Keep the folder name `DCSAttendanceTFT` so it matches the `.ino` filename.
+When updating an existing device, copy your private `device_config.h` into
+this folder before compiling. For a new device, copy `device_config.example.h`
+to `device_config.h` and enter the WiFi details and hardware key.
+Keep `railway_root_ca.h`, `cvsu_logo.h`, and `dcs_logo.h` beside the sketch;
+copying only the `.ino` file will leave required headers missing.
+All three attendance sketches now target
+`https://dcsattendance.up.railway.app/api/hardware`.
+
+Set the WiFi details and `HARDWARE_API_KEY` in the ignored `device_config.h`.
+The key must match the new Railway app's `HARDWARE_API_KEY`; do not commit it.
+`railway_root_ca.h` contains the public ISRG Root X2 trust anchor verified
+against the domain on October 29, 2026. An explicit `HARDWARE_ROOT_CA` in
+`device_config.h` overrides that default; update a stale override if TLS fails.
+Keep internet time synchronization working for certificate checks. If the
+domain or issuer changes, verify and update the trust anchor before flashing.
+
+The server chooses the eligible class session for each RFID/fingerprint tap.
+IN opens 30 minutes before class; OUT requires at least three minutes after IN.
+Each class has its own IN/OUT pair. Consultation, lunch breaks, and school
+entrance attendance are separate from these hardware class taps.
+Only `IN` and `OUT` produce a recorded-attendance success signal. `WAIT`
+produces a neutral signal (and a countdown on the maintained TFT sketch).
+`NO CLASS` produces an error signal without creating class attendance.
+HTTP 409 is a record conflict, not a missing schedule.
+
+Before relying on a flashed device, test IN, an early OUT attempt (`WAIT`),
+OUT after three minutes, a second class, `NO CLASS`, and disconnected scans
+followed by reconnection. Offline saved scans still need server processing.
+Confirm the resulting records in Class Attendance and verify that School
+Attendance has not changed. Compile with the board and partition scheme
+already used by the device; do not erase flash when updating firmware.
 
 ## Grouped wiring revision
 
@@ -157,7 +192,7 @@ buzzer during this test. The test uses the seller's ILI9488 18-bit
 initialization sequence and software SPI. A correct connection repeatedly
 shows red, green, blue, black, and yellow. If it remains white, recheck `CS`,
 `RESET`, `DC/RS`, `SDI/MOSI`, `SCK`, and the J1 state; the problem is before
-the payroll firmware starts.
+the attendance firmware starts.
 
 The ESP32 uses 3.3V GPIO logic, so leave the display's `J1` solder jumper in
 its factory-default open state. Do not bridge J1. The seller guide instructs

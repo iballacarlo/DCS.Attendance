@@ -32,7 +32,7 @@ an external pull-up. Do not connect the 5V rail to the ESP32 3V3 pin.
 ## Upload And Test
 
 1. Open `FingerprintTestLED.ino`. Keep the same board/partition settings used
-   for the payroll firmware, with flash erase disabled.
+   for the attendance firmware, with flash erase disabled.
 2. Upload with USB only and external power disconnected. If needed, disconnect
    peripheral wiring during upload to reduce USB load. Do not combine USB and
    adapter/UPS power without verified power isolation.
@@ -60,6 +60,6 @@ capture behavior under different loads; it does not by itself prove a specific
 power, wiring, or sensor fault. If only yellow persists, compare against a
 known-working sensor/controller rather than erasing the nine stored templates.
 
-The payroll firmware must be restored after testing. No attendance is recorded
+The attendance firmware must be restored after testing. No attendance is recorded
 while this sketch is running. The main TFT sketch must contain the working
 code before it can be restored; do not upload an empty file.

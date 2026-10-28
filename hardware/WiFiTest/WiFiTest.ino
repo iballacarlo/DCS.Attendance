@@ -1,5 +1,5 @@
 #include <WiFi.h>
-#include "../PayrollHardware/device_config.h"
+#include "../DCSAttendanceLCD/device_config.h"
 
 void scanForConfiguredNetwork() {
   Serial.println("Scanning for configured WiFi...");

@@ -1,7 +1,7 @@
 # DS3231 with the I2C LCD
 
 Install **RTClib by Adafruit** using the Arduino Library Manager. Install its
-Adafruit BusIO dependency when prompted. Upload `PayrollHardware.ino`.
+Adafruit BusIO dependency when prompted. Upload `DCSAttendanceLCD.ino`.
 
 | DS3231 | ESP32 |
 | --- | --- |

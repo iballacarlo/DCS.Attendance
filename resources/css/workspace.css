@@ -15,14 +15,6 @@
     #workspace .backup-selected-faculty .ui-action { min-height: 30px; padding: 6px 9px; font-size: 11px; }
     #workspace .backup-faculty-picker > small { display: block; margin-top: 8px; }
     @media (max-width: 600px) { #workspace .backup-category-grid { grid-template-columns: 1fr; } }
-    #workspace .payroll-record-filters { display: flex; flex-wrap: nowrap; align-items: flex-end; gap: 14px; }
-    #workspace .payroll-record-filters > .cutoff-picker { flex: 1.8 1 380px; min-width: 290px; }
-    #workspace .payroll-record-filters .cutoff-picker-fields { display: grid; grid-template-columns: minmax(90px, 1fr) 85px minmax(125px, 1.15fr); gap: 12px; }
-    #workspace .list-filters.payroll-record-filters .cutoff-picker-fields > label { width: auto; min-width: 0; }
-    #workspace .list-filters.payroll-record-filters > .faculty-combobox { flex: 1.4 1 240px; width: auto; min-width: 140px; }
-    #workspace .payroll-record-filters > label { flex: .8 1 150px; min-width: 105px; }
-    #workspace .payroll-record-filters > .clear-filters { flex: 0 0 auto; margin: 0; }
-    #workspace .payroll-record-filters :is(input, select, button.clear-filters) { height: 44px; min-height: 44px; }
     #workspace .attendance-toolbar { position: relative; z-index: 2; overflow: visible; display: flex; flex-wrap: nowrap; align-items: flex-end; gap: 12px; padding: 18px; }
     #workspace .attendance-filter-fields { display: flex; flex: 1 1 auto; flex-wrap: nowrap; align-items: flex-end; gap: 10px; min-width: 0; }
     #workspace .attendance-filter-fields > label { display: grid; flex: 1 1 115px; gap: 6px; margin: 0; width: auto; min-width: 90px; }
@@ -98,12 +90,12 @@ html[data-theme='dark'] :is(#workspace .theme-toggle, .mobile-branding .mobile-t
     }
     #workspace .topbar h1 { color: var(--ui-ink) !important; letter-spacing: -.7px; }
     #workspace .topbar p { color: var(--ui-muted) !important; line-height: 1.6; }
-    #workspace :is(.panel, .settings-tool, .bento-panel, .bento-metric, .trend-bento, .school-calendar-shell, .payroll-adjustment-editor, .dashboard-academic-context, .faculty-dashboard-overview) {
+    #workspace :is(.panel, .settings-tool, .bento-panel, .bento-metric, .trend-bento, .school-calendar-shell, .dashboard-academic-context, .faculty-dashboard-overview) {
         background: var(--ui-paper) !important; color: var(--ui-ink) !important;
         border: 1px solid var(--ui-line) !important; border-radius: 16px;
         box-shadow: 0 5px 20px #183a2705;
     }
-    #workspace :is(.panel, .settings-tool, .payroll-adjustment-editor) { padding: 24px; }
+    #workspace :is(.panel, .settings-tool) { padding: 24px; }
     #workspace :is(.panel, .settings-tool, .bento-panel, .bento-metric, .trend-bento) :is(h2, h3, h4, legend, strong) { color: var(--ui-ink) !important; }
     #workspace :is(.panel, .settings-tool, .bento-panel, .bento-metric, .trend-bento) :is(p, small, .rate-unit) { color: var(--ui-muted) !important; }
     #workspace :is(.panel-heading, .bento-heading) { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--ui-line); padding-bottom: 18px; margin-bottom: 20px; }
@@ -112,22 +104,22 @@ html[data-theme='dark'] :is(#workspace .theme-toggle, .mobile-branding .mobile-t
     #workspace .bento-eyebrow { color: var(--ui-muted) !important; font-size: 10px; letter-spacing: 1px; font-weight: 800; }
     #workspace :is(.list-filters, .leave-filter-bar, .faculty-filters) { gap: 14px; align-items: end; padding: 18px; margin: 0 0 20px; background: var(--ui-surface) !important; border: 1px solid var(--ui-line); border-radius: 12px; }
     #workspace .panel.list-filters { margin-bottom: 24px; }
-    #workspace :is(.panel, .settings-tool, .payroll-adjustment-editor) label { color: var(--ui-ink) !important; font-size: 12px; font-weight: 700; line-height: 1.5; }
-    #workspace :is(.panel, .settings-tool, .payroll-adjustment-editor, .dtr-export-toolbar) :is(input:not([type='checkbox']):not([type='radio']):not([type='file']), select, textarea) {
+    #workspace :is(.panel, .settings-tool) label { color: var(--ui-ink) !important; font-size: 12px; font-weight: 700; line-height: 1.5; }
+    #workspace :is(.panel, .settings-tool, .dtr-export-toolbar) :is(input:not([type='checkbox']):not([type='radio']):not([type='file']), select, textarea) {
         min-width: 0; border: 1px solid var(--ui-line) !important; border-radius: 8px;
         background: var(--ui-paper) !important; color: var(--ui-ink) !important;
         -webkit-text-fill-color: var(--ui-ink); font-size: 12px; padding: 10px 12px; line-height: 1.5;
     }
-    #workspace :is(.panel, .settings-tool, .payroll-adjustment-editor) :is(input, select, textarea):focus { border-color: #509c6e !important; outline: 2px solid #83b79870; outline-offset: 1px; box-shadow: none; }
-    #workspace :is(.panel, .settings-tool, .payroll-adjustment-editor) :is(input, select, textarea)::placeholder { color: var(--ui-muted); opacity: .85; }
-    #workspace :is(.panel, .settings-tool, .payroll-adjustment-editor) :is(input[readonly], input:disabled, select:disabled) { background: var(--ui-surface) !important; color: var(--ui-muted) !important; -webkit-text-fill-color: var(--ui-muted); }
+    #workspace :is(.panel, .settings-tool) :is(input, select, textarea):focus { border-color: #509c6e !important; outline: 2px solid #83b79870; outline-offset: 1px; box-shadow: none; }
+    #workspace :is(.panel, .settings-tool) :is(input, select, textarea)::placeholder { color: var(--ui-muted); opacity: .85; }
+    #workspace :is(.panel, .settings-tool) :is(input[readonly], input:disabled, select:disabled) { background: var(--ui-surface) !important; color: var(--ui-muted) !important; -webkit-text-fill-color: var(--ui-muted); }
     #workspace :is(.search-control, .leave-filter-search, .test-faculty-search) {
         display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: center; gap: 9px;
         width: 100%; min-width: 0; padding: 0 12px; border: 1px solid var(--ui-line);
         border-radius: 8px; background: var(--ui-paper); overflow: hidden;
     }
     /* Icon fields use one outer border; outrank the generic form-field rule. */
-    #workspace :is(.panel, .settings-tool, .payroll-adjustment-editor) :is(.search-control, .leave-filter-search, .test-faculty-search) input:not([type='checkbox']):not([type='radio']):not([type='file']) {
+    #workspace :is(.panel, .settings-tool) :is(.search-control, .leave-filter-search, .test-faculty-search) input:not([type='checkbox']):not([type='radio']):not([type='file']) {
         width: 100%; min-width: 0; margin: 0; padding: 10px 0 !important;
         border: 0 !important; background: transparent !important; border-radius: 0 !important;
         outline: 0 !important; box-shadow: none !important;
@@ -184,11 +176,10 @@ html[data-theme='dark'] :is(#workspace .theme-toggle, .mobile-branding .mobile-t
     #workspace .pagination :is(a, span) { min-width: 34px; min-height: 34px; padding: 8px 11px; border-radius: 8px; border: 1px solid var(--ui-line); background: var(--ui-paper) !important; color: var(--ui-muted) !important; font-size: 11px; }
     #workspace .pagination a:hover { background: var(--ui-soft-green) !important; color: var(--ui-ink) !important; }
     #workspace .pagination a.active { background: var(--ui-green) !important; color: #fff !important; border-color: var(--ui-green); }
-    #workspace :is(.badge, .payroll-status, .leave-status) { border: 1px solid var(--ui-line); padding: 5px 9px; border-radius: 6px; background: var(--ui-surface) !important; color: var(--ui-muted) !important; font-size: 10px; font-weight: 700; line-height: 1.4; }
-    #workspace :is([data-status='active'], [data-status='present'], .payroll-status.is-released, .leave-status.is-approved) { color: #17613c !important; background: #eaf5ee !important; border-color: #acd0b8; }
-    #workspace :is([data-status='incomplete'], [data-status='late'], [data-status='late_undertime'], .payroll-status.is-draft, .leave-status.is-pending) { color: var(--ui-amber) !important; background: var(--ui-soft-amber) !important; border-color: #cfb778; }
+    #workspace :is(.badge, .leave-status) { border: 1px solid var(--ui-line); padding: 5px 9px; border-radius: 6px; background: var(--ui-surface) !important; color: var(--ui-muted) !important; font-size: 10px; font-weight: 700; line-height: 1.4; }
+    #workspace :is([data-status='active'], [data-status='present'], .leave-status.is-approved) { color: #17613c !important; background: #eaf5ee !important; border-color: #acd0b8; }
+    #workspace :is([data-status='incomplete'], [data-status='late'], [data-status='late_undertime'], .leave-status.is-pending) { color: var(--ui-amber) !important; background: var(--ui-soft-amber) !important; border-color: #cfb778; }
     #workspace :is([data-status='inactive'], [data-status='absent'], .leave-status.is-rejected) { color: var(--ui-red) !important; background: var(--ui-soft-red) !important; border-color: #dc9ca4; }
-    #workspace .payroll-status.is-approved { color: var(--ui-blue) !important; background: var(--ui-soft-blue) !important; border-color: #9ab7dd; }
     #workspace :is(.leave-card, .calendar-event-item, .signatory-item, .credential-row, .employment-history-card) { background: var(--ui-paper) !important; border: 1px solid var(--ui-line) !important; border-radius: 12px; }
     #workspace .credential-actions { flex-wrap: wrap; align-items: center; }
     #workspace .credential-row { padding: 20px; gap: 20px; min-width: 0; align-items: end; }
@@ -224,24 +215,6 @@ html[data-theme='dark'] :is(#workspace .theme-toggle, .mobile-branding .mobile-t
         #workspace .holiday-form-pair { grid-template-columns: minmax(0, 1fr); }
     }
     #workspace .credential-nfc-message { grid-column: 1 / -1; color: var(--ui-muted); font-size: 13px; line-height: 1.5; }
-    #workspace .payroll-stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
-    #workspace .payroll-item {
-        display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-items: start;
-        min-width: 0; border: 1px solid var(--ui-line); border-radius: 10px;
-        background: var(--ui-paper) !important; padding: 16px;
-    }
-    #workspace .payroll-item > span { display: grid; gap: 5px; min-width: 0; }
-    #workspace .payroll-item > span strong {
-        white-space: normal; overflow: visible; text-overflow: clip;
-        overflow-wrap: anywhere; font-size: 13px; line-height: 1.5;
-    }
-    #workspace .payroll-item small { display: block; white-space: normal; font-size: 11px; line-height: 1.6; }
-    #workspace .payroll-item .payroll-amount {
-        position: static; justify-self: stretch; min-width: 0; margin: 0; padding-top: 9px;
-        border-top: 1px solid var(--ui-line); font-size: 14px; line-height: 1.5;
-        text-align: left; white-space: normal; overflow-wrap: anywhere;
-    }
-    #workspace .payroll-item:hover { background: var(--ui-surface) !important; }
     #workspace .metric-icon, #workspace .settings-tool-icon { border: 1px solid var(--ui-line); border-radius: 12px; background: var(--ui-soft-green) !important; color: var(--ui-ink) !important; }
     #workspace .metric-gold .metric-icon { background: var(--ui-soft-amber) !important; color: var(--ui-amber) !important; }
     #workspace .metric-blue .metric-icon { background: var(--ui-soft-blue) !important; color: var(--ui-blue) !important; }
@@ -262,7 +235,7 @@ html[data-theme='dark'] :is(#workspace .theme-toggle, .mobile-branding .mobile-t
         #workspace .dashboard-panel-footer { padding-top: 16px; }
     }
     #workspace .dashboard-side-panels { display: grid; gap: 20px; min-width: 0; align-content: start; }
-    #workspace .dashboard-panels :is(.attendance-bento, .trend-bento, .payroll-bento) { grid-column: auto; grid-row: auto; align-self: start; min-height: 0; height: auto; margin: 0; min-width: 0; }
+    #workspace .dashboard-panels :is(.attendance-bento, .trend-bento) { grid-column: auto; grid-row: auto; align-self: start; min-height: 0; height: auto; margin: 0; min-width: 0; }
     #workspace .dashboard-panels .bento-table { max-height: 420px; overflow: auto; }
     #workspace .dashboard-panels .bento-table th { position: sticky; top: 0; z-index: 1; }
     #workspace .dashboard-side-panels .trend-chart { height: 160px; min-height: 0; padding-top: 24px; }
@@ -270,10 +243,6 @@ html[data-theme='dark'] :is(#workspace .theme-toggle, .mobile-branding .mobile-t
     #workspace .trend-bar-area .trend-value { position: absolute; left: 0; right: 0; text-align: center; margin: 0; line-height: 16px; }
     #workspace .trend-bar-area i { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); min-height: 0; max-height: none; }
     #workspace .trend-column small { flex-shrink: 0; }
-    #workspace .dashboard-panels .payroll-stack { max-height: 280px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-right: 4px; }
-    #workspace .dashboard-panels .payroll-stack:focus-visible { outline: 3px solid #74a6e7; outline-offset: 4px; }
-    #workspace .dashboard-panels .payroll-item { padding: 12px 14px; gap: 7px; }
-    #workspace .dashboard-panels .payroll-amount { padding-top: 6px; font-size: 13px; }
     #workspace .trend-value { color: var(--ui-ink) !important; }
     #workspace .trend-icon { color: var(--ui-ink) !important; background: var(--ui-soft-green) !important; border: 1px solid var(--ui-line); border-radius: 10px; }
     #workspace .trend-column i { background: #3a9467 !important; border-radius: 6px 6px 0 0; }
@@ -294,11 +263,11 @@ html[data-theme='dark'] :is(#workspace .theme-toggle, .mobile-branding .mobile-t
     #workspace .alert { border-radius: 12px; padding: 14px 18px; font-size: 12px; line-height: 1.7; }
     #workspace .alert.success { background: var(--ui-soft-green); border: 1px solid #8fbaa0; color: var(--ui-ink); }
     #workspace .alert.error { background: var(--ui-soft-red); border: 1px solid #dc9ca4; color: var(--ui-red); }
-    html[data-theme='dark'] #workspace :is([data-status='active'], [data-status='present'], .payroll-status.is-released, .leave-status.is-approved) { color: #ace3be !important; background: #1b3e2b !important; border-color: #528060; }
+    html[data-theme='dark'] #workspace :is([data-status='active'], [data-status='present'], .leave-status.is-approved) { color: #ace3be !important; background: #1b3e2b !important; border-color: #528060; }
     @media (max-width: 800px) {
         #workspace .dashboard-panels { grid-template-columns: minmax(0, 1fr); gap: 20px; }
         #workspace .bento-dashboard > .bento-metric { grid-column: 1 / -1; }
-        #workspace :is(.panel, .settings-tool, .payroll-adjustment-editor) { padding: 18px; }
+        #workspace :is(.panel, .settings-tool) { padding: 18px; }
         #workspace :is(.list-filters, .leave-filter-bar) { gap: 12px; padding: 14px; }
         #workspace :is(.panel, .bento-panel) :is(th, td) { padding: 12px; }
         #workspace .settings-tabs a { flex-basis: calc(50% - 6px); padding: 11px 8px; }

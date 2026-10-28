@@ -23,7 +23,7 @@ class GoogleAppsScriptMailer
         return $this->deliver(
             $user,
             $temporaryPassword
-                ? 'Your CvSU - Imus Payroll account is ready'
+                ? 'Your DCS Attendance & DTR account is ready'
                 : 'Verify your DCS Attendance & DTR email address',
             $textMessage,
             $htmlMessage

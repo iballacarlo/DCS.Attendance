@@ -1,8 +1,8 @@
 Add-Type -AssemblyName System.Drawing
 
 $root = Split-Path -Parent $PSScriptRoot
-$logoHeader = Join-Path $root 'PayrollHardwareTFT/cvsu_logo.h'
-$dcsLogoHeader = Join-Path $root 'PayrollHardwareTFT/dcs_logo.h'
+$logoHeader = Join-Path $root 'DCSAttendanceTFT/cvsu_logo.h'
+$dcsLogoHeader = Join-Path $root 'DCSAttendanceTFT/dcs_logo.h'
 $output = Join-Path $PSScriptRoot 'tft-logo-preview.png'
 
 function Convert-Rgb565([uint16]$value) {

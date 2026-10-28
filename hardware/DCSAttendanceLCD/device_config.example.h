@@ -8,8 +8,10 @@ const char* HARDWARE_API_KEY = "YOUR_RAILWAY_HARDWARE_API_KEY";
 // Set this to true for one upload only if Serial Monitor says LittleFS cannot
 // mount. Set it back to false immediately after the storage is initialized.
 #define FORMAT_OFFLINE_STORAGE_ONCE false
-// Add the actual trusted root CA PEM for your HTTPS API host. Never use setInsecure().
+// railway_root_ca.h supplies the verified public CA for the default Railway host.
+// To override it for a different HTTPS host, add its trusted root CA here. Never use setInsecure().
 // Define this in device_config.h using a raw string containing the complete PEM:
-// #define HARDWARE_ROOT_CA R"PEM(-----BEGIN CERTIFICATE-----
+// static const char CUSTOM_ROOT_CA[] = R"PEM(-----BEGIN CERTIFICATE-----
 // ...actual CA certificate...
-// -----END CERTIFICATE-----)PEM"
+// -----END CERTIFICATE-----)PEM";
+// #define HARDWARE_ROOT_CA CUSTOM_ROOT_CA

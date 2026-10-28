@@ -6,6 +6,12 @@ See [Security rollout](docs/security-rollout.md) for account protections, produc
 
 Laravel, Inertia, and React application for Cavite State University - Imus Campus. Two independent attendance flows are enforced:
 
+The maintained TFT firmware is in [`hardware/DCSAttendanceTFT`](hardware/DCSAttendanceTFT/README.md).
+Open `DCSAttendanceTFT.ino` with all companion headers in the same folder.
+The other retained sketches are `hardware/DCSAttendanceLCD` and
+`hardware/DCSAttendanceTFTBeforeCredentialFlow`; each main `.ino` filename
+matches its folder. The WiFi test and logo preview use the renamed paths.
+
 | Flow | Capture | Output |
 | --- | --- | --- |
 | School attendance | Separate guard entrance kiosk, one school IN and one school OUT per faculty/day | Civil Service Form 48 / DTR |

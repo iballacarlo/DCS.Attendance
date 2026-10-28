@@ -127,7 +127,7 @@ void setup() {
   lcd.setTextSize(2);
   lcd.drawString("AS608 SENSOR TEST", lcd.width() / 2, 24);
 
-  // Keep the same UART pins as the payroll firmware.
+  // Keep the same UART pins as the attendance firmware.
   probeSensor();
 }
 

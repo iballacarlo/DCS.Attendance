@@ -40,6 +40,8 @@
 #workspace .faculty-date-label { font-size: 11px; color: var(--ui-muted); font-weight: 700; }
 #workspace .faculty-schedule-navigation input { width: 100%; height: 42px; min-height: 42px; padding: 8px 10px; font-size: 13px; }
 #workspace .faculty-schedule-navigation button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: 42px; height: 42px; padding: 8px; border: 1px solid var(--ui-line); border-radius: 8px; background: var(--ui-paper); color: var(--ui-ink); }
+/* Override the global white button-icon style on these light navigation buttons. */
+#workspace .faculty-schedule-navigation button > svg { color: inherit !important; stroke: currentColor !important; flex-shrink: 0; }
 #workspace .faculty-schedule-navigation button.faculty-schedule-today { padding: 8px 14px; background: var(--ui-soft-green); color: var(--ui-green); font-size: 12px; font-weight: 700; }
 #workspace .faculty-schedule-navigation button:disabled { opacity: .5; cursor: default; }
 #workspace .faculty-schedule-navigation :is(button, input):focus-visible { outline: 3px solid var(--ui-blue); outline-offset: 2px; }
