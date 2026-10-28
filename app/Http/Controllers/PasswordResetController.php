@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Rules\PasswordByteLimit;
+use App\Services\AccountSecurityService;
 use App\Services\GoogleAppsScriptMailer;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
@@ -44,20 +46,21 @@ class PasswordResetController extends Controller
         ]);
     }
 
-    public function update(Request $request)
+    public function update(Request $request, AccountSecurityService $security)
     {
         $data = $request->validate([
             'token' => ['required'],
             'email' => ['required', 'email'],
-            'password' => ['required', 'confirmed', PasswordRule::min(8)],
+            'password' => ['required', 'string', 'confirmed', 'max:72', new PasswordByteLimit, PasswordRule::min(12)],
         ]);
 
-        $status = Password::reset($data, function (User $user, string $password) {
+        $status = Password::reset($data, function (User $user, string $password) use ($security) {
             $user->forceFill([
                 'password' => $password,
                 'must_change_password' => false,
             ])->setRememberToken(Str::random(60));
             $user->save();
+            $security->revokeSessions($user);
 
             event(new PasswordReset($user));
         });

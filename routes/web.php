@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountPasswordController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BackupController;
@@ -38,7 +39,9 @@ Route::get('email/verify/{user}/{hash}', [EmailVerificationController::class, 'v
     ->middleware('signed')
     ->name('verification.verify');
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'auth.session'])->group(function () {
+    Route::get('account/password', [AccountPasswordController::class, 'edit'])->name('account.password.edit');
+    Route::put('account/password', [AccountPasswordController::class, 'update'])->middleware('throttle:5,1')->name('account.password.update');
     Route::post('logout', [AuthController::class, 'logout'])->name('logout');
     Route::get('/', DashboardController::class)->name('dashboard');
     Route::get('profile', [ProfileController::class, 'edit'])->name('profile.edit');

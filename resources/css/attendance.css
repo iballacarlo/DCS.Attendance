@@ -35,6 +35,30 @@
 .ca-punctuality-track > span { display: block; height: 100%; background: var(--ca-incomplete); transition: width .3s ease; }
 .ca-punctuality-track.is-undertime > span { background: #8877c5; }
 .ca-punctuality-track.is-missed > span { background: var(--ca-missed); }
+.ca-punctuality-track.is-on_time > span { background: var(--ca-complete); }
+#workspace .class-analytics .ca-status-chart { margin: 0 0 20px; min-width: 0; }
+.ca-status-bars { display: grid; gap: 12px; }
+.ca-review-notice { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; margin: 0 0 20px; border: 1px solid var(--ui-line); border-radius: 10px; background: var(--ui-surface); font-size: 12px; line-height: 1.6; }
+.ca-status-bar { display: grid; grid-template-columns: minmax(120px, 180px) minmax(0, 1fr) 76px; align-items: center; gap: 16px; padding: 8px; border-radius: 8px; }
+.ca-status-bar[role='button'] { cursor: pointer; }
+.ca-status-bar[role='button']:hover { background: var(--ui-surface, #edf2ef); }
+.ca-status-bar:focus-visible, .ca-status-bar[aria-pressed='true'] { outline: 2px solid var(--ui-green, #176b46); outline-offset: 1px; }
+.ca-status-bar-label { font-size: 13px; font-weight: 700; line-height: 1.5; }
+.ca-status-bar-track { display: block; height: 20px; border-radius: 5px; overflow: hidden; background: var(--ca-track); }
+.ca-status-bar-track > span { display: block; height: 100%; background: var(--ca-incomplete); transition: width .3s ease; }
+.ca-status-bar.is-complete .ca-status-bar-track > span { background: var(--ca-complete); }
+.ca-status-bar.is-undertime .ca-status-bar-track > span { background: #8877c5; }
+.ca-status-bar.is-missed .ca-status-bar-track > span { background: var(--ca-missed); }
+.ca-status-bar-value { display: flex; align-items: baseline; justify-content: flex-end; gap: 8px; font-variant-numeric: tabular-nums; }
+.ca-status-bar-value strong { font-size: 16px; }
+.ca-status-bar-value small { font-size: 11px; }
+@media (max-width: 680px) {
+    .ca-status-bar { grid-template-columns: minmax(90px, 115px) minmax(0, 1fr) 52px; gap: 10px; padding: 6px 0; }
+    .ca-status-bar-label { font-size: 11px; }
+    .ca-status-bar-value { flex-direction: column; align-items: flex-end; gap: 2px; }
+    .ca-status-bar-track { height: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { .ca-status-bar-track > span { transition: none; } }
 .session-status-list { display: flex; flex-wrap: wrap; gap: 5px; min-width: 130px; }
 #workspace .session-status { display: inline-block; padding: 4px 7px; border: 1px solid var(--ui-line); border-radius: 6px; background: var(--ui-surface); color: var(--ui-muted); font-size: 11px; font-weight: 700; white-space: nowrap; }
 #workspace .session-status.is-on_time { background: var(--ui-soft-green); color: var(--ui-green); }

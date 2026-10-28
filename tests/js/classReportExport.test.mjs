@@ -26,6 +26,9 @@ test('Excel report preserves applied filters, all rows, summaries, and breakdown
     assert.deepEqual(reopened.getWorksheet('Sessions').getRow(2).values.slice(1), reportValues(report.rows[0]));
     assert.equal(reopened.getWorksheet('Summary').getCell('B5').value, report.summary.expected);
     assert.equal(reopened.getWorksheet('Summary').getCell('B11').value, report.summary.completion_rate);
+    assert.equal(reopened.getWorksheet('Summary').getCell('A8').value, 'For review');
+    assert.equal(reopened.getWorksheet('Summary').getCell('A9').value, 'Absent');
+    assert.equal(reopened.getWorksheet('By Faculty').getCell('E1').value, 'For review');
     assert.match(reopened.getWorksheet('Summary').getCell('A2').value, /subject: DCIT 21/);
     assert.equal(reopened.getWorksheet('By Faculty').getCell('D2').value, report.summary.complete);
     assert.equal(reopened.getWorksheet('Sessions').getCell('J2').type, ExcelJS.ValueType.Number);

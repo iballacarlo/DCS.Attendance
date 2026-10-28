@@ -18,8 +18,8 @@ class EnsureActiveSystemRole
             return redirect()->route('login')->withErrors(['email' => 'This account is disabled. Contact an administrator to assign an active role.']);
         }
 
-        if ($request->user()?->role === 'guard' && ! $request->routeIs('dashboard', 'entrance.kiosk', 'entrance.kiosk.store', 'entrance.kiosk.preview', 'logout')) {
-            abort(403, 'Guard accounts can only use their dashboard and the entrance kiosk.');
+        if ($request->user()?->role === 'guard' && ! $request->routeIs('dashboard', 'entrance.kiosk', 'entrance.kiosk.store', 'entrance.kiosk.preview', 'logout', 'account.password.*')) {
+            abort(403, 'Guard accounts can only use the entrance kiosk and change their own password.');
         }
 
         return $next($request);

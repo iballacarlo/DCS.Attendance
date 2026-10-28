@@ -25,13 +25,18 @@ class LoginLandingTest extends TestCase
     }
 
     #[DataProvider('loginClients')]
-    public function test_every_login_lands_on_dashboard_instead_of_a_saved_destination(string $role, string $agent): void
+    public function test_login_uses_the_role_landing_page_instead_of_a_saved_destination(string $role, string $agent): void
     {
         $user = User::factory()->create(['role' => $role, 'password' => 'login-test-password']);
         $this->withHeader('User-Agent', $agent)->withSession(['url.intended' => '/attendance/dtr'])
             ->post('/login', ['email' => $user->email, 'password' => 'login-test-password'])
-            ->assertRedirect(route('dashboard'))->assertSessionMissing('url.intended');
+            ->assertRedirect(route($role === 'guard' ? 'entrance.kiosk' : 'dashboard'))->assertSessionMissing('url.intended');
         $this->assertAuthenticatedAs($user);
-        $this->get('/')->assertOk()->assertInertia(fn (Assert $p) => $p->component($role === 'guard' ? 'Guard/Dashboard' : 'Dashboard'));
+        if ($role === 'guard') {
+            $this->get('/')->assertRedirect(route('entrance.kiosk'));
+            $this->get('/entrance-kiosk')->assertOk()->assertInertia(fn (Assert $p) => $p->component('Entrance/Kiosk'));
+        } else {
+            $this->get('/')->assertOk()->assertInertia(fn (Assert $p) => $p->component('Dashboard'));
+        }
     }
 }

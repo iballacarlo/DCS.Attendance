@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Employee;
 use App\Models\EntranceAttendance;
+use App\Services\CutoffService;
 use App\Services\EntranceAttendanceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -12,15 +14,40 @@ class EntranceAttendanceController extends Controller
 {
     public function index(Request $request)
     {
-        $data = $request->validate(['date' => ['nullable', 'date_format:Y-m-d']]);
-        $date = $data['date'] ?? Carbon::today('Asia/Manila')->toDateString();
+        $data = $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+            'cutoff_start' => ['nullable', 'date_format:Y-m-d'],
+            'employee_id' => ['nullable', 'integer', 'exists:employees,id'],
+            'status' => ['nullable', 'in:complete,incomplete'],
+        ]);
+        $faculty = $request->user()->role === 'faculty';
+        $cutoff = $data['cutoff_start'] ?? null;
+        // Old daily links still select the period containing that date.
+        if (! $cutoff && ! empty($data['date'])) {
+            $anchor = Carbon::parse($data['date'], 'Asia/Manila');
+            $cutoff = $anchor->copy()->day($anchor->day <= 15 ? 1 : 16)->toDateString();
+        }
+        [$start, $end] = CutoffService::range($cutoff);
+        $filters = ['cutoff_start' => $start->toDateString(),
+            'employee_id' => $faculty ? '' : ($data['employee_id'] ?? ''), 'status' => $data['status'] ?? ''];
+        $logs = EntranceAttendance::with('employee')->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()]);
+        if ($faculty) {
+            $logs->where('employee_id', $request->user()->employee_id ?? 0);
+        } else {
+            $logs->when($filters['employee_id'], fn ($query, $id) => $query->where('employee_id', $id));
+        }
+        if ($filters['status'] === 'complete') {
+            $logs->whereNotNull('time_in')->whereNotNull('time_out');
+        } elseif ($filters['status'] === 'incomplete') {
+            $logs->where(fn ($query) => $query->whereNull('time_in')->orWhereNull('time_out'));
+        }
 
         return Inertia::render('Entrance/Index', [
-            'date' => $date,
+            'filters' => $filters,
+            'employees' => $faculty ? [] : Employee::orderBy('last_name')->get(['id', 'employee_no', 'first_name', 'middle_name', 'last_name', 'suffix']),
+            'canSelectFaculty' => ! $faculty,
             'canRecord' => false,
-            'logs' => EntranceAttendance::with('employee')->where('attendance_date', $date)
-                ->when($request->user()->role === 'faculty', fn ($q) => $q->where('employee_id', $request->user()->employee_id ?? 0))
-                ->orderByDesc('time_in')->get(),
+            'logs' => $logs->orderByDesc('attendance_date')->orderByDesc('time_in')->orderByDesc('id')->paginate(15)->withQueryString(),
         ]);
     }
 

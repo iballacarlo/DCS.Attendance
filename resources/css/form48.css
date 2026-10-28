@@ -6,6 +6,10 @@
 .faculty-combobox { position: relative; display: grid; gap: 5px; min-width: 0; }
 .faculty-combobox input { width: 100%; min-width: 0; font-weight: 700; }
 .faculty-combobox-list { position: absolute; top: calc(100% + 5px); left: 0; right: 0; z-index: 50; max-height: 260px; overflow-y: auto; border: 1px solid var(--ui-line, #cbd9cf); border-radius: 10px; background: var(--ui-paper, #fff); box-shadow: 0 8px 24px #183a2720; }
+/* Open faculty lists can extend beyond panels; tables keep their own clipping. */
+@media screen {
+    #workspace .panel:has(.faculty-combobox-list) { overflow: visible; }
+}
 #workspace .faculty-combobox-option { display: block; width: 100%; padding: 11px 14px; border: 0; border-radius: 0; text-align: left; font-size: 13px; font-weight: 700; line-height: 1.5; background: var(--ui-paper) !important; color: var(--ui-ink) !important; white-space: normal; }
 #workspace .faculty-combobox-option:is(:hover, .is-active) { background: var(--ui-soft-green) !important; }
 .faculty-combobox-empty { padding: 14px; color: var(--ui-muted, #4f6558); font-size: 13px; }

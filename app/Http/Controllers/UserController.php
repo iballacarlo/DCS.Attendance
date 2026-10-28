@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Models\User;
+use App\Rules\PasswordByteLimit;
+use App\Services\AccountSecurityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -65,19 +67,26 @@ class UserController extends Controller
         ]);
     }
 
-    public function update(Request $request, User $user)
+    public function update(Request $request, User $user, AccountSecurityService $security)
     {
-        $user->update($this->validated($request, $user));
+        $data = $this->validated($request, $user);
+        $user->fill($data);
+        $accessChanged = $user->isDirty(['password', 'email', 'role', 'employee_id']);
+        $user->save();
+        if ($accessChanged) {
+            $security->revokeSessions($user);
+        }
 
         return redirect()->route('settings.accounts.index')->with('success', 'User account updated.');
     }
 
-    public function destroy(User $user)
+    public function destroy(User $user, AccountSecurityService $security)
     {
         if (auth()->id() === $user->id) {
             return back()->withErrors(['user' => 'You cannot delete your own account while logged in.']);
         }
 
+        $security->revokeSessions($user);
         $user->delete();
 
         return redirect()->route('settings.accounts.index')->with('success', 'User account deleted.');
@@ -90,7 +99,7 @@ class UserController extends Controller
             'email' => ['required', 'email', 'max:255', Rule::unique('users')->ignore($user?->id)],
             'role' => ['required', 'in:admin,faculty,guard'],
             'employee_id' => ['nullable', Rule::exists('employees', 'id')->whereNull('archived_at')],
-            'password' => [$user ? 'nullable' : 'required', 'min:6'],
+            'password' => [$user ? 'nullable' : 'required', 'string', 'min:12', 'max:72', new PasswordByteLimit],
         ];
 
         if ($request->role === 'faculty') {
@@ -105,6 +114,7 @@ class UserController extends Controller
 
         if (! empty($data['password'])) {
             $data['password'] = Hash::make($data['password']);
+            $data['must_change_password'] = true;
         } else {
             unset($data['password']);
         }

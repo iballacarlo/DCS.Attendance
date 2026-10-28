@@ -299,7 +299,7 @@ class EmployeeCredentialTest extends TestCase
         $this->assertSame('faculty', $user->role);
         $this->assertTrue($user->must_change_password);
         $this->assertNotNull($user->employee_id);
-        $this->assertSame(14, strlen($credentials['password']));
+        $this->assertSame(16, strlen($credentials['password']));
         $this->assertTrue(Hash::check($credentials['password'], $user->password));
         Http::assertSent(fn ($request) => $request['recipient'] === $user->email
             && str_contains($request['subject'], 'account is ready')

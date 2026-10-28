@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureAccountSecurity;
 use App\Http\Middleware\EnsureActiveSystemRole;
 use App\Http\Middleware\EnsureFacultyIsNotArchived;
 use App\Http\Middleware\EnsureUserHasRole;
@@ -20,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->web(append: [
             EnsureActiveSystemRole::class,
+            EnsureAccountSecurity::class,
             EnsureFacultyIsNotArchived::class,
             HandleInertiaRequests::class,
         ]);

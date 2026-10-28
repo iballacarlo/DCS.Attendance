@@ -170,7 +170,7 @@ class AttendanceSeparationTest extends TestCase
         $assertBlank(); // A later schedule must not reinterpret the empty snapshot.
         $this->assertDatabaseHas('entrance_attendances', ['employee_id' => $employee->id, 'attendance_date' => '2026-10-28', 'time_in' => '13:36:08', 'time_out' => '16:04:00']);
         $this->admin();
-        $this->get('/entrance?date=2026-10-28')->assertInertia(fn (Assert $p) => $p->has('logs', 1)->where('logs.0.time_in', '13:36:08'));
+        $this->get('/entrance?date=2026-10-28')->assertInertia(fn (Assert $p) => $p->has('logs.data', 1)->where('logs.data.0.time_in', '13:36:08'));
     }
 
     public function test_consultation_only_day_still_appears_in_dtr_without_class_hardware_taps(): void
@@ -258,18 +258,18 @@ class AttendanceSeparationTest extends TestCase
         $late->update(['start_time' => '09:00', 'end_time' => '09:30']);
         $filters = ['start_date' => '2026-10-05', 'end_date' => '2026-10-05'];
         $report = app(ClassReportService::class)->build($filters);
-        foreach (['expected' => 5, 'ended' => 4, 'complete' => 2, 'late' => 2, 'undertime' => 1,
+        foreach (['expected' => 5, 'ended' => 4, 'complete' => 2, 'late' => 1, 'undertime' => 1,
             'on_time' => 1, 'missed' => 1, 'incomplete' => 1, 'excluded' => 1,
-            'total_late_minutes' => 11, 'total_undertime_minutes' => 11] as $key => $expected) {
+            'total_late_minutes' => 6, 'total_undertime_minutes' => 11] as $key => $expected) {
             $this->assertSame($expected, $report['summary'][$key], $key);
         }
         $this->assertSame(50.0, $report['summary']['completion_rate']);
         $faculty = $report['faculty_breakdown']->firstWhere('value', $first->id);
-        $this->assertSame(2, $faculty['late']);
+        $this->assertSame(1, $faculty['late']);
         $this->assertSame(1, $faculty['undertime']);
-        $this->assertSame(11, $faculty['total_late_minutes']);
+        $this->assertSame(6, $faculty['total_late_minutes']);
         $this->assertSame(11, $report['subject_breakdown'][0]['total_undertime_minutes']);
-        $this->assertSame(2, $report['trend'][0]['late']);
+        $this->assertSame(1, $report['trend'][0]['late']);
         $filtered = app(ClassReportService::class)->build([...$filters, 'employee_id' => $second->id]);
         $this->assertSame(1, $filtered['summary']['on_time']);
         $this->assertSame(0, $filtered['summary']['late']);
@@ -285,7 +285,7 @@ class AttendanceSeparationTest extends TestCase
         app(EntranceAttendanceService::class)->record('RFID-ONE', 'IN', Carbon::parse('2026-10-05 08:00'), $admin->id);
         app(EntranceAttendanceService::class)->record('RFID-TWO', 'IN', Carbon::parse('2026-10-05 08:00'), $admin->id);
         $this->actingAs(User::factory()->create(['role' => 'faculty', 'employee_id' => $employee->id]));
-        $this->get('/entrance?date=2026-10-05')->assertInertia(fn (Assert $p) => $p->has('logs', 1)->where('logs.0.employee_id', $employee->id)->where('canRecord', false));
+        $this->get('/entrance?date=2026-10-05')->assertInertia(fn (Assert $p) => $p->has('logs.data', 1)->where('logs.data.0.employee_id', $employee->id)->where('canRecord', false));
         $this->get('/attendance/dtr?employee_id='.$other->id.'&start_date=2026-10-01')->assertInertia(fn (Assert $p) => $p->where('dtr.employee.id', $employee->id)->missing('dtr.employee.rate_amount'));
         $this->tap('IN')->assertForbidden();
         $this->get('/class-reports')->assertForbidden();
@@ -322,6 +322,7 @@ class AttendanceSeparationTest extends TestCase
         $legacy = $backup;
         $legacy['application'] = 'CvSU Payroll System';
         unset($legacy['tables']['entrance_attendances']);
+        $this->admin();
         $this->post('/settings/backup/restore', ['backup_file' => $file($legacy)])->assertSessionHasNoErrors();
         $this->assertDatabaseCount('entrance_attendances', 1);
     }
@@ -370,11 +371,11 @@ class AttendanceSeparationTest extends TestCase
         $this->tap('IN')->assertSessionHasNoErrors();
         $this->admin();
         $this->post('/employees/archive', ['employee_ids' => [$employee->id]])->assertSessionHasNoErrors();
-        $this->get('/entrance?date=2026-10-05')->assertInertia(fn (Assert $p) => $p->has('logs', 0));
+        $this->get('/entrance?date=2026-10-05')->assertInertia(fn (Assert $p) => $p->has('logs.data', 0));
         $this->assertDatabaseCount('entrance_attendances', 1);
         $this->get('/attendance/dtr?employee_id='.$employee->id)->assertNotFound();
         $this->post('/archived-faculty/'.$employee->id.'/restore')->assertSessionHasNoErrors();
-        $this->get('/entrance?date=2026-10-05')->assertInertia(fn (Assert $p) => $p->has('logs', 1)->where('logs.0.time_in', '08:00:00'));
+        $this->get('/entrance?date=2026-10-05')->assertInertia(fn (Assert $p) => $p->has('logs.data', 1)->where('logs.data.0.time_in', '08:00:00'));
     }
 
     public function test_admin_can_reassign_disabled_staff_and_restored_staff_stays_disabled(): void
@@ -383,7 +384,7 @@ class AttendanceSeparationTest extends TestCase
         $this->admin();
         $backup = json_decode($this->get('/settings/backup/download')->assertOk()->streamedContent(), true);
         $this->put('/settings/accounts/'.$staff->id, ['name' => $staff->name, 'email' => $staff->email, 'role' => 'admin'])->assertSessionHasNoErrors();
-        $this->actingAs($staff->fresh())->get('/')->assertOk();
+        $this->withSession(['account_security_version' => $staff->fresh()->security_version])->actingAs($staff->fresh())->get('/')->assertOk();
         $this->post('/settings/backup/restore', ['backup_file' => UploadedFile::fake()->createWithContent('backup.json', json_encode($backup))])->assertSessionHasNoErrors();
         $this->actingAs($staff->fresh())->get('/')->assertRedirect('/login');
         $this->assertGuest();

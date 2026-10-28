@@ -16,6 +16,10 @@
 #include <time.h>
 #include "device_config.h"
 
+#ifndef HARDWARE_ROOT_CA
+#error "Configure HARDWARE_ROOT_CA with the API server trusted root CA before uploading."
+#endif
+
 #ifndef FORMAT_OFFLINE_STORAGE_ONCE
 #define FORMAT_OFFLINE_STORAGE_ONCE false
 #endif
@@ -684,7 +688,7 @@ void enrollRfid(String id) {
 
 void enrollmentPollTask(void* parameter) {
   WiFiClientSecure enrollmentClient;
-  enrollmentClient.setInsecure();
+  enrollmentClient.setCACert(HARDWARE_ROOT_CA);
   enrollmentClient.setHandshakeTimeout(5);
 
   HTTPClient http;
@@ -977,7 +981,7 @@ void setup() {
   }
   setupFingerprint();
   initializeOfflineStorage();
-  secureClient.setInsecure();
+  secureClient.setCACert(HARDWARE_ROOT_CA);
   WiFi.setTxPower(WIFI_POWER_15dBm);
   connectWiFi();
   enrollmentQueue = xQueueCreate(1, sizeof(EnrollmentRequest));

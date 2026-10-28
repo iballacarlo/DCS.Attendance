@@ -25,3 +25,6 @@ hardware/PayrollHardwareTFT/device_config.h
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Device-local credentials for every hardware sketch.
+hardware/**/device_config.h

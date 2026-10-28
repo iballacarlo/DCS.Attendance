@@ -39,6 +39,7 @@ class User extends Authenticatable implements MustVerifyEmailContract
     protected $hidden = [
         'password',
         'remember_token',
+        'security_version',
     ];
 
     /**
@@ -52,6 +53,7 @@ class User extends Authenticatable implements MustVerifyEmailContract
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'must_change_password' => 'boolean',
+            'security_version' => 'integer',
         ];
     }
 

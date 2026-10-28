@@ -126,8 +126,8 @@ export default function ProfileEdit({ profileUser }) {
             <div className="form-section-title"><span><KeyRound size={17} /></span><div><strong>Account security</strong><small>Leave these fields blank to keep your current password</small></div></div>
             <div className="profile-security-grid">
                 <label>Current Password<input type="password" autoComplete="off" placeholder="Enter current password" value={form.data.current_password} onChange={(event) => form.setData('current_password', event.target.value)} /><ErrorMessage message={form.errors.current_password} /></label>
-                <label>New Password<input type="password" autoComplete="new-password" minLength="8" placeholder="Minimum 8 characters" value={form.data.password} onChange={(event) => form.setData('password', event.target.value)} /><ErrorMessage message={form.errors.password} /></label>
-                <label>Confirm New Password<input type="password" autoComplete="new-password" minLength="8" value={form.data.password_confirmation} onChange={(event) => form.setData('password_confirmation', event.target.value)} /></label>
+                <label>New Password<input type="password" autoComplete="new-password" minLength="12" maxLength="72" placeholder="Minimum 12 characters" value={form.data.password} onChange={(event) => form.setData('password', event.target.value)} /><ErrorMessage message={form.errors.password} /></label>
+                <label>Confirm New Password<input type="password" autoComplete="new-password" minLength="12" maxLength="72" value={form.data.password_confirmation} onChange={(event) => form.setData('password_confirmation', event.target.value)} /></label>
             </div>
             <div className="form-actions"><button className="ui-control ui-action ui-primary" type="submit" disabled={form.processing}><Save size={17} />{form.processing ? 'Saving...' : 'Save Changes'}</button></div>
         </form>

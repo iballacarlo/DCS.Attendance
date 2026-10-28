@@ -1,15 +1,15 @@
 export const attendanceStatuses = [
     { key: 'complete', label: 'Complete records', short: 'Complete', description: 'Both IN and OUT recorded', tone: 'complete' },
-    { key: 'incomplete', label: 'Missing IN or OUT', short: 'Incomplete', description: 'A tap is missing from the pair', tone: 'incomplete' },
-    { key: 'missed', label: 'Absent / no taps', short: 'Absent', description: 'No attendance record for a finished class', tone: 'missed' },
+    { key: 'incomplete', label: 'For review', short: 'For review', description: 'Attendance needs review after the class has ended', tone: 'incomplete' },
+    { key: 'missed', label: 'Absent', short: 'Absent', description: 'No attendance record for a finished class', tone: 'missed' },
 ];
 
-export const sessionStatusLabels = { on_time: 'On time & full class', late: 'Late', undertime: 'Undertime', missed: 'Absent / no taps', incomplete: 'Incomplete IN/OUT', complete: 'Complete IN/OUT', upcoming: 'Not started', in_progress: 'Class in progress', excluded: 'Not required' };
+export const sessionStatusLabels = { on_time: 'On time & full class', late: 'Late', undertime: 'Undertime', missed: 'Absent', incomplete: 'For review', complete: 'Complete IN/OUT', upcoming: 'Not started', in_progress: 'Class in progress', excluded: 'Not required' };
 
 export function matchesSessionStatus(row, status) {
     if (!status) return true;
     if (['late', 'undertime', 'on_time'].includes(status)) {
-        if (!row.ended || row.status === 'excluded') return false;
+        if (!row.ended || row.status !== 'complete') return false;
         if (status === 'late') return Number(row.late_minutes) > 0;
         if (status === 'undertime') return Number(row.early_departure_minutes) > 0;
         return row.status === 'complete' && row.late_minutes === 0 && row.early_departure_minutes === 0;
@@ -20,7 +20,7 @@ export function matchesSessionStatus(row, status) {
 export function sessionIndicators(row) {
     if (['excluded', 'missed', 'upcoming', 'in_progress'].includes(row.status)) return [{ key: row.status, label: sessionStatusLabels[row.status] }];
     const indicators = [];
-    if (row.status === 'incomplete') indicators.push({ key: 'incomplete', label: 'Incomplete IN/OUT' });
+    if (row.status === 'incomplete') return [{ key: row.ended ? 'incomplete' : 'in_progress', label: row.ended ? 'For review' : sessionStatusLabels.in_progress }];
     if (Number(row.late_minutes) > 0) indicators.push({ key: 'late', label: `Late · ${row.late_minutes} min` });
     if (Number(row.early_departure_minutes) > 0) indicators.push({ key: 'undertime', label: `Undertime · ${row.early_departure_minutes} min` });
     if (!indicators.length) {
@@ -44,8 +44,8 @@ export function classReportView(report, status = '') {
             on_time: ended.filter((row) => matchesSessionStatus(row, 'on_time')).length,
             late: ended.filter((row) => matchesSessionStatus(row, 'late')).length,
             undertime: ended.filter((row) => matchesSessionStatus(row, 'undertime')).length,
-            total_late_minutes: ended.reduce((total, row) => total + (Number(row.late_minutes) || 0), 0),
-            total_undertime_minutes: ended.reduce((total, row) => total + (Number(row.early_departure_minutes) || 0), 0),
+            total_late_minutes: ended.filter((row) => row.status === 'complete').reduce((total, row) => total + (Number(row.late_minutes) || 0), 0),
+            total_undertime_minutes: ended.filter((row) => row.status === 'complete').reduce((total, row) => total + (Number(row.early_departure_minutes) || 0), 0),
             excluded: items.length - eligible.length, completion_rate: ended.length ? Math.round(complete / ended.length * 1000) / 10 : null };
     };
     const breakdown = (field) => {

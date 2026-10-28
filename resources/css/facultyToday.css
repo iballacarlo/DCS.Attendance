@@ -1,0 +1,84 @@
+#workspace .faculty-day-schedule { min-width: 0; }
+#workspace .faculty-overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; align-items: stretch; }
+#workspace .faculty-overview-card.panel { display: flex; flex-direction: column; gap: 18px; margin: 0; min-width: 0; padding: 24px; }
+#workspace .faculty-overview-card header { display: flex; align-items: center; gap: 12px; }
+#workspace .faculty-overview-card h2, #workspace .faculty-link-notice h2 { margin: 0; font-size: 18px; line-height: 1.5; }
+#workspace .faculty-overview-card header p { margin: 3px 0 0; font-size: 12px; color: var(--ui-muted); }
+#workspace .faculty-overview-icon { display: grid; place-items: center; flex: 0 0 44px; height: 44px; border-radius: 12px; background: var(--ui-soft-green); color: var(--ui-green); }
+#workspace .faculty-overview-icon.is-blue { background: var(--ui-soft-blue); color: var(--ui-blue); }
+#workspace .faculty-school-status { display: inline-flex; align-items: center; align-self: flex-start; gap: 7px; padding: 6px 10px; border-radius: 7px; font-size: 12px; font-weight: 700; line-height: 1.5; background: var(--ui-surface); color: var(--ui-muted); }
+#workspace .faculty-school-status.is-in { background: var(--ui-soft-blue); color: var(--ui-blue); }
+#workspace .faculty-school-status.is-out { background: var(--ui-soft-green); color: var(--ui-green); }
+#workspace .faculty-school-times { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0; }
+#workspace .faculty-school-times > div { min-width: 0; padding: 14px; border: 1px solid var(--ui-line); border-radius: 9px; }
+#workspace .faculty-school-times dt { display: flex; align-items: center; gap: 6px; color: var(--ui-muted); font-size: 12px; }
+#workspace .faculty-school-times dd { margin: 8px 0 0; font-size: 21px; font-weight: 700; line-height: 1.4; font-variant-numeric: tabular-nums; }
+#workspace .faculty-overview-link { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; margin-top: auto; min-height: 36px; font-size: 13px; }
+#workspace .faculty-next-class { display: grid; justify-items: start; gap: 10px; }
+#workspace .faculty-next-class h3 { margin: 0; font-size: 23px; line-height: 1.4; overflow-wrap: anywhere; }
+#workspace .faculty-next-class p { margin: 0; font-size: 13px; line-height: 1.6; }
+#workspace .faculty-next-time { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+#workspace .faculty-overview-empty { margin: auto 0; padding: 22px 0; color: var(--ui-muted); font-size: 15px; line-height: 1.7; }
+#workspace .faculty-dashboard-shortcuts { display: flex; flex-wrap: wrap; gap: 12px; }
+#workspace .faculty-dashboard-shortcuts a { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 10px 16px; border: 1px solid var(--ui-line); border-radius: 9px; background: var(--ui-paper); color: var(--ui-green); font-size: 13px; font-weight: 700; transition: background-color 160ms ease; }
+#workspace .faculty-dashboard-shortcuts a:hover { background: var(--ui-soft-green); }
+#workspace :is(.faculty-dashboard-shortcuts a, .faculty-overview-link):focus-visible { outline: 3px solid var(--ui-blue); outline-offset: 3px; }
+#workspace .faculty-link-notice p { margin-bottom: 0; line-height: 1.7; }
+@media (max-width: 760px) {
+    #workspace .faculty-overview-grid { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+    #workspace .faculty-overview-card.panel { padding: 18px; }
+    #workspace .faculty-school-times dd { font-size: 18px; }
+    #workspace .faculty-dashboard-shortcuts { gap: 8px; }
+    #workspace .faculty-dashboard-shortcuts a { flex: 1 1 180px; }
+    #workspace .faculty-dashboard-shortcuts a svg:last-child { margin-left: auto; }
+}
+#workspace .faculty-day-schedule .panel-heading { gap: 12px 20px; }
+#workspace .faculty-day-schedule .panel-heading p { margin: 5px 0 0; font-size: 12px; line-height: 1.5; }
+#workspace .faculty-day-summary { padding: 8px 12px; border: 1px solid var(--ui-line); border-radius: 8px; background: var(--ui-surface); color: var(--ui-ink); font-size: 13px; font-weight: 700; line-height: 1.5; }
+#workspace .faculty-schedule-navigation { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+#workspace .faculty-schedule-navigation label { display: grid; gap: 5px; margin: 0; min-width: 0; width: 175px; }
+#workspace .faculty-date-label { font-size: 11px; color: var(--ui-muted); font-weight: 700; }
+#workspace .faculty-schedule-navigation input { width: 100%; height: 42px; min-height: 42px; padding: 8px 10px; font-size: 13px; }
+#workspace .faculty-schedule-navigation button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: 42px; height: 42px; padding: 8px; border: 1px solid var(--ui-line); border-radius: 8px; background: var(--ui-paper); color: var(--ui-ink); }
+#workspace .faculty-schedule-navigation button.faculty-schedule-today { padding: 8px 14px; background: var(--ui-soft-green); color: var(--ui-green); font-size: 12px; font-weight: 700; }
+#workspace .faculty-schedule-navigation button:disabled { opacity: .5; cursor: default; }
+#workspace .faculty-schedule-navigation :is(button, input):focus-visible { outline: 3px solid var(--ui-blue); outline-offset: 2px; }
+#workspace .faculty-day-timeline { position: relative; list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+#workspace .faculty-day-entry { --day-status-color: var(--ui-muted); --day-status-bg: var(--ui-surface); position: relative; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 14px; min-width: 0; }
+#workspace .faculty-day-entry:not(:last-child)::before { content: ''; position: absolute; left: 16px; top: 29px; height: calc(100% + 16px); width: 2px; background: var(--ui-line); }
+#workspace .faculty-day-entry.is-finished { --day-status-color: var(--ui-green); --day-status-bg: var(--ui-soft-green); }
+#workspace .faculty-day-entry.is-checked_in { --day-status-color: var(--ui-blue); --day-status-bg: var(--ui-soft-blue); }
+#workspace .faculty-day-entry:is(.is-awaiting_in, .is-for_review) { --day-status-color: var(--ui-amber); --day-status-bg: var(--ui-soft-amber); }
+#workspace .faculty-day-entry.is-absent { --day-status-color: var(--ui-red); --day-status-bg: var(--ui-soft-red); }
+#workspace .faculty-day-node { position: relative; z-index: 1; display: grid; place-items: center; width: 34px; height: 34px; margin-top: 12px; border: 1px solid var(--ui-line); border-radius: 50%; background: var(--day-status-bg); color: var(--day-status-color); }
+#workspace .faculty-session-card { min-width: 0; padding: 18px; border: 1px solid var(--ui-line); border-radius: 12px; background: var(--ui-paper); transition: border-color 160ms ease, background-color 160ms ease; }
+#workspace .faculty-day-entry.is-current .faculty-session-card { border-color: var(--ui-blue); box-shadow: inset 3px 0 var(--ui-blue); }
+#workspace .faculty-session-time { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; color: var(--ui-muted); font-size: 12px; line-height: 1.5; }
+#workspace .faculty-session-time > strong { margin-left: auto; padding: 2px 7px; border-radius: 5px; color: var(--ui-blue) !important; background: var(--ui-soft-blue); font-size: 11px; }
+#workspace .faculty-session-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px 16px; margin-top: 10px; }
+#workspace .faculty-session-heading > div { min-width: 0; }
+#workspace .faculty-session-heading h3 { margin: 0; font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
+#workspace .faculty-session-heading p { margin: 4px 0 0; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+#workspace .faculty-session-status { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 6px; background: var(--day-status-bg); color: var(--day-status-color); font-size: 12px; font-weight: 700; line-height: 1.5; }
+#workspace .faculty-class-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; list-style: none; margin: 16px 0 0; padding: 14px 0 0; border-top: 1px solid var(--ui-line); }
+#workspace .faculty-class-steps li { position: relative; display: grid; justify-items: center; align-content: start; gap: 5px; min-width: 0; text-align: center; font-size: 12px; line-height: 1.5; color: var(--ui-muted); }
+#workspace .faculty-class-steps li:not(:last-child)::after { content: ''; position: absolute; left: calc(50% + 18px); top: 12px; width: calc(100% - 24px); height: 1px; background: var(--ui-line); }
+#workspace .faculty-step-icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; color: var(--ui-muted); background: var(--ui-surface); border: 1px solid var(--ui-line); }
+#workspace .faculty-class-steps .is-recorded .faculty-step-icon { color: var(--ui-green); background: var(--ui-soft-green); border-color: var(--ui-green); }
+#workspace .faculty-class-steps strong { font-size: 12px; }
+#workspace .faculty-class-steps li > span:last-child { font-variant-numeric: tabular-nums; }
+#workspace .faculty-session-flags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+#workspace .faculty-session-flags span { padding: 4px 8px; border-radius: 5px; color: var(--ui-amber); background: var(--ui-soft-amber); font-size: 11px; font-weight: 700; line-height: 1.5; }
+#workspace .faculty-session-exclusion { margin: 12px 0 0; font-size: 12px; line-height: 1.6; }
+#workspace .faculty-day-empty { padding: 18px; margin: 0; border-radius: 10px; background: var(--ui-surface); font-size: 13px; line-height: 1.6; }
+#workspace .faculty-day-updated { display: block; margin-top: 16px; text-align: right; font-size: 11px; line-height: 1.5; }
+@media (max-width: 680px) {
+    #workspace .faculty-day-entry { grid-template-columns: 28px minmax(0, 1fr); gap: 10px; }
+    #workspace .faculty-day-node { width: 28px; height: 28px; }
+    #workspace .faculty-day-entry:not(:last-child)::before { left: 13px; top: 26px; }
+    #workspace .faculty-session-card { padding: 14px; }
+    #workspace .faculty-session-heading h3 { font-size: 14px; }
+    #workspace .faculty-class-steps { gap: 8px; }
+    #workspace .faculty-class-steps li { font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) { #workspace :is(.faculty-session-card, .faculty-dashboard-shortcuts a) { transition: none; } }

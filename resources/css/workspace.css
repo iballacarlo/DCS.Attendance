@@ -52,6 +52,28 @@
         #workspace .attendance-toolbar-actions .button { flex: 1; white-space: normal; }
     }
 }
+
+/* Keep the theme icon readable against its green button on both headers. */
+:is(#workspace .theme-toggle, .mobile-branding .mobile-theme-toggle) {
+    background: #176b46 !important;
+    border-color: #176b46 !important;
+    color: #fff !important;
+}
+:is(#workspace .theme-toggle, .mobile-branding .mobile-theme-toggle):hover {
+    background: #105435 !important;
+    border-color: #105435 !important;
+}
+:is(#workspace .theme-toggle, .mobile-branding .mobile-theme-toggle) > svg {
+    color: inherit !important;
+    stroke: currentColor !important;
+}
+:is(#workspace .theme-toggle, .mobile-branding .mobile-theme-toggle):focus-visible {
+    outline: 2px solid #d5aa3c;
+    outline-offset: 3px;
+}
+html[data-theme='dark'] :is(#workspace .theme-toggle, .mobile-branding .mobile-theme-toggle) {
+    color: #ffdc80 !important;
+}
 @media screen {
     #workspace {
         --ui-paper: #fff; --ui-surface: #f3f7f4; --ui-line: #cbd9cf;

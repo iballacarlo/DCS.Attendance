@@ -93,7 +93,7 @@ export default function AppLayout({ title, subtitle, children }) {
         const handleKey = (event) => {
             if (event.key === 'Escape') { event.preventDefault(); setMobileMenuOpen(false); }
             if (event.key !== 'Tab') return;
-            const controls = [...sidebar.current.querySelectorAll('a[href], button:not(:disabled)')].filter((element) => element.getClientRects().length);
+            const controls = [...sidebar.current.querySelectorAll('a[href], button:not(:disabled)')].filter((element) => element.getClientRects().length && !element.closest('[inert]'));
             const first = controls[0];
             const last = controls[controls.length - 1];
             if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
@@ -178,8 +178,8 @@ export default function AppLayout({ title, subtitle, children }) {
                                 <span className="nav-copy">{item.label}</span>
                                 <ChevronDown size={15} className={`sidebar-menu-chevron${expandedMenus[item.id] ? ' is-open' : ''}`} aria-hidden="true" />
                             </button>
-                            <div id={`sidebar-submenu-${item.id}`} className="sidebar-submenu" hidden={navigationCollapsed || !expandedMenus[item.id]}>
-                                {item.children.map(navigationLink)}
+                            <div id={`sidebar-submenu-${item.id}`} className={`sidebar-submenu${!navigationCollapsed && expandedMenus[item.id] ? ' is-open' : ''}`} aria-hidden={navigationCollapsed || !expandedMenus[item.id]} inert={navigationCollapsed || !expandedMenus[item.id] ? true : undefined}>
+                                <div className="sidebar-submenu-inner">{item.children.map(navigationLink)}</div>
                             </div>
                         </div> : navigationLink(item))}
                     </div>)}
@@ -221,7 +221,7 @@ export default function AppLayout({ title, subtitle, children }) {
                         <Link className="user-chip" href="/profile" title="View and edit your profile"><span className="user-avatar">{(user.employee ? fullName(user.employee) : user.name).charAt(0)}</span><span className="user-copy"><strong>{user.employee ? fullName(user.employee) : user.name}</strong><small>{roleLabel(user.role)}</small></span></Link>
                     </div>
                 </header>
-                {user.must_change_password && <section className="password-change-reminder" role="status"><KeyRound size={20} /><div><strong>Change your temporary password</strong><span>Your account is still using the temporary password issued by the administrator.</span></div><Link href="/profile">Change password</Link></section>}
+                {user.must_change_password && <section className="password-change-reminder" role="status"><KeyRound size={20} /><div><strong>Change your temporary password</strong><span>Your account is still using the temporary password issued by the administrator.</span></div><Link href="/account/password">Change password</Link></section>}
                 {user.role === 'faculty' && !user.email_verified && <section className="email-verification-reminder" role="status"><MailWarning size={20} /><div><strong>Verify your email address</strong><span>Open the verification link sent to {user.email}. This confirms that the address belongs to you.</span></div><button type="button" onClick={() => router.post('/email/verification-notification', {}, { preserveScroll: true })}>Resend link</button></section>}
                 {flash?.success && <div className="alert success">{flash.success}</div>}
                 {flash?.error && <div className="alert error">{flash.error}</div>}

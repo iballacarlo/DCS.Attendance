@@ -105,7 +105,7 @@ class EmployeeController extends Controller
 
     public function store(Request $request, GoogleAppsScriptMailer $mailer)
     {
-        $temporaryPassword = Str::random(14);
+        $temporaryPassword = Str::random(16);
         $credentials = DB::transaction(function () use ($request, $temporaryPassword) {
             $data = $this->validated($request, null, true);
             $data['employee_no'] = $this->nextEmployeeNumber();

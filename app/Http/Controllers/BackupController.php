@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Services\SelectiveBackupService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -96,6 +98,7 @@ class BackupController extends Controller
         Schema::disableForeignKeyConstraints();
         try {
             DB::transaction(function () use ($backup) {
+                $previousVersion = (int) DB::table('users')->max('security_version');
                 foreach (array_reverse(self::TABLES) as $table) {
                     DB::table($table)->delete();
                 }
@@ -106,12 +109,28 @@ class BackupController extends Controller
                         }
                     }
                 }
+                // A full restore must never make a previously revoked session valid again.
+                $version = max($previousVersion, (int) DB::table('users')->max('security_version')) + 1;
+                foreach (DB::table('users')->pluck('id') as $id) {
+                    DB::table('users')->where('id', $id)->update([
+                        'security_version' => $version,
+                        'remember_token' => Str::random(60),
+                    ]);
+                }
+                DB::table('password_reset_tokens')->delete();
+                if (config('session.driver') === 'database') {
+                    DB::connection(config('session.connection'))->table(config('session.table', 'sessions'))->delete();
+                }
             });
         } finally {
             Schema::enableForeignKeyConstraints();
         }
 
-        return redirect()->route('settings.backup.index')->with('success', 'Backup restored successfully.');
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('login')->with('success', 'Backup restored successfully. Sign in again to continue.');
     }
 
     private function missingTables(array $tables = self::TABLES): array

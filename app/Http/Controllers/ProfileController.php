@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Rules\PasswordByteLimit;
+use App\Services\AccountSecurityService;
 use App\Services\GoogleAppsScriptMailer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,7 +24,7 @@ class ProfileController extends Controller
         ]);
     }
 
-    public function update(Request $request, GoogleAppsScriptMailer $mailer)
+    public function update(Request $request, GoogleAppsScriptMailer $mailer, AccountSecurityService $security)
     {
         /** @var User $user */
         $user = $request->user();
@@ -32,7 +34,7 @@ class ProfileController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email:rfc', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'current_password' => ['nullable', 'required_with:password', 'current_password'],
-            'password' => ['nullable', 'required_with:current_password', 'string', 'min:8', 'confirmed'],
+            'password' => ['nullable', 'required_with:current_password', 'string', 'min:12', 'max:72', new PasswordByteLimit, 'confirmed', 'different:current_password'],
         ];
 
         if ($employee) {
@@ -123,6 +125,10 @@ class ProfileController extends Controller
             }
             $user->save();
         });
+
+        if ($emailChanged || ! empty($data['password'])) {
+            $security->revokeSessions($user, $request);
+        }
 
         $verificationSent = $emailChanged ? $mailer->sendVerification($user) : null;
 

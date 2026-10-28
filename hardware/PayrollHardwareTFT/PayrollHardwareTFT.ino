@@ -18,6 +18,10 @@
 #include <time.h>
 #include "device_config.h"
 
+#ifndef HARDWARE_ROOT_CA
+#error "Configure HARDWARE_ROOT_CA with the API server trusted root CA before uploading."
+#endif
+
 #ifndef FORMAT_OFFLINE_STORAGE_ONCE
 #define FORMAT_OFFLINE_STORAGE_ONCE false
 #endif
@@ -1004,7 +1008,7 @@ int requestHardwareServer(String path, String payload, String& response, bool ba
     }
     // Both clients are destroyed at the end of each attempt, before retrying.
     WiFiClientSecure secureClient;
-    secureClient.setInsecure();
+    secureClient.setCACert(HARDWARE_ROOT_CA);
     secureClient.setHandshakeTimeout(monitorEnrollment ? 2 : 15);
     IPAddress serverIp;
     if (WiFi.hostByName(API_HOST, serverIp) != 1) {

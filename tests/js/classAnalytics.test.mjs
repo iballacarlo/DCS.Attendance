@@ -76,14 +76,28 @@ test('late and undertime drilldowns can overlap without including future or excl
         { status: 'missed', ended: true, late_minutes: null, early_departure_minutes: null },
         { status: 'complete', ended: true, late_minutes: 0, early_departure_minutes: 0 },
     ];
-    assert.equal(sessionPage(rows, 1, 10, 'late').total, 2);
+    assert.equal(sessionPage(rows, 1, 10, 'late').total, 1);
     assert.equal(sessionPage(rows, 1, 10, 'undertime').total, 1);
     assert.equal(sessionPage(rows, 1, 10, 'on_time').total, 1);
     assert.equal(sessionPage(rows, 1, 10, 'missed').total, 1);
     assert.deepEqual(sessionIndicators(rows[0]).map((item) => item.key), ['late', 'undertime']);
-    assert.deepEqual(sessionIndicators(rows[1]).map((item) => item.key), ['incomplete', 'late']);
+    assert.deepEqual(sessionIndicators(rows[1]), [{ key: 'incomplete', label: 'For review' }]);
     assert.deepEqual(sessionIndicators(rows[4]).map((item) => item.key), ['missed']);
     assert.deepEqual(sessionIndicators(rows[5]).map((item) => item.key), ['on_time']);
+});
+
+test('unpaired attendance stays for review and contributes no late or undertime totals', () => {
+    const row = { status: 'incomplete', ended: true, late_minutes: 15, early_departure_minutes: 20,
+        employee_id: 1, faculty: 'Faculty', subject: 'DCIT 21', date: '2026-10-05' };
+    const view = classReportView({ filters: {}, rows: [row] }, 'incomplete');
+    assert.equal(view.filters.attendance_status, 'For review');
+    assert.equal(view.summary.incomplete, 1);
+    for (const key of ['late', 'undertime', 'on_time', 'missed', 'total_late_minutes', 'total_undertime_minutes']) assert.equal(view.summary[key], 0);
+    assert.equal(view.rows[0].late_minutes, 15);
+    assert.equal(view.faculty_breakdown[0].late, 0);
+    assert.equal(view.subject_breakdown[0].total_undertime_minutes, 0);
+    assert.equal(sessionPage([{ ...row, ended: false }], 1, 10, 'incomplete').total, 0);
+    assert.deepEqual(sessionIndicators({ ...row, ended: false }), [{ key: 'in_progress', label: 'Class in progress' }]);
 });
 
 test('status exports include all matching pages and recompute summary and faculty/subject totals', () => {

@@ -48,7 +48,7 @@ class ClassReportService
                     $ended = Carbon::parse($date->toDateString().' '.$session['end'], 'Asia/Manila')->lte($now);
                     $begun = Carbon::parse($date->toDateString().' '.$session['start'], 'Asia/Manila')->lte($now);
                     $complete = $log && $log->time_in && $log->time_out;
-                    $status = $excluded ? 'excluded' : ($complete ? 'complete' : ($log ? 'incomplete' : ($ended ? 'missed' : ($begun ? 'in_progress' : 'upcoming'))));
+                    $status = $excluded ? 'excluded' : ($complete ? 'complete' : ($ended ? ($log ? 'incomplete' : 'missed') : ($begun ? 'in_progress' : 'upcoming')));
                     $difference = fn ($a, $b) => max(0, (int) ceil((Carbon::parse($date->toDateString().' '.$a, 'Asia/Manila')->timestamp - Carbon::parse($date->toDateString().' '.$b, 'Asia/Manila')->timestamp) / 60));
                     $rows->push(['key' => $employee->id.'-'.$date->toDateString().'-'.$session['schedule_id'].'-'.($log?->id ?? 'expected'),
                         'employee_id' => $employee->id, 'faculty' => $employee->full_name, 'date' => $date->toDateString(),
@@ -73,14 +73,15 @@ class ClassReportService
         $eligible = $rows->where('status', '!=', 'excluded');
         $ended = $eligible->where('ended', true);
         $complete = $ended->where('status', 'complete')->count();
+        $verified = $ended->where('status', 'complete');
 
         return ['expected' => $eligible->count(), 'ended' => $ended->count(), 'complete' => $complete,
             'incomplete' => $ended->where('status', 'incomplete')->count(), 'missed' => $ended->where('status', 'missed')->count(),
-            'late' => $ended->where('late_minutes', '>', 0)->count(),
-            'undertime' => $ended->where('early_departure_minutes', '>', 0)->count(),
+            'late' => $verified->where('late_minutes', '>', 0)->count(),
+            'undertime' => $verified->where('early_departure_minutes', '>', 0)->count(),
             'on_time' => $ended->where('status', 'complete')->where('late_minutes', 0)->where('early_departure_minutes', 0)->count(),
-            'total_late_minutes' => (int) $ended->sum('late_minutes'),
-            'total_undertime_minutes' => (int) $ended->sum('early_departure_minutes'),
+            'total_late_minutes' => (int) $verified->sum('late_minutes'),
+            'total_undertime_minutes' => (int) $verified->sum('early_departure_minutes'),
             'excluded' => $rows->where('status', 'excluded')->count(),
             'completion_rate' => $ended->count() ? round($complete / $ended->count() * 100, 1) : null];
     }
