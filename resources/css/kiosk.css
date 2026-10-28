@@ -8,6 +8,21 @@
 .kiosk-brand small { font-size: 11px; color: var(--kiosk-muted); }
 .guard-kiosk .kiosk-signout { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 9px 13px; border: 1px solid #d5ded7; border-radius: 8px; background: transparent; color: #526559; box-shadow: none; font-size: 12px; }
 .guard-kiosk .kiosk-signout:hover { background: white; color: var(--kiosk-green); }
+.kiosk-header-actions { display: flex; align-items: center; gap: 8px; }
+.kiosk-header-actions > a { display: inline-flex; align-items: center; gap: 7px; min-height: 38px; color: var(--kiosk-green); padding: 9px; font-size: 12px; border-radius: 8px; }
+.kiosk-header-actions > a:hover { background: white; }
+.guard-home { width: 100%; max-width: 640px; margin: auto; padding: 36px; border: 1px solid #d8e1da; border-radius: 18px; background: white; }
+.guard-home > svg { color: #155c40; }
+.guard-home h1 { color: #193c2c; font-size: 30px; margin: 18px 0 10px; }
+.guard-home p { color: #536b5b; font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
+.guard-home .guard-home-open { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 48px; margin-top: 16px; padding: 13px 18px; border-radius: 9px; background: #155c40; color: white; font-size: 14px; }
+.guard-home .guard-home-open:hover { background: #0e4931; }
+.guard-home-open:focus-visible, .kiosk-header-actions > a:focus-visible { outline: 2px solid #b58a26; outline-offset: 3px; }
+@media (max-width: 740px) {
+    .guard-home { padding: 24px; }
+    .guard-home .guard-home-open { width: 100%; }
+    .kiosk-header-actions > a > span { display: none; }
+}
 .kiosk-station { width: 100%; max-width: 1000px; margin: auto; display: grid; grid-template-columns: .82fr 1.18fr; border: 1px solid #d8e1da; border-radius: 22px; background: white; box-shadow: 0 18px 60px #193c2c0c; overflow: hidden; }
 .kiosk-welcome { padding: 30px; display: flex; flex-direction: column; justify-content: space-between; gap: 25px; min-width: 0; background: radial-gradient(ellipse at 0 70%, #29684b 0, transparent 70%), #103e2c; color: white; position: relative; }
 .kiosk-station-label { display: flex; align-items: center; gap: 8px; font-size: 10px; letter-spacing: 1.8px; font-weight: 700; color: #b2d0bd; }

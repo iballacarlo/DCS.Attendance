@@ -59,12 +59,12 @@ class GuardKioskTest extends TestCase
         $this->assertDatabaseCount('entrance_attendances', 1);
     }
 
-    public function test_guard_login_goes_to_kiosk_even_if_an_admin_url_was_requested(): void
+    public function test_guard_login_goes_to_dashboard_even_if_an_admin_url_was_requested(): void
     {
         $guard = User::factory()->create(['role' => 'guard', 'password' => 'guard-password']);
-        $this->withSession(['url.intended' => '/settings/accounts'])->post('/login', ['email' => $guard->email, 'password' => 'guard-password'])->assertRedirect('/entrance-kiosk');
+        $this->withSession(['url.intended' => '/settings/accounts'])->post('/login', ['email' => $guard->email, 'password' => 'guard-password'])->assertRedirect(route('dashboard'))->assertSessionMissing('url.intended');
         $this->assertAuthenticatedAs($guard);
-        $this->get('/')->assertRedirect('/entrance-kiosk');
+        $this->get('/')->assertOk()->assertInertia(fn (Assert $p) => $p->component('Guard/Dashboard')->missing('entrance')->missing('classAnalytics')->missing('employeeCount'));
         $this->get('/entrance-kiosk')->assertOk()->assertInertia(fn (Assert $p) => $p->component('Entrance/Kiosk')->where('auth.user.role', 'guard')->has('facultyChoices', 0)->missing('logs')->missing('employees'));
     }
 

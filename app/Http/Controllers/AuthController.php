@@ -23,13 +23,9 @@ class AuthController extends Controller
         if (Auth::attempt([...$credentials, fn ($query) => $query->whereIn('role', ['admin', 'faculty', 'guard'])])) {
             $request->session()->regenerate();
 
-            if ($request->user()->role === 'guard') {
-                $request->session()->forget('url.intended');
+            $request->session()->forget('url.intended');
 
-                return redirect()->route('entrance.kiosk');
-            }
-
-            return redirect()->intended(route('dashboard'));
+            return redirect()->route('dashboard');
         }
 
         return back()->withErrors([

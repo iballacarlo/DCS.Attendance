@@ -13,6 +13,10 @@ class DashboardController extends Controller
 {
     public function __invoke(Request $request, ClassReportService $reports)
     {
+        if ($request->user()->role === 'guard') {
+            return Inertia::render('Guard/Dashboard');
+        }
+
         $today = Carbon::today('Asia/Manila');
         $faculty = $request->user()->role === 'faculty';
         $employeeId = $faculty ? ($request->user()->employee_id ?? 0) : null;

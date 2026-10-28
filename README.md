@@ -13,7 +13,7 @@ Hardware class taps never create or change school attendance or DTR hours. Consu
 
 ## School attendance and DTR
 
-The entrance simulator is a standalone guard kiosk at `/entrance-kiosk`, outside the Admin dashboard. An administrator creates a **Guard** account through **Settings → Accounts → Add Account**, without linking a faculty profile. Sign in with that account on the entrance computer; login always opens the kiosk. Guards cannot access admin pages, reports, DTR, faculty profiles, or settings. Sign out ends the kiosk session. Admin and Faculty accounts cannot record at the guard kiosk.
+The entrance simulator is a standalone guard kiosk at `/entrance-kiosk`, outside the Admin dashboard. An administrator creates a **Guard** account through **Settings → Accounts → Add Account**, without linking a faculty profile. Sign in with that account on the entrance computer; login always opens the Guard Dashboard, with an Open Attendance Kiosk button. Admin and Faculty also always land on Dashboard after login, including on mobile; saved intended URLs are cleared. Guards cannot access admin pages, reports, DTR, faculty profiles, or settings. Sign out ends the kiosk session. Admin and Faculty accounts cannot record at the guard kiosk.
 
 On a compatible NFC-enabled Android phone, open the kiosk in Chrome using a trusted HTTPS address reachable from the phone, then select **Scan RFID** and allow NFC access. The scanner reads one NDEF-compatible card's serial number, normalizes it to the existing hardware's uppercase hexadecimal UID format, and previews the registered faculty. It ignores NDEF links/text (including Instagram URLs); nothing on the card is changed. The guard confirms with **Record School IN/OUT**. **Stop scanning** cancels a pending read. A card without an exposed serial number cannot be used through this browser scanner. Manual UID entry remains available for simulation. A computer's `127.0.0.1` address does not point to that computer from a phone; deploy/configure a reachable HTTPS address before phone testing. Test actual card/phone compatibility before relying on this flow. Records remain marked simulated under the current entrance testing setup.
 
@@ -45,7 +45,7 @@ Admin can open **Faculty ? Profile & IDs ? RFID card ? Register via NFC** on a c
 
 ## Accounts and retained history
 
-Admin, Faculty, and Guard are active roles. Guard is restricted to the separate entrance kiosk. Legacy Payroll Staff accounts are retained, rejected at login, and signed out on their next request. An administrator can assign them an active role through Accounts. Calendar, leave review, DTR signatories, and attendance administration belong to Admin.
+Admin, Faculty, and Guard are active roles. Guard is restricted to its own Dashboard and the separate entrance kiosk. Legacy Payroll Staff accounts are retained, rejected at login, and signed out on their next request. An administrator can assign them an active role through Accounts. Calendar, leave review, DTR signatories, and attendance administration belong to Admin.
 
 Payroll pages, routes, payslips, generators, salary editing, and monetary dashboard cards are removed. Historical financial database tables remain private for recovery, and salary fields are excluded from normal model serialization. Profile/rank updates do not modify retained salary values. New profiles initialize required legacy rate columns to zero.
 

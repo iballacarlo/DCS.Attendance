@@ -226,6 +226,19 @@
     #workspace .bento-dashboard { gap: 20px; align-items: start; padding-top: 12px; }
     #workspace .bento-dashboard > .bento-metric { grid-row: auto; grid-column: span 4; margin: 0; padding: 20px; }
     #workspace .dashboard-panels { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(290px, 1fr); gap: 24px; align-items: start; }
+    #workspace .dashboard-content { display: grid; gap: 28px; min-width: 0; }
+    #workspace .dashboard-content > * { min-width: 0; }
+    #workspace .dashboard-content > .panel, #workspace .dashboard-content > .attendance-metrics { margin: 0; }
+    #workspace .dashboard-panel-footer { display: flex; flex-wrap: wrap; gap: 12px; padding-top: 20px; }
+    #workspace .dashboard-panel-footer a { display: inline-flex; align-items: center; min-height: 36px; line-height: 1.5; }
+    #workspace .dashboard-class-attendance { display: grid; gap: 20px; }
+    #workspace .dashboard-class-attendance > .panel-heading { margin: 0; }
+    #workspace .dashboard-class-attendance > .class-analytics { margin: 0; }
+    @media (max-width: 800px) {
+        #workspace .dashboard-content { gap: 22px; }
+        #workspace .dashboard-class-attendance { gap: 16px; }
+        #workspace .dashboard-panel-footer { padding-top: 16px; }
+    }
     #workspace .dashboard-side-panels { display: grid; gap: 20px; min-width: 0; align-content: start; }
     #workspace .dashboard-panels :is(.attendance-bento, .trend-bento, .payroll-bento) { grid-column: auto; grid-row: auto; align-self: start; min-height: 0; height: auto; margin: 0; min-width: 0; }
     #workspace .dashboard-panels .bento-table { max-height: 420px; overflow: auto; }

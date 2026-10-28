@@ -1,7 +1,7 @@
-import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
-import { ArrowDownLeft, ArrowUpRight, CheckCircle2, LogOut, Nfc, ScanLine, ShieldCheck, UserRound } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, CheckCircle2, LayoutDashboard, LogOut, Nfc, ScanLine, ShieldCheck, UserRound } from 'lucide-react';
 import '../../../css/kiosk.css';
 import { scanRfid } from '../../lib/scanRfid';
 
@@ -83,7 +83,7 @@ export default function EntranceKiosk() {
     return <>
         <Head title="Entrance Kiosk | DCS Attendance & DTR" />
         <main className="guard-kiosk">
-            <header className="guard-kiosk-header"><div className="kiosk-brand"><img src="/images/cvsu-logo.png" alt="Cavite State University" /><span><strong>DCS Attendance &amp; DTR</strong><small>Cavite State University · Imus Campus</small></span></div><button type="button" className="kiosk-signout" aria-label="Sign out" onClick={() => router.post('/logout')}><LogOut size={16} /><span>Sign out</span></button></header>
+            <header className="guard-kiosk-header"><div className="kiosk-brand"><img src="/images/cvsu-logo.png" alt="Cavite State University" /><span><strong>DCS Attendance &amp; DTR</strong><small>Cavite State University · Imus Campus</small></span></div><div className="kiosk-header-actions"><Link href="/" aria-label="Dashboard"><LayoutDashboard size={17} /><span>Dashboard</span></Link><button type="button" className="kiosk-signout" aria-label="Sign out" onClick={() => router.post('/logout')}><LogOut size={16} /><span>Sign out</span></button></div></header>
             <div className="kiosk-station">
             <aside className="kiosk-welcome">
                 <div className="kiosk-station-label"><span /> ENTRANCE STATION</div>
