@@ -80,7 +80,7 @@ export default function EntranceKiosk() {
                 <div className="kiosk-guard"><span className="kiosk-guard-icon"><ShieldCheck size={19} /></span><div><small>ON DUTY</small><strong>{auth.user.name}</strong></div></div>
             </aside>
             <section className="guard-kiosk-card" aria-labelledby="kiosk-record-title">
-                <div className="guard-kiosk-title"><div><span className="kiosk-eyebrow">RFID SIMULATOR</span><h2 id="kiosk-record-title">Record attendance</h2></div><span className="kiosk-title-icon"><ScanLine size={23} strokeWidth={1.6} /></span></div>
+                <div className="guard-kiosk-title"><div><span className="kiosk-eyebrow">RFID</span><h2 id="kiosk-record-title">Record attendance</h2></div><span className="kiosk-title-icon"><ScanLine size={23} strokeWidth={1.6} /></span></div>
                 {flash?.success && !previewError && !Object.keys(form.errors).length && <div className="guard-kiosk-success" role="status"><CheckCircle2 size={18} /><span>{flash.success}</span></div>}
                 <form onSubmit={submit}>
                     <div className="kiosk-nfc-controls"><button type="button" className="kiosk-scan-button" onClick={scanning ? stopScan : startScan} disabled={form.processing}><Nfc size={19} />{scanning ? 'Stop scanning' : 'Scan RFID'}</button><span role="status" aria-live="polite">{scanMessage}</span></div>

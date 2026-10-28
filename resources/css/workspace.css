@@ -71,6 +71,9 @@
         --ui-disabled: #25382d; --ui-disabled-ink: #b2c2b7;
     }
     #workspace .topbar { background: var(--ui-paper) !important; border-bottom: 1px solid var(--ui-line); box-shadow: 0 4px 20px #183a2708; }
+    @media (max-width: 900px) {
+        #workspace .topbar { background: transparent !important; border: 0; box-shadow: none; }
+    }
     #workspace .topbar h1 { color: var(--ui-ink) !important; letter-spacing: -.7px; }
     #workspace .topbar p { color: var(--ui-muted) !important; line-height: 1.6; }
     #workspace :is(.panel, .settings-tool, .bento-panel, .bento-metric, .trend-bento, .school-calendar-shell, .payroll-adjustment-editor, .dashboard-academic-context, .faculty-dashboard-overview) {

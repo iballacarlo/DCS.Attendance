@@ -1,33 +1,114 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Archive, CalendarDays, ChartNoAxesCombined, ChevronLeft, ChevronRight, Clock3, FileCheck2, GraduationCap, KeyRound, LayoutDashboard, LogOut, MailWarning, Moon, Settings2, ShieldCheck, Sun, UserRound } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Archive, CalendarDays, ChartNoAxesCombined, ChevronDown, ChevronLeft, ChevronRight, Clock3, DatabaseBackup, FileCheck2, FileSignature, GraduationCap, KeyRound, LayoutDashboard, LogOut, MailWarning, Menu, Moon, Settings2, ShieldCheck, Sun, UserRound, Users, X } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { dateLabel, fullName, roleLabel } from '../lib/format';
+import '../../css/sidebarNavigation.css';
 
 const navigation = [
     { label: 'Dashboard', group: 'Overview', href: '/', icon: LayoutDashboard, tone: 'nav-dashboard', active: (url) => url === '/' },
-    { label: 'Faculty', group: 'Faculty Management', href: '/employees', icon: GraduationCap, tone: 'nav-faculty', roles: ['admin'], active: (url) => url.startsWith('/employees') },
-    { label: 'Archived Faculty', group: 'Faculty Management', href: '/archived-faculty', icon: Archive, tone: 'nav-faculty', roles: ['admin'], active: (url) => url.startsWith('/archived-faculty') },
-    { label: 'Ranks', group: 'Faculty Management', href: '/faculty-ranks', icon: ChartNoAxesCombined, tone: 'nav-ranks', roles: ['admin'], active: (url) => url.startsWith('/faculty-ranks') },
-    { label: 'School Attendance', group: 'Operations', href: '/entrance', icon: Clock3, tone: 'nav-attendance', roles: ['admin'], active: (url) => url.startsWith('/entrance') },
-    { label: 'School Attendance', group: 'Operations', href: '/entrance', icon: Clock3, tone: 'nav-attendance', roles: ['faculty'], active: (url) => url.startsWith('/entrance') },
-    { label: 'Daily Time Record', group: 'Operations', href: '/attendance/dtr', icon: FileCheck2, tone: 'nav-attendance', active: (url) => url.startsWith('/attendance/dtr') },
-    { label: 'Class Reports & Analytics', group: 'Operations', href: '/class-reports', icon: ChartNoAxesCombined, tone: 'nav-attendance', roles: ['admin'], active: (url) => url.startsWith('/class-reports') },
-    { label: 'Class Attendance', group: 'Operations', href: '/attendance', icon: Clock3, tone: 'nav-attendance', active: (url) => url === '/attendance' || url.startsWith('/attendance?') },
+    { id: 'faculty', label: 'Faculty', group: 'Faculty Management', icon: GraduationCap, roles: ['admin'], children: [
+        { label: 'Faculty List', href: '/employees', icon: GraduationCap, tone: 'nav-faculty', active: (url) => url.startsWith('/employees') },
+        { label: 'Archived Faculty', href: '/archived-faculty', icon: Archive, tone: 'nav-faculty', active: (url) => url.startsWith('/archived-faculty') },
+        { label: 'Ranks', href: '/faculty-ranks', icon: ChartNoAxesCombined, tone: 'nav-ranks', active: (url) => url.startsWith('/faculty-ranks') },
+    ] },
+    { id: 'school', label: 'School Attendance', group: 'Operations', icon: Clock3, children: [
+        { label: 'Attendance Records', mobileLabel: 'School Attendance', href: '/entrance', icon: Clock3, tone: 'nav-attendance', active: (url) => url.startsWith('/entrance') },
+        { label: 'Daily Time Record', href: '/attendance/dtr', icon: FileCheck2, tone: 'nav-attendance', active: (url) => url.startsWith('/attendance/dtr') },
+    ] },
+    { id: 'classes', label: 'Class Attendance', group: 'Operations', icon: GraduationCap, children: [
+        { label: 'Attendance Logs', mobileLabel: 'Class Attendance', href: '/attendance', icon: Clock3, tone: 'nav-attendance', active: (url) => url === '/attendance' },
+        { label: 'Reports & Analytics', mobileLabel: 'Class Reports & Analytics', href: '/class-reports', icon: ChartNoAxesCombined, tone: 'nav-attendance', roles: ['admin'], active: (url) => url.startsWith('/class-reports') },
+    ] },
     { label: 'My Schedule', group: 'Operations', href: '/my-schedule', icon: CalendarDays, tone: 'nav-calendar', roles: ['faculty'], active: (url) => url.startsWith('/my-schedule') },
     { label: 'Leave', group: 'Operations', href: '/leave', icon: FileCheck2, tone: 'nav-leave', active: (url) => url.startsWith('/leave') },
     { label: 'School Calendar', group: 'Operations', href: '/school-calendar', icon: CalendarDays, tone: 'nav-calendar', active: (url) => url.startsWith('/school-calendar') },
-    { label: 'Settings', group: 'Administration', href: '/settings/accounts', icon: Settings2, tone: 'nav-settings', roles: ['admin'], active: (url) => url.startsWith('/settings') },
+    { id: 'settings', label: 'Settings', group: 'Administration', icon: Settings2, roles: ['admin'], mobileHref: '/settings/accounts', children: [
+        { label: 'General', href: '/settings/general', icon: Settings2, tone: 'nav-settings', active: (url) => url.startsWith('/settings/general') },
+        { label: 'Accounts', href: '/settings/accounts', icon: Users, tone: 'nav-settings', active: (url) => url.startsWith('/settings/accounts') },
+        { label: 'DTR Signatory', href: '/settings/dtr-signatories', icon: FileSignature, tone: 'nav-settings', active: (url) => url.startsWith('/settings/dtr-signatories') },
+        { label: 'Backup & Recovery', href: '/settings/backup', icon: DatabaseBackup, tone: 'nav-settings', active: (url) => url.startsWith('/settings/backup') },
+    ] },
     { label: 'My Profile', group: 'Account', href: '/profile', icon: UserRound, tone: 'nav-profile', active: (url) => url.startsWith('/profile') },
 ];
+
+const isActive = (item, path) => item.children ? item.children.some((child) => isActive(child, path)) : item.active(path);
+
+function visibleNavigation(role) {
+    return navigation.filter((item) => !item.roles || item.roles.includes(role)).map((item) => item.children
+        ? { ...item, children: item.children.filter((child) => !child.roles || child.roles.includes(role)) }
+        : item);
+}
+
+function savedMenus(role) {
+    try {
+        const saved = JSON.parse(window.localStorage.getItem(`sidebar-menus-${role}`) || '{}');
+        return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+    } catch { return {}; }
+}
 
 export default function AppLayout({ title, subtitle, children }) {
     const page = usePage();
     const { auth, flash, errors } = page.props;
     const { url } = page;
     const user = auth.user;
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const sidebar = useRef(null);
+    const mobileMenuTrigger = useRef(null);
+    const sidebarNavigation = useRef(null);
+    const sidebarScrollKey = `sidebar-scroll-${user.id}`;
+    const rememberSidebarScroll = () => {
+        if (!sidebarNavigation.current?.getClientRects().length) return;
+        try { window.sessionStorage.setItem(sidebarScrollKey, String(sidebarNavigation.current.scrollTop)); } catch { /* Scrolling still works when storage is unavailable. */ }
+    };
+    // Each page mounts its own layout. Restore only the sidebar, before paint;
+    // the page content should retain Inertia's normal scroll behavior.
+    useLayoutEffect(() => {
+        const navigation = sidebarNavigation.current;
+        if (!navigation?.getClientRects().length) return;
+        try {
+            const position = Number(window.sessionStorage.getItem(sidebarScrollKey));
+            if (Number.isFinite(position) && position >= 0) navigation.scrollTop = position;
+        } catch { /* Use the default position when storage is unavailable. */ }
+    }, [sidebarScrollKey, mobileMenuOpen]);
+    const path = url.split('?')[0];
+    const availableNavigation = visibleNavigation(user.role);
+    const [expandedMenus, setExpandedMenus] = useState(() => ({ ...savedMenus(user.role), ...Object.fromEntries(availableNavigation.filter((item) => item.children && isActive(item, path)).map((item) => [item.id, true])) }));
+    useEffect(() => {
+        setExpandedMenus((previous) => ({ ...previous, ...Object.fromEntries(visibleNavigation(user.role).filter((item) => item.children && isActive(item, path)).map((item) => [item.id, true])) }));
+    }, [path, user.role]);
+    useEffect(() => {
+        try { window.localStorage.setItem(`sidebar-menus-${user.role}`, JSON.stringify(expandedMenus)); } catch { /* Navigation still works when storage is unavailable. */ }
+    }, [expandedMenus, user.role]);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(
         () => window.localStorage.getItem('sidebar-collapsed') === 'true',
     );
+    const navigationCollapsed = sidebarCollapsed && !mobileMenuOpen;
+    useEffect(() => {
+        if (!mobileMenuOpen) return;
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        const trigger = mobileMenuTrigger.current;
+        sidebar.current?.querySelector('.mobile-sidebar-close')?.focus({ preventScroll: true });
+        const handleKey = (event) => {
+            if (event.key === 'Escape') { event.preventDefault(); setMobileMenuOpen(false); }
+            if (event.key !== 'Tab') return;
+            const controls = [...sidebar.current.querySelectorAll('a[href], button:not(:disabled)')].filter((element) => element.getClientRects().length);
+            const first = controls[0];
+            const last = controls[controls.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+        };
+        const desktop = window.matchMedia('(min-width: 901px)');
+        const closeOnDesktop = () => { if (desktop.matches) setMobileMenuOpen(false); };
+        document.addEventListener('keydown', handleKey);
+        desktop.addEventListener('change', closeOnDesktop);
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            document.removeEventListener('keydown', handleKey);
+            desktop.removeEventListener('change', closeOnDesktop);
+            trigger?.focus({ preventScroll: true });
+        };
+    }, [mobileMenuOpen]);
     const [clock, setClock] = useState(new Date());
     const [darkMode, setDarkMode] = useState(() => document.documentElement.dataset.theme === 'dark');
     useEffect(() => {
@@ -45,8 +126,18 @@ export default function AppLayout({ title, subtitle, children }) {
         window.localStorage.setItem('theme', nextTheme);
         setDarkMode(!darkMode);
     };
-    const availableNavigation = navigation.filter((item) => !item.roles || item.roles.includes(user.role));
     const navigationGroups = [...new Set(availableNavigation.map((item) => item.group))];
+    const toggleMenu = (id) => {
+        if (navigationCollapsed) {
+            setSidebarCollapsed(false);
+            window.localStorage.setItem('sidebar-collapsed', 'false');
+            setExpandedMenus((previous) => ({ ...previous, [id]: true }));
+        } else setExpandedMenus((previous) => ({ ...previous, [id]: !previous[id] }));
+    };
+    const navigationLink = (item) => <Link key={item.href} href={item.href} onClick={() => setMobileMenuOpen(false)} title={navigationCollapsed ? item.label : undefined} aria-label={item.label} className={`${item.tone}${isActive(item, path) ? ' active' : ''}`} aria-current={isActive(item, path) ? 'page' : undefined}>
+        <span className="nav-icon"><item.icon size={18} strokeWidth={1.8} /></span>
+        <span className="nav-copy">{item.label}</span>
+    </Link>;
     const mobileWeekday = new Intl.DateTimeFormat('en-PH', { weekday: 'long' }).format(clock);
     const mobileDate = dateLabel(clock);
     const module = (url.startsWith('/employees') || url.startsWith('/archived-faculty')) ? 'faculty'
@@ -62,7 +153,9 @@ export default function AppLayout({ title, subtitle, children }) {
     return (
         <>
             <Head title={`${title} | DCS Attendance & DTR`} />
-            <aside className={`sidebar${sidebarCollapsed ? ' is-collapsed' : ''}`}>
+            {mobileMenuOpen && <button type="button" className="sidebar-backdrop" tabIndex={-1} aria-label="Close navigation menu" onClick={() => setMobileMenuOpen(false)} />}
+            <aside ref={sidebar} id="main-sidebar" className={`sidebar${navigationCollapsed ? ' is-collapsed' : ''}${mobileMenuOpen ? ' is-mobile-open' : ''}`} role={mobileMenuOpen ? 'dialog' : undefined} aria-modal={mobileMenuOpen ? true : undefined} aria-label={mobileMenuOpen ? 'Navigation menu' : undefined}>
+                <div className="mobile-sidebar-heading"><strong>Menu</strong><button type="button" className="mobile-sidebar-close" aria-label="Close navigation menu" onClick={() => setMobileMenuOpen(false)}><X size={22} /></button></div>
                 <div className="brand">
                     <Link className="brand-logo-link" href="/" aria-label="Go to dashboard">
                         <div className="brand-logos">
@@ -75,15 +168,19 @@ export default function AppLayout({ title, subtitle, children }) {
                         <span>DCS Attendance & DTR</span>
                     </div>
                 </div>
-                <nav aria-label="Main navigation">
+                <nav ref={sidebarNavigation} onScroll={rememberSidebarScroll} aria-label="Main navigation">
                     {navigationGroups.map((group) => <div className="nav-group" key={group}>
                         <div className="sidebar-section-label">{group}</div>
-                        {availableNavigation.filter((item) => item.group === group).map((item) => (
-                            <Link key={item.href} href={item.href} title={sidebarCollapsed ? item.label : undefined} className={`${item.tone}${item.active(url) ? ' active' : ''}`} aria-current={item.active(url) ? 'page' : undefined}>
+                        {availableNavigation.filter((item) => item.group === group).map((item) => item.children ? <div className="sidebar-menu" key={item.id}>
+                            <button type="button" className={`sidebar-menu-toggle${isActive(item, path) ? ' contains-current' : ''}`} onClick={() => toggleMenu(item.id)} aria-label={item.label} title={navigationCollapsed ? item.label : undefined} aria-expanded={!navigationCollapsed && !!expandedMenus[item.id]} aria-controls={`sidebar-submenu-${item.id}`}>
                                 <span className="nav-icon"><item.icon size={18} strokeWidth={1.8} /></span>
                                 <span className="nav-copy">{item.label}</span>
-                            </Link>
-                        ))}
+                                <ChevronDown size={15} className={`sidebar-menu-chevron${expandedMenus[item.id] ? ' is-open' : ''}`} aria-hidden="true" />
+                            </button>
+                            <div id={`sidebar-submenu-${item.id}`} className="sidebar-submenu" hidden={navigationCollapsed || !expandedMenus[item.id]}>
+                                {item.children.map(navigationLink)}
+                            </div>
+                        </div> : navigationLink(item))}
                     </div>)}
                 </nav>
                 <div className="sidebar-account">
@@ -92,7 +189,7 @@ export default function AppLayout({ title, subtitle, children }) {
                 </div>
                 <button className="logout-button" type="button" onClick={logout} aria-label="Logout"><LogOut size={17} /><span>Logout</span></button>
             </aside>
-            <div className="mobile-branding">
+            <div className="mobile-branding" inert={mobileMenuOpen ? true : undefined}>
                 <div className="mobile-branding-identity">
                     <Link className="mobile-logo-link" href="/" aria-label="Go to dashboard">
                         <img src="/images/cvsu-logo.png" alt="Cavite State University logo" />
@@ -101,19 +198,11 @@ export default function AppLayout({ title, subtitle, children }) {
                 </div>
                 <div className="mobile-branding-actions">
                     <button className="mobile-theme-toggle" type="button" onClick={toggleTheme} aria-label={darkMode ? 'Use light mode' : 'Use dark mode'} title={darkMode ? 'Use light mode' : 'Use dark mode'}>{darkMode ? <Sun size={18} /> : <Moon size={18} />}</button>
-                    <button className="mobile-logout" type="button" onClick={logout} aria-label="Logout"><LogOut size={17} /><span>Logout</span></button>
+                    <button ref={mobileMenuTrigger} className="mobile-menu-trigger" type="button" onClick={() => setMobileMenuOpen(true)} aria-expanded={mobileMenuOpen} aria-controls="main-sidebar" aria-haspopup="dialog"><Menu size={21} /><span>Menu</span></button>
                 </div>
             </div>
             <button className={`sidebar-toggle${sidebarCollapsed ? ' is-collapsed' : ''}`} type="button" onClick={toggleSidebar} aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Minimize sidebar'} title={sidebarCollapsed ? 'Expand sidebar' : 'Minimize sidebar'}>{sidebarCollapsed ? <ChevronRight size={18} strokeWidth={2.5} aria-hidden="true" /> : <ChevronLeft size={18} strokeWidth={2.5} aria-hidden="true" />}</button>
-            <main id="workspace" className={`main module-${module}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
-                <nav className="mobile-navigation" aria-label="Mobile navigation" style={{ '--mobile-nav-count': availableNavigation.length }}>
-                    {availableNavigation.map((item) => (
-                        <Link key={item.href} href={item.href} className={`${item.tone}${item.active(url) ? ' active' : ''}`} aria-label={item.label} title={item.label} aria-current={item.active(url) ? 'page' : undefined}>
-                            <span className="nav-icon"><item.icon size={18} strokeWidth={1.8} /></span>
-                            <span>{item.label}</span>
-                        </Link>
-                    ))}
-                </nav>
+            <main id="workspace" className={`main module-${module}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`} inert={mobileMenuOpen ? true : undefined}>
                 <header className="topbar">
                     <div className="editorial-heading">
                         <div>
