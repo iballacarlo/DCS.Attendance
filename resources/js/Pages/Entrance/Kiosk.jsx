@@ -42,7 +42,18 @@ export default function EntranceKiosk() {
         event.preventDefault();
         if (!current?.next_action || checking || form.processing) return;
         form.transform((data) => ({ ...data, expected_action: current.next_action }));
-        form.post('/entrance-kiosk', { preserveScroll: true, onSuccess: () => { input.current?.focus(); input.current?.select(); }, onFinish: () => setRevision((value) => value + 1) });
+        form.post('/entrance-kiosk', {
+            preserveScroll: true,
+            onSuccess: () => {
+                form.reset('identifier');
+                setPreview(null);
+                setPreviewError('');
+                setScanMessage('');
+                setChecking(false);
+                requestAnimationFrame(() => input.current?.focus());
+            },
+            onFinish: () => setRevision((value) => value + 1),
+        });
     };
     const change = (field, value) => { form.clearErrors(); form.setData(field, value); };
     const startScan = async () => {
@@ -87,7 +98,7 @@ export default function EntranceKiosk() {
                     <label>RFID UID<span className="kiosk-uid-field"><ScanLine size={20} strokeWidth={1.6} /><input ref={input} autoFocus autoComplete="off" value={form.data.identifier} onChange={(e) => { setScanMessage(''); change('identifier', e.target.value.toUpperCase()); }} placeholder="Type or scan RFID UID" required maxLength={100} disabled={scanning || form.processing} /></span></label>
                     <div className={`guard-kiosk-preview${previewError ? ' has-error' : ''}${current ? ' has-faculty' : ''}`} role="status"><UserRound size={19} /><span>{checking ? 'Checking RFID...' : previewError || (current ? `${current.employee}${!current.next_action ? ' · Attendance complete' : ''}` : 'Waiting for RFID')}</span>{current && !current.next_action && <CheckCircle2 size={18} />}</div>
                     <div className="guard-kiosk-actions" aria-label="Automatic attendance direction">{['IN', 'OUT'].map((action) => <span key={action} className={`guard-kiosk-direction is-${action.toLowerCase()}${next === action ? ' active' : ''}`} aria-current={next === action ? 'step' : undefined}>{action === 'IN' ? <ArrowDownLeft size={23} /> : <ArrowUpRight size={23} />}<span><small>{action === 'IN' ? 'ARRIVAL' : 'DEPARTURE'}</small><strong>School {action}</strong></span>{next === action && <span className="kiosk-active-dot" />}</span>)}</div>
-                    <div className="guard-kiosk-test"><label>Test date/time (optional)<input type="datetime-local" value={form.data.occurred_at} onChange={(e) => change('occurred_at', e.target.value)} /></label>{form.data.occurred_at && <button type="button" onClick={() => change('occurred_at', '')}>Use current time</button>}</div>
+                    <div className="guard-kiosk-test"><label>Test date/time (optional)<input type="datetime-local" max={`${day}T23:59`} value={form.data.occurred_at} onChange={(e) => change('occurred_at', e.target.value)} /></label>{form.data.occurred_at && <button type="button" onClick={() => change('occurred_at', '')}>Use current time</button>}</div>
                     {Object.keys(form.errors).length > 0 && <div className="guard-kiosk-error" role="alert">{Object.values(form.errors).map((error, i) => <p key={i}>{error}</p>)}</div>}
                     <button className={`guard-kiosk-submit${next === 'OUT' ? ' is-out' : ''}`} type="submit" disabled={form.processing || checking || !current?.next_action}><span>{form.processing ? 'Recording...' : current && !current.next_action ? 'Attendance complete' : `Record School ${next || 'Attendance'}`}</span>{current && !current.next_action ? <CheckCircle2 size={19} /> : <ArrowUpRight size={19} />}</button>
                 </form>

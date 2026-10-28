@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { attendanceOverview, attendanceTrend, sessionPage } from '../../resources/js/lib/classAnalytics.js';
+import { attendanceOverview, attendanceTrend, classReportView, sessionIndicators, sessionPage } from '../../resources/js/lib/classAnalytics.js';
 
 const day = (label, complete, incomplete = 0, missed = 0) => ({ label, complete, incomplete, missed, ended: complete + incomplete + missed });
 
@@ -65,4 +65,41 @@ test('time-bar drilldown uses only actual dates inside the selected report perio
     assert.equal(result.unit, 'week');
     assert.equal(result.rows[0].start_date, '2026-10-07');
     assert.equal(result.rows[0].end_date, '2026-10-09');
+});
+
+test('late and undertime drilldowns can overlap without including future or excluded sessions', () => {
+    const rows = [
+        { status: 'complete', ended: true, late_minutes: 5, early_departure_minutes: 10 },
+        { status: 'incomplete', ended: true, late_minutes: 2, early_departure_minutes: null },
+        { status: 'excluded', ended: true, late_minutes: 5, early_departure_minutes: 10 },
+        { status: 'complete', ended: false, late_minutes: 5, early_departure_minutes: 10 },
+        { status: 'missed', ended: true, late_minutes: null, early_departure_minutes: null },
+        { status: 'complete', ended: true, late_minutes: 0, early_departure_minutes: 0 },
+    ];
+    assert.equal(sessionPage(rows, 1, 10, 'late').total, 2);
+    assert.equal(sessionPage(rows, 1, 10, 'undertime').total, 1);
+    assert.equal(sessionPage(rows, 1, 10, 'on_time').total, 1);
+    assert.equal(sessionPage(rows, 1, 10, 'missed').total, 1);
+    assert.deepEqual(sessionIndicators(rows[0]).map((item) => item.key), ['late', 'undertime']);
+    assert.deepEqual(sessionIndicators(rows[1]).map((item) => item.key), ['incomplete', 'late']);
+    assert.deepEqual(sessionIndicators(rows[4]).map((item) => item.key), ['missed']);
+    assert.deepEqual(sessionIndicators(rows[5]).map((item) => item.key), ['on_time']);
+});
+
+test('status exports include all matching pages and recompute summary and faculty/subject totals', () => {
+    const report = { filters: {}, rows: Array.from({ length: 27 }, (_, id) => ({ id, employee_id: id % 2, faculty: `Faculty ${id % 2}`, subject: 'DCIT 21', date: '2026-10-05', status: 'complete', ended: true, late_minutes: 5, early_departure_minutes: id % 2 ? 10 : 0 })) };
+    report.rows.push({ status: 'excluded', ended: true, late_minutes: 99 });
+    const view = classReportView(report, 'late');
+    assert.equal(view.rows.length, 27);
+    assert.equal(view.summary.late, 27);
+    assert.equal(view.summary.undertime, 13);
+    assert.equal(view.summary.total_late_minutes, 135);
+    assert.equal(view.summary.total_undertime_minutes, 130);
+    assert.equal(view.summary.on_time, 0);
+    assert.equal(view.summary.completion_rate, 100);
+    assert.equal(view.faculty_breakdown.reduce((sum, row) => sum + row.late, 0), 27);
+    assert.equal(view.subject_breakdown[0].total_late_minutes, 135);
+    assert.equal(view.trend[0].total_undertime_minutes, 130);
+    assert.equal(report.rows.length, 28);
+    assert.equal(classReportView(report), report);
 });

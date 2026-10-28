@@ -14,10 +14,12 @@ class CalendarController extends Controller
 {
     public function index(Request $request)
     {
+        $filters = $request->validate(['year' => ['nullable', 'integer', 'between:2000,2100']]);
         $month = $request->input('month', now('Asia/Manila')->format('Y-m'));
-        abort_unless(preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month), 422, 'Invalid calendar month.');
-        $year = (int) substr($month, 0, 4);
+        abort_unless(is_string($month) && preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month), 422, 'Invalid calendar month.');
+        $year = (int) ($filters['year'] ?? substr($month, 0, 4));
         $year = max(2000, min(2100, $year));
+        $month = sprintf('%04d-%s', $year, substr($month, 5, 2));
         $canManage = in_array($request->user()->role, ['admin'], true);
         $employee = $request->user()->employee;
         $events = CalendarEvent::with('employees:id,employee_no,first_name,middle_name,last_name,suffix')
@@ -63,7 +65,7 @@ class CalendarController extends Controller
             return $event;
         });
 
-        return back()->with('success', "{$event->title} added to the school calendar.");
+        return back()->with('success', "{$event->title} added.");
     }
 
     public function update(Request $request, CalendarEvent $calendarEvent)
@@ -91,7 +93,7 @@ class CalendarController extends Controller
             $this->audit($request, 'calendar.updated', $calendarEvent, "Updated {$calendarEvent->title}.");
         });
 
-        return back()->with('success', 'Calendar event updated.');
+        return back()->with('success', 'Entry updated.');
     }
 
     public function destroy(Request $request, CalendarEvent $calendarEvent)
@@ -100,7 +102,7 @@ class CalendarController extends Controller
         $this->audit($request, 'calendar.deleted', $calendarEvent, "Deleted {$title}.");
         $calendarEvent->delete();
 
-        return back()->with('success', "{$title} removed from the school calendar.");
+        return back()->with('success', "{$title} removed.");
     }
 
     private function validateEvent(Request $request): array

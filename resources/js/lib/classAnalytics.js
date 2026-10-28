@@ -1,8 +1,60 @@
 export const attendanceStatuses = [
     { key: 'complete', label: 'Complete records', short: 'Complete', description: 'Both IN and OUT recorded', tone: 'complete' },
     { key: 'incomplete', label: 'Missing IN or OUT', short: 'Incomplete', description: 'A tap is missing from the pair', tone: 'incomplete' },
-    { key: 'missed', label: 'No recorded taps', short: 'No taps', description: 'No attendance record for a finished class', tone: 'missed' },
+    { key: 'missed', label: 'Absent / no taps', short: 'Absent', description: 'No attendance record for a finished class', tone: 'missed' },
 ];
+
+export const sessionStatusLabels = { on_time: 'On time & full class', late: 'Late', undertime: 'Undertime', missed: 'Absent / no taps', incomplete: 'Incomplete IN/OUT', complete: 'Complete IN/OUT', upcoming: 'Not started', in_progress: 'Class in progress', excluded: 'Not required' };
+
+export function matchesSessionStatus(row, status) {
+    if (!status) return true;
+    if (['late', 'undertime', 'on_time'].includes(status)) {
+        if (!row.ended || row.status === 'excluded') return false;
+        if (status === 'late') return Number(row.late_minutes) > 0;
+        if (status === 'undertime') return Number(row.early_departure_minutes) > 0;
+        return row.status === 'complete' && row.late_minutes === 0 && row.early_departure_minutes === 0;
+    }
+    return row.status === status && (!['complete', 'incomplete', 'missed'].includes(status) || row.ended);
+}
+
+export function sessionIndicators(row) {
+    if (['excluded', 'missed', 'upcoming', 'in_progress'].includes(row.status)) return [{ key: row.status, label: sessionStatusLabels[row.status] }];
+    const indicators = [];
+    if (row.status === 'incomplete') indicators.push({ key: 'incomplete', label: 'Incomplete IN/OUT' });
+    if (Number(row.late_minutes) > 0) indicators.push({ key: 'late', label: `Late · ${row.late_minutes} min` });
+    if (Number(row.early_departure_minutes) > 0) indicators.push({ key: 'undertime', label: `Undertime · ${row.early_departure_minutes} min` });
+    if (!indicators.length) {
+        const onTime = matchesSessionStatus(row, 'on_time');
+        indicators.push({ key: onTime ? 'on_time' : 'complete', label: onTime ? 'On time & full class' : 'Complete IN/OUT' });
+    }
+    return indicators;
+}
+
+// A status drilldown exports all matching sessions, including every table page.
+export function classReportView(report, status = '') {
+    if (!status) return report;
+    const rows = report.rows.filter((row) => matchesSessionStatus(row, status));
+    const summarize = (items) => {
+        const eligible = items.filter((row) => row.status !== 'excluded');
+        const ended = eligible.filter((row) => row.ended);
+        const complete = ended.filter((row) => row.status === 'complete').length;
+        return { expected: eligible.length, ended: ended.length, complete,
+            incomplete: ended.filter((row) => row.status === 'incomplete').length,
+            missed: ended.filter((row) => row.status === 'missed').length,
+            on_time: ended.filter((row) => matchesSessionStatus(row, 'on_time')).length,
+            late: ended.filter((row) => matchesSessionStatus(row, 'late')).length,
+            undertime: ended.filter((row) => matchesSessionStatus(row, 'undertime')).length,
+            total_late_minutes: ended.reduce((total, row) => total + (Number(row.late_minutes) || 0), 0),
+            total_undertime_minutes: ended.reduce((total, row) => total + (Number(row.early_departure_minutes) || 0), 0),
+            excluded: items.length - eligible.length, completion_rate: ended.length ? Math.round(complete / ended.length * 1000) / 10 : null };
+    };
+    const breakdown = (field) => {
+        const groups = new Map();
+        rows.forEach((row) => { const key = row[field]; if (!groups.has(key)) groups.set(key, []); groups.get(key).push(row); });
+        return [...groups].map(([value, items]) => ({ value, label: field === 'employee_id' ? items[0].faculty : value || 'Unspecified', ...summarize(items) }));
+    };
+    return { ...report, filters: { ...report.filters, attendance_status: sessionStatusLabels[status] || status }, rows, summary: summarize(rows), trend: breakdown('date'), faculty_breakdown: breakdown('employee_id'), subject_breakdown: breakdown('subject') };
+}
 
 const dateFormat = (date, options) => new Intl.DateTimeFormat('en-PH', { timeZone: 'UTC', ...options }).format(date);
 export const shortChartDate = (iso) => dateFormat(new Date(`${iso}T00:00:00Z`), { month: 'short', day: 'numeric' });
@@ -30,7 +82,7 @@ export function attendanceTrend(trend) {
 }
 
 export function sessionPage(rows, page = 1, perPage = 10, status = '') {
-    const filtered = status ? rows.filter((row) => row.status === status && (!['complete', 'incomplete', 'missed'].includes(status) || row.ended)) : rows;
+    const filtered = rows.filter((row) => matchesSessionStatus(row, status));
     const size = [10, 25, 50].includes(Number(perPage)) ? Number(perPage) : 10;
     const pages = Math.max(1, Math.ceil(filtered.length / size));
     const current = Math.max(1, Math.min(Number(page) || 1, pages));

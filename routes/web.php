@@ -52,6 +52,7 @@ Route::middleware('auth')->group(function () {
     Route::post('archived-faculty/{archivedId}/restore', [FacultyArchiveController::class, 'restore'])->whereNumber('archivedId')->name('faculty.archive.restore')->middleware('role:admin');
     Route::resource('employees', EmployeeController::class)->except(['show'])->middleware('role:admin');
     Route::post('employees/{employee}/credentials/enrollments', [EmployeeCredentialController::class, 'store'])->name('employees.credentials.enrollments.store')->middleware('role:admin');
+    Route::post('employees/{employee}/credentials/rfid/nfc', [EmployeeCredentialController::class, 'registerNfc'])->name('employees.credentials.rfid.nfc')->middleware(['role:admin', 'throttle:20,1']);
     Route::post('employees/{employee}/credentials/{method}/unlink', [EmployeeCredentialController::class, 'unlink'])->name('employees.credentials.unlink')->middleware('role:admin');
     Route::get('employees/{employee}/credentials/enrollments/{enrollment}', [EmployeeCredentialController::class, 'show'])->name('employees.credentials.enrollments.show')->middleware('role:admin');
     Route::delete('employees/{employee}/credentials/enrollments/{enrollment}', [EmployeeCredentialController::class, 'destroy'])->name('employees.credentials.enrollments.destroy')->middleware('role:admin');
@@ -61,6 +62,7 @@ Route::middleware('auth')->group(function () {
     Route::get('faculty-ranks', [FacultyRankController::class, 'index'])->name('ranks.index')->middleware('role:admin');
     Route::redirect('settings', '/settings/accounts')->middleware('role:admin');
     Route::get('settings/general', [GeneralSettingsController::class, 'edit'])->name('settings.general.edit')->middleware('role:admin');
+    Route::get('settings/holidays-suspensions', [CalendarController::class, 'index'])->name('settings.holidays.index')->middleware('role:admin');
     Route::put('settings/general', [GeneralSettingsController::class, 'update'])->name('settings.general.update')->middleware('role:admin');
     Route::resource('settings/accounts', UserController::class)->except(['show'])->parameters(['accounts' => 'user'])->names([
         'index' => 'settings.accounts.index', 'create' => 'settings.accounts.create',

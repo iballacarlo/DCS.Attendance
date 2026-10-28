@@ -154,7 +154,8 @@
     #workspace .form-section-title { border-color: var(--ui-line); background: var(--ui-surface); border-radius: 10px; padding: 14px; }
     #workspace .form-note { background: var(--ui-soft-blue) !important; color: var(--ui-blue) !important; border: 1px solid var(--ui-line) !important; border-radius: 10px; font-size: 12px; line-height: 1.7; padding: 14px 16px; }
     #workspace .settings-tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border: 1px solid var(--ui-line); border-radius: 14px; background: var(--ui-paper) !important; margin-bottom: 24px; }
-    #workspace .settings-tabs a { display: inline-flex; align-items: center; justify-content: center; flex: 1; gap: 8px; padding: 13px 15px; border: 1px solid transparent; border-radius: 9px; color: var(--ui-muted) !important; font-size: 12px; background: transparent !important; }
+    #workspace .settings-tabs a { display: inline-flex; align-items: center; justify-content: center; flex: 1; gap: 8px; padding: 13px 15px; border: 1px solid transparent; border-radius: 9px; color: var(--ui-muted) !important; font-size: 12px; background: transparent !important; white-space: normal; text-align: center; }
+    #workspace .settings-tabs a svg { flex-shrink: 0; }
     #workspace .settings-tabs a:hover { color: var(--ui-ink) !important; background: var(--ui-surface) !important; }
     #workspace .settings-tabs a.active { background: var(--ui-green) !important; color: #fff !important; border-color: var(--ui-green); }
     #workspace .pagination { display: flex; flex-wrap: wrap; gap: 7px; padding: 18px 0 0; background: transparent !important; }
@@ -167,6 +168,40 @@
     #workspace :is([data-status='inactive'], [data-status='absent'], .leave-status.is-rejected) { color: var(--ui-red) !important; background: var(--ui-soft-red) !important; border-color: #dc9ca4; }
     #workspace .payroll-status.is-approved { color: var(--ui-blue) !important; background: var(--ui-soft-blue) !important; border-color: #9ab7dd; }
     #workspace :is(.leave-card, .calendar-event-item, .signatory-item, .credential-row, .employment-history-card) { background: var(--ui-paper) !important; border: 1px solid var(--ui-line) !important; border-radius: 12px; }
+    #workspace .credential-actions { flex-wrap: wrap; align-items: center; }
+    #workspace .credential-row { padding: 20px; gap: 20px; min-width: 0; align-items: end; }
+    #workspace .credential-row--rfid { grid-template-columns: minmax(150px, .7fr) minmax(180px, 1.4fr) minmax(220px, 1fr); }
+    #workspace .credential-row--fingerprint { grid-template-columns: minmax(150px, .7fr) minmax(180px, 1.2fr) minmax(160px, .8fr) auto; }
+    #workspace .credential-row > label { grid-column: auto; min-width: 0; gap: 8px; }
+    #workspace .credential-row :is(input, select) { width: 100%; min-width: 0; }
+    #workspace .credential-row .credential-heading { min-width: 0; min-height: 50px; gap: 12px; }
+    #workspace .credential-row .credential-heading > span:last-child { gap: 6px; }
+    #workspace .credential-row .credential-icon { flex: 0 0 44px; width: 44px; height: 44px; border-radius: 10px; }
+    #workspace .credential-row .credential-actions { grid-column: auto; grid-row: auto; gap: 10px; min-width: 0; min-height: 44px; align-self: end; }
+    #workspace .holiday-register-filters { display: grid; grid-template-columns: 130px minmax(180px, .7fr) minmax(220px, 1.3fr); align-items: end; gap: 16px; margin-bottom: 22px; }
+    #workspace .holiday-register label { display: grid; gap: 8px; min-width: 0; }
+    #workspace .holiday-register :is(input, select, textarea) { width: 100%; }
+    #workspace .holiday-entry-form { display: grid; gap: 18px; padding: 22px; margin: 0 0 24px; border: 1px solid var(--ui-line); border-radius: 12px; background: var(--ui-surface); scroll-margin-top: 115px; }
+    #workspace .holiday-form-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    #workspace .holiday-form-heading h3 { margin: 0; font-size: 17px; }
+    #workspace .holiday-form-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    #workspace .holiday-row-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    #workspace .holiday-register td small { display: block; margin-top: 5px; }
+    #workspace .holiday-list-footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-top: 16px; color: var(--ui-muted); font-size: 12px; }
+    #workspace .holiday-list-footer .session-pagination { margin: 0; }
+    @media (max-width: 1200px) {
+        #workspace .credential-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        #workspace .credential-row .credential-heading, #workspace .credential-row .credential-actions, #workspace .credential-row--rfid > label { grid-column: 1 / -1; }
+    }
+    @media (max-width: 700px) {
+        #workspace .credential-row { padding: 18px; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+        #workspace .credential-row > label { grid-column: 1 / -1; }
+        #workspace .holiday-register-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        #workspace .holiday-register-filters > label:last-child { grid-column: 1 / -1; }
+        #workspace .holiday-entry-form { padding: 16px; scroll-margin-top: 90px; }
+        #workspace .holiday-form-pair { grid-template-columns: minmax(0, 1fr); }
+    }
+    #workspace .credential-nfc-message { grid-column: 1 / -1; color: var(--ui-muted); font-size: 13px; line-height: 1.5; }
     #workspace .payroll-stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
     #workspace .payroll-item {
         display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-items: start;

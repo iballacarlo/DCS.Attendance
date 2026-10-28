@@ -4,13 +4,60 @@ namespace Tests\Feature;
 
 use App\Models\Employee;
 use App\Models\User;
+use App\Services\EntranceAttendanceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class GuardKioskTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->travelTo(Carbon::parse('2026-10-28 10:00', 'Asia/Manila'));
+    }
+
+    public function test_future_dates_are_rejected_but_later_times_today_are_allowed(): void
+    {
+        $employee = Employee::create(['employee_no' => 'DATE-LIMIT', 'first_name' => 'Test', 'last_name' => 'Faculty', 'rate_amount' => 0, 'status' => 'active']);
+        $employee->rfidCards()->create(['rfid_uid' => 'DATE-CARD', 'status' => 'active']);
+        $this->actingAs(User::factory()->create(['role' => 'guard']));
+        $future = ['identifier' => 'DATE-CARD', 'occurred_at' => '2026-10-29T00:00'];
+        $this->postJson('/entrance-kiosk/preview', $future)->assertUnprocessable()->assertJsonValidationErrors('occurred_at');
+        foreach (['IN', 'OUT'] as $action) {
+            $this->post('/entrance-kiosk', [...$future, 'expected_action' => $action])->assertSessionHasErrors('occurred_at');
+        }
+        $this->assertDatabaseCount('entrance_attendances', 0);
+        $today = ['identifier' => 'DATE-CARD', 'occurred_at' => '2026-10-28T20:00'];
+        $this->postJson('/entrance-kiosk/preview', $today)->assertOk()->assertJsonPath('next_action', 'IN');
+        $this->post('/entrance-kiosk', [...$today, 'expected_action' => 'IN'])->assertSessionHasNoErrors();
+        $this->post('/entrance-kiosk', [...$today, 'occurred_at' => '2026-10-28T23:59', 'expected_action' => 'OUT'])->assertSessionHasNoErrors();
+        $this->post('/entrance-kiosk', [...$future, 'expected_action' => 'OUT'])->assertSessionHasErrors('occurred_at');
+        $this->assertDatabaseHas('entrance_attendances', ['employee_id' => $employee->id, 'attendance_date' => '2026-10-28', 'time_in' => '20:00:00', 'time_out' => '23:59:00']);
+        $this->assertDatabaseCount('entrance_attendances', 1);
+        $this->assertDatabaseCount('attendance_logs', 0);
+    }
+
+    public function test_date_limit_uses_manila_day_and_service_calls_cannot_bypass_it(): void
+    {
+        $this->travelTo(Carbon::parse('2026-10-28 16:30', 'UTC')); // October 29, 00:30 in Manila.
+        $employee = Employee::create(['employee_no' => 'MANILA-DATE', 'first_name' => 'Test', 'last_name' => 'Faculty', 'rate_amount' => 0, 'status' => 'active']);
+        $employee->rfidCards()->create(['rfid_uid' => 'MANILA-CARD', 'status' => 'active']);
+        $guard = User::factory()->create(['role' => 'guard']);
+        $this->actingAs($guard)->post('/entrance-kiosk', ['identifier' => 'MANILA-CARD', 'occurred_at' => '2026-10-29T23:59', 'expected_action' => 'IN'])->assertSessionHasNoErrors();
+        $this->postJson('/entrance-kiosk/preview', ['identifier' => 'MANILA-CARD', 'occurred_at' => '2026-10-30T00:00'])->assertUnprocessable()->assertJsonValidationErrors('occurred_at');
+        try {
+            app(EntranceAttendanceService::class)->record('MANILA-CARD', 'IN', Carbon::parse('2026-10-29 16:00', 'UTC'), $guard->id);
+            $this->fail('A UTC timestamp falling on a future Manila date must be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('occurred_at', $exception->errors());
+        }
+        $this->assertDatabaseCount('entrance_attendances', 1);
+    }
 
     public function test_guard_login_goes_to_kiosk_even_if_an_admin_url_was_requested(): void
     {

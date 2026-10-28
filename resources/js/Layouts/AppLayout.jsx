@@ -21,9 +21,10 @@ const navigation = [
     ] },
     { label: 'My Schedule', group: 'Operations', href: '/my-schedule', icon: CalendarDays, tone: 'nav-calendar', roles: ['faculty'], active: (url) => url.startsWith('/my-schedule') },
     { label: 'Leave', group: 'Operations', href: '/leave', icon: FileCheck2, tone: 'nav-leave', active: (url) => url.startsWith('/leave') },
-    { label: 'School Calendar', group: 'Operations', href: '/school-calendar', icon: CalendarDays, tone: 'nav-calendar', active: (url) => url.startsWith('/school-calendar') },
+    { label: 'Holidays & Suspensions', group: 'Operations', href: '/school-calendar', icon: CalendarDays, tone: 'nav-calendar', roles: ['faculty'], active: (url) => url.startsWith('/school-calendar') },
     { id: 'settings', label: 'Settings', group: 'Administration', icon: Settings2, roles: ['admin'], mobileHref: '/settings/accounts', children: [
         { label: 'General', href: '/settings/general', icon: Settings2, tone: 'nav-settings', active: (url) => url.startsWith('/settings/general') },
+        { label: 'Holidays & Suspensions', href: '/settings/holidays-suspensions', icon: CalendarDays, tone: 'nav-settings', active: (url) => url.startsWith('/settings/holidays-suspensions') || url.startsWith('/school-calendar') },
         { label: 'Accounts', href: '/settings/accounts', icon: Users, tone: 'nav-settings', active: (url) => url.startsWith('/settings/accounts') },
         { label: 'DTR Signatory', href: '/settings/dtr-signatories', icon: FileSignature, tone: 'nav-settings', active: (url) => url.startsWith('/settings/dtr-signatories') },
         { label: 'Backup & Recovery', href: '/settings/backup', icon: DatabaseBackup, tone: 'nav-settings', active: (url) => url.startsWith('/settings/backup') },

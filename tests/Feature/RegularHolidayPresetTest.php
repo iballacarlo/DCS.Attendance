@@ -69,4 +69,26 @@ class RegularHolidayPresetTest extends TestCase
         $this->actingAs(User::factory()->create(['role' => 'admin']))->get('/school-calendar?month=2026-12')->assertInertia(fn (Assert $p) => $p->has('events', 1)->where('events.0.id', $manual->id)->has('regularHolidays', 12));
         $this->assertDatabaseCount('calendar_events', 1);
     }
+
+    public function test_year_list_keeps_cross_year_suspensions_and_selects_the_correct_holiday_presets(): void
+    {
+        $crossYear = CalendarEvent::create(['title' => 'Year-end suspension', 'type' => 'suspension', 'start_date' => '2026-12-31', 'end_date' => '2027-01-02', 'scope_type' => 'campus', 'is_paid' => false]);
+        CalendarEvent::create(['title' => 'Earlier suspension', 'type' => 'suspension', 'start_date' => '2026-10-28', 'end_date' => '2026-10-28', 'scope_type' => 'campus', 'is_paid' => false]);
+        $this->actingAs(User::factory()->create(['role' => 'admin']))->get('/school-calendar?year=2027')
+            ->assertOk()->assertInertia(fn (Assert $p) => $p->component('Calendar/Index')->where('year', 2027)
+            ->has('events', 1)->where('events.0.id', $crossYear->id)->has('regularHolidays', 10)->where('canManage', true));
+        $this->get('/school-calendar?year=1999')->assertSessionHasErrors('year');
+        $this->assertDatabaseCount('calendar_events', 2);
+    }
+
+    public function test_holiday_settings_are_admin_only_and_faculty_keep_read_only_access(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'admin']))->get('/settings/holidays-suspensions?year=2026')
+            ->assertOk()->assertInertia(fn (Assert $p) => $p->component('Calendar/Index')->where('canManage', true)->has('regularHolidays', 12));
+        $this->actingAs(User::factory()->create(['role' => 'faculty']));
+        $this->get('/settings/holidays-suspensions')->assertForbidden();
+        $this->get('/school-calendar?year=2026')->assertOk()
+            ->assertInertia(fn (Assert $p) => $p->where('canManage', false)->has('regularHolidays', 12));
+        $this->actingAs(User::factory()->create(['role' => 'guard']))->get('/settings/holidays-suspensions')->assertForbidden();
+    }
 }

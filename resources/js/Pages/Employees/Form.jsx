@@ -1,10 +1,11 @@
 import DateInput from '../../components/DateInput';
 import { Link, useForm, usePage } from '@inertiajs/react';
 import axios from 'axios';
-import { BriefcaseBusiness, Check, CircleCheck, CircleHelp, Copy, Fingerprint, KeyRound, Link2Off, LoaderCircle, Plus, Radio, RefreshCw, Trash2, X } from 'lucide-react';
+import { BriefcaseBusiness, Check, CircleCheck, CircleHelp, Copy, Fingerprint, KeyRound, Link2Off, LoaderCircle, Nfc, Plus, Radio, RefreshCw, Trash2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
 import useConfirmDialog from '../../hooks/useConfirmDialog';
+import { scanRfid } from '../../lib/scanRfid';
 
 const attainmentOptions = [
     "Bachelor's Degree",
@@ -58,6 +59,11 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
     const fingerprintInput = useRef(null);
     const [enrollment, setEnrollment] = useState(null);
     const [enrollmentError, setEnrollmentError] = useState('');
+    const [nfcPhase, setNfcPhase] = useState('idle');
+    const [nfcMessage, setNfcMessage] = useState('');
+    const nfcScanner = useRef(null);
+    const nfcBusy = nfcPhase !== 'idle';
+    useEffect(() => () => nfcScanner.current?.abort(), []);
     const [credentialsCopied, setCredentialsCopied] = useState(false);
     const { ask, dialog } = useConfirmDialog();
     const form = useForm({
@@ -69,6 +75,7 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
     };
     const submit = (event) => {
         event.preventDefault();
+        if (nfcBusy) return;
         form.transform((data) => ({
             ...data,
             email: data.email.trim().toLowerCase(),
@@ -108,7 +115,7 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
     }, [enrollment?.id, enrollment?.status]);
 
     const startHardwareRegistration = async (method) => {
-        if (isNew) return;
+        if (isNew || nfcBusy || form.processing) return;
         const existingIdentifier = method === 'rfid' ? form.data.rfid_uid : form.data.fingerprint_code;
         const credentialLabel = method === 'rfid' ? 'RFID card' : 'fingerprint';
         if (existingIdentifier && !await ask({
@@ -136,6 +143,7 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
         setEnrollment(data);
     };
     const unlinkCredential = async (method) => {
+        if (nfcBusy || form.processing) return;
         const identifier = method === 'rfid' ? form.data.rfid_uid : form.data.fingerprint_code;
         const credentialLabel = method === 'rfid' ? 'RFID card' : 'fingerprint';
         if (!await ask({
@@ -157,6 +165,48 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
             }
         } catch (error) {
             setEnrollmentError(error.response?.data?.message || `Could not unlink the ${method} credential.`);
+        }
+    };
+    const registerViaNfc = async () => {
+        if (isNew || nfcBusy || nfcScanner.current || form.processing || ['starting', 'pending', 'processing'].includes(enrollment?.status)) return;
+        const controller = new AbortController();
+        nfcScanner.current = controller;
+        setNfcPhase('scanning');
+        setNfcMessage('Hold the RFID card near the back of this phone.');
+        setEnrollmentError('');
+        setEnrollment(null);
+        try {
+            const identifier = await scanRfid({ signal: controller.signal, onReadingError: setNfcMessage });
+            if (controller.signal.aborted) return;
+            controller.abort(); // Stop reading before showing the confirmation.
+            setNfcPhase('confirming');
+            setNfcMessage('Card scanned. Confirm the faculty and card below.');
+            const previous = form.data.rfid_uid;
+            const confirmed = await ask({
+                title: previous ? 'Replace RFID card?' : 'Register RFID card?',
+                message: `Register card ${identifier} for ${employee.first_name} ${employee.last_name}?${previous && previous !== identifier ? ` This replaces card ${previous}.` : ''}`,
+                confirmLabel: previous ? 'Confirm Registration' : 'Register Card',
+                tone: previous ? 'warning' : undefined,
+            });
+            if (!confirmed) { setNfcMessage('Registration cancelled.'); return; }
+            setNfcPhase('saving');
+            setNfcMessage('Registering RFID card...');
+            const { data } = await axios.post(`/employees/${employee.id}/credentials/rfid/nfc`, {
+                identifier, current_identifier: previous || null, confirmation: 'REGISTER',
+            });
+            form.setData('rfid_uid', data.identifier);
+            form.setDefaults('rfid_uid', data.identifier);
+            setEnrollment(data);
+            setNfcMessage('');
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                setNfcMessage('');
+                setEnrollmentError(Object.values(error.response?.data?.errors || {})[0]?.[0] || error.response?.data?.message || error.message || 'Could not register this RFID card.');
+            }
+        } finally {
+            controller.abort();
+            nfcScanner.current = null;
+            setNfcPhase('idle');
         }
     };
     const selectRank = (rankId) => {
@@ -206,7 +256,7 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
                 <button className="add-history-button ui-control ui-action ui-primary" type="button" title="Add another previous employment record" onClick={addEmploymentHistory}><Plus size={16} />Add Employment</button>
                 {form.errors.employment_history && <small className="field-error">{form.errors.employment_history}</small>}
             </div></>}
-            <div className="form-section-title" id="attendance-identifiers"><span>04</span><div><strong>Attendance identifiers</strong><small>Hardware credentials used for time records</small></div></div>
+            <div className="form-section-title" id="attendance-identifiers"><span>04</span><div><strong>Attendance identifiers</strong><small>RFID and fingerprint registration</small></div></div>
             {flash?.temporaryCredentials && <section className="faculty-temporary-credentials" role="status">
                 <KeyRound size={21} />
                 <div><strong>Temporary faculty login</strong><span>Email: <b>{flash.temporaryCredentials.email}</b></span><span>Temporary password: <code>{flash.temporaryCredentials.password}</code></span><small>This password is shown only once. Give it securely to the faculty member.</small></div>
@@ -218,24 +268,26 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
                 {['pending', 'processing'].includes(enrollment.status) && enrollment.operation !== 'unlink' && <button className="ui-control ui-action ui-secondary" type="button" onClick={cancelHardwareRegistration} aria-label="Cancel registration"><X size={16} /></button>}
             </div>}
             {enrollmentError && <div className="credential-enrollment-error">{enrollmentError}</div>}
-            <div className="credential-row">
+            {nfcMessage && <div className="credential-nfc-message" role="status">{nfcMessage}</div>}
+            <div className="credential-row credential-row--rfid">
                 <div className="credential-heading"><span className="credential-icon"><Radio size={19} /></span><span><strong>RFID card</strong><small>{form.data.rfid_uid ? 'Registered' : 'Not registered'}</small></span></div>
-                <label><FieldLabel note="This value is supplied by the RC522 after hardware registration.">Card UID</FieldLabel><input ref={rfidInput} value={form.data.rfid_uid} readOnly aria-readonly="true" placeholder="Register using the attendance device" /></label>
+                <label><FieldLabel note="Read from the RFID card using the attendance device or cellphone NFC.">Card UID</FieldLabel><input ref={rfidInput} value={form.data.rfid_uid} readOnly aria-readonly="true" placeholder="Register using hardware or NFC" /></label>
                 <div className="credential-actions">
-                    <button className="credential-action ui-control ui-action ui-secondary" type="button" title="Register or safely replace the RFID card using the attendance device" disabled={isNew || ['starting', 'pending', 'processing'].includes(enrollment?.status)} onClick={() => startHardwareRegistration('rfid')}>{form.data.rfid_uid ? <RefreshCw size={16} /> : <Radio size={16} />}{isNew ? 'Save first' : form.data.rfid_uid ? 'Replace' : 'Register'}</button>
-                    {form.data.rfid_uid && <button className="credential-unlink ui-control ui-action ui-danger" type="button" title="Permanently unlink this RFID card" onClick={() => unlinkCredential('rfid')} aria-label="Unlink RFID card"><Link2Off size={16} /></button>}
+                    <button className="credential-action ui-control ui-action ui-secondary" type="button" title="Register or safely replace the RFID card using the attendance device" disabled={isNew || nfcBusy || form.processing || ['starting', 'pending', 'processing'].includes(enrollment?.status)} onClick={() => startHardwareRegistration('rfid')}><Radio size={16} />{isNew ? 'Save first' : 'Register'}</button>
+                    <button className="credential-action ui-control ui-action ui-secondary" type="button" title={isNew ? 'Save the faculty record first' : 'Register RFID using cellphone NFC'} disabled={isNew || form.processing || ['confirming', 'saving'].includes(nfcPhase) || ['starting', 'pending', 'processing'].includes(enrollment?.status)} onClick={nfcPhase === 'scanning' ? () => { nfcScanner.current?.abort(); setNfcMessage('Scan stopped.'); } : registerViaNfc}><Nfc size={16} />{nfcPhase === 'scanning' ? 'Stop Scan' : nfcPhase === 'saving' ? 'Registering...' : 'Register via NFC'}</button>
+                    {form.data.rfid_uid && <button className="credential-unlink ui-control ui-action ui-danger" type="button" title="Permanently unlink this RFID card" disabled={nfcBusy || form.processing} onClick={() => unlinkCredential('rfid')} aria-label="Unlink RFID card"><Link2Off size={16} /></button>}
                 </div>
             </div>
-            <div className="credential-row">
+            <div className="credential-row credential-row--fingerprint">
                 <div className="credential-heading"><span className="credential-icon"><Fingerprint size={19} /></span><span><strong>Fingerprint</strong><small>{form.data.fingerprint_code ? 'Registered' : 'Not registered'}</small></span></div>
                 <label><FieldLabel note="This template slot is assigned automatically by the AS608 sensor.">Template ID</FieldLabel><input ref={fingerprintInput} readOnly aria-readonly="true" placeholder="Register using the attendance device" value={form.data.fingerprint_code} /></label>
-                <label><FieldLabel note="Select the finger before starting registration on the AS608 sensor.">Finger</FieldLabel><select disabled={['starting', 'pending', 'processing'].includes(enrollment?.status)} value={form.data.finger_label} onChange={(e) => form.setData('finger_label', e.target.value)}><option value="">Select finger</option><option>Right thumb</option><option>Right index</option><option>Right middle</option><option>Left thumb</option><option>Left index</option><option>Left middle</option></select></label>
+                <label><FieldLabel note="Select the finger before starting registration on the AS608 sensor.">Finger</FieldLabel><select disabled={nfcBusy || form.processing || ['starting', 'pending', 'processing'].includes(enrollment?.status)} value={form.data.finger_label} onChange={(e) => form.setData('finger_label', e.target.value)}><option value="">Select finger</option><option>Right thumb</option><option>Right index</option><option>Right middle</option><option>Left thumb</option><option>Left index</option><option>Left middle</option></select></label>
                 <div className="credential-actions">
-                    <button className="credential-action ui-control ui-action ui-secondary" type="button" title="Register or safely replace the fingerprint using the AS608 sensor" disabled={isNew || !form.data.finger_label || ['starting', 'pending', 'processing'].includes(enrollment?.status)} onClick={() => startHardwareRegistration('fingerprint')}>{form.data.fingerprint_code ? <RefreshCw size={16} /> : <Fingerprint size={16} />}{isNew ? 'Save first' : form.data.fingerprint_code ? 'Replace' : 'Register'}</button>
-                    {form.data.fingerprint_code && <button className="credential-unlink ui-control ui-action ui-danger" type="button" title="Permanently remove this fingerprint from the sensor and faculty record" onClick={() => unlinkCredential('fingerprint')} aria-label="Unlink fingerprint"><Link2Off size={16} /></button>}
+                    <button className="credential-action ui-control ui-action ui-secondary" type="button" title="Register or safely replace the fingerprint using the AS608 sensor" disabled={isNew || nfcBusy || form.processing || !form.data.finger_label || ['starting', 'pending', 'processing'].includes(enrollment?.status)} onClick={() => startHardwareRegistration('fingerprint')}>{form.data.fingerprint_code ? <RefreshCw size={16} /> : <Fingerprint size={16} />}{isNew ? 'Save first' : form.data.fingerprint_code ? 'Replace' : 'Register'}</button>
+                    {form.data.fingerprint_code && <button className="credential-unlink ui-control ui-action ui-danger" type="button" title="Permanently remove this fingerprint from the sensor and faculty record" disabled={nfcBusy || form.processing} onClick={() => unlinkCredential('fingerprint')} aria-label="Unlink fingerprint"><Link2Off size={16} /></button>}
                 </div>
             </div>
-            <div className="form-actions"><Link className="ui-control ui-action ui-secondary" href="/employees">Cancel</Link><button className="ui-control ui-action ui-primary" type="submit" disabled={form.processing}>{form.processing ? 'Saving...' : isNew ? 'Create & Continue to Device Registration' : 'Save Faculty'}</button></div>
+            <div className="form-actions"><Link className="ui-control ui-action ui-secondary" href="/employees">Cancel</Link><button className="ui-control ui-action ui-primary" type="submit" disabled={form.processing || nfcBusy}>{form.processing ? 'Saving...' : isNew ? 'Create & Continue to Device Registration' : 'Save Faculty'}</button></div>
         </form>
         {dialog}
     </AppLayout>;

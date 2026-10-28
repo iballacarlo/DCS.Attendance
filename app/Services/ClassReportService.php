@@ -49,7 +49,7 @@ class ClassReportService
                     $begun = Carbon::parse($date->toDateString().' '.$session['start'], 'Asia/Manila')->lte($now);
                     $complete = $log && $log->time_in && $log->time_out;
                     $status = $excluded ? 'excluded' : ($complete ? 'complete' : ($log ? 'incomplete' : ($ended ? 'missed' : ($begun ? 'in_progress' : 'upcoming'))));
-                    $difference = fn ($a, $b) => max(0, (int) ceil((Carbon::parse($date->toDateString().' '.$a)->timestamp - Carbon::parse($date->toDateString().' '.$b)->timestamp) / 60));
+                    $difference = fn ($a, $b) => max(0, (int) ceil((Carbon::parse($date->toDateString().' '.$a, 'Asia/Manila')->timestamp - Carbon::parse($date->toDateString().' '.$b, 'Asia/Manila')->timestamp) / 60));
                     $rows->push(['key' => $employee->id.'-'.$date->toDateString().'-'.$session['schedule_id'].'-'.($log?->id ?? 'expected'),
                         'employee_id' => $employee->id, 'faculty' => $employee->full_name, 'date' => $date->toDateString(),
                         'subject' => $session['subject'], 'section' => $session['section'], 'class_mode' => $session['class_mode'],
@@ -76,6 +76,11 @@ class ClassReportService
 
         return ['expected' => $eligible->count(), 'ended' => $ended->count(), 'complete' => $complete,
             'incomplete' => $ended->where('status', 'incomplete')->count(), 'missed' => $ended->where('status', 'missed')->count(),
+            'late' => $ended->where('late_minutes', '>', 0)->count(),
+            'undertime' => $ended->where('early_departure_minutes', '>', 0)->count(),
+            'on_time' => $ended->where('status', 'complete')->where('late_minutes', 0)->where('early_departure_minutes', 0)->count(),
+            'total_late_minutes' => (int) $ended->sum('late_minutes'),
+            'total_undertime_minutes' => (int) $ended->sum('early_departure_minutes'),
             'excluded' => $rows->where('status', 'excluded')->count(),
             'completion_rate' => $ended->count() ? round($complete / $ended->count() * 100, 1) : null];
     }

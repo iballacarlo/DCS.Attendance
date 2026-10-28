@@ -141,6 +141,54 @@ class AttendanceSeparationTest extends TestCase
         $this->assertDatabaseCount('attendance_logs', 1);
     }
 
+    public function test_unscheduled_school_taps_are_retained_but_blank_in_dtr_even_after_schedule_edits(): void
+    {
+        $employee = $this->faculty();
+        $guard = $this->guard();
+        $this->schedule($employee); // Monday only; October 28 is a Wednesday.
+        $service = app(EntranceAttendanceService::class);
+        $service->record('RFID-ONE', 'IN', Carbon::parse('2026-10-28 13:36:08', 'Asia/Manila'), $guard->id);
+        $assertBlank = function () use ($employee) {
+            $dtr = app(DtrService::class)->build($employee->fresh(), '2026-10-16', '2026-10-31');
+            $row = $dtr['rows']->firstWhere('date', '2026-10-28');
+            $this->assertFalse($row['has_schedule']);
+            $this->assertSame('not_scheduled', $row['status']);
+            foreach (['time_in', 'time_out', 'source', 'worked_hours', 'shortfall_minutes'] as $field) {
+                $this->assertNull($row[$field], $field);
+            }
+            foreach (['am_arrival', 'am_departure', 'pm_arrival', 'pm_departure', 'worked_seconds', 'margin_hours', 'undertime_hours', 'undertime_minutes'] as $field) {
+                $this->assertNull($dtr['form_rows'][27][$field], $field);
+            }
+            $this->assertSame(0, $dtr['summary']['days_present']);
+            $this->assertSame(0, $dtr['summary']['incomplete_days']);
+            $this->assertEquals(0, $dtr['summary']['total_hours']);
+        };
+        $assertBlank(); // An unscheduled IN alone is not an incomplete DTR day.
+        $service->record('RFID-ONE', 'OUT', Carbon::parse('2026-10-28 16:04', 'Asia/Manila'), $guard->id);
+        $assertBlank();
+        $employee->schedules()->create(['day_of_week' => 3, 'schedule_type' => 'consultation', 'start_time' => '13:00', 'end_time' => '17:00']);
+        $assertBlank(); // A later schedule must not reinterpret the empty snapshot.
+        $this->assertDatabaseHas('entrance_attendances', ['employee_id' => $employee->id, 'attendance_date' => '2026-10-28', 'time_in' => '13:36:08', 'time_out' => '16:04:00']);
+        $this->admin();
+        $this->get('/entrance?date=2026-10-28')->assertInertia(fn (Assert $p) => $p->has('logs', 1)->where('logs.0.time_in', '13:36:08'));
+    }
+
+    public function test_consultation_only_day_still_appears_in_dtr_without_class_hardware_taps(): void
+    {
+        $employee = $this->faculty();
+        $guard = $this->guard();
+        $employee->schedules()->create(['day_of_week' => 3, 'schedule_type' => 'consultation', 'start_time' => '13:00', 'end_time' => '15:00']);
+        $service = app(EntranceAttendanceService::class);
+        $service->record('RFID-ONE', 'IN', Carbon::parse('2026-10-28 12:50', 'Asia/Manila'), $guard->id);
+        $service->record('RFID-ONE', 'OUT', Carbon::parse('2026-10-28 15:10', 'Asia/Manila'), $guard->id);
+        $dtr = app(DtrService::class)->build($employee->fresh(), '2026-10-16', '2026-10-31');
+        $this->assertSame('12:50', $dtr['form_rows'][27]['pm_arrival']);
+        $this->assertSame('15:10', $dtr['form_rows'][27]['pm_departure']);
+        $this->assertEquals(2, $dtr['summary']['total_hours']);
+        $this->assertSame(1, $dtr['summary']['days_present']);
+        $this->assertDatabaseCount('attendance_logs', 0);
+    }
+
     public function test_report_distinguishes_missed_incomplete_future_and_calendar_exclusions(): void
     {
         $employee = $this->faculty();
@@ -157,7 +205,9 @@ class AttendanceSeparationTest extends TestCase
         $report = app(ClassReportService::class)->build($filters);
         $this->assertSame($employee->id, $report['faculty_breakdown'][0]['value']);
         $this->assertSame('DCIT 21', $report['subject_breakdown'][0]['value']);
-        $this->assertSame(['expected' => 4, 'ended' => 3, 'complete' => 1, 'incomplete' => 1, 'missed' => 1, 'excluded' => 0, 'completion_rate' => 33.3], $report['summary']);
+        $this->assertSame(['expected' => 4, 'ended' => 3, 'complete' => 1, 'incomplete' => 1, 'missed' => 1,
+            'late' => 1, 'undertime' => 1, 'on_time' => 0, 'total_late_minutes' => 5, 'total_undertime_minutes' => 10,
+            'excluded' => 0, 'completion_rate' => 33.3], $report['summary']);
         $this->assertSame(5, $report['rows'][0]['late_minutes']);
         $this->assertSame(10, $report['rows'][0]['early_departure_minutes']);
         $this->assertSame('upcoming', $report['rows'][3]['status']);
@@ -181,6 +231,50 @@ class AttendanceSeparationTest extends TestCase
         $this->assertStringStartsWith('08:00', $report['rows'][0]['scheduled_start']);
         $this->admin();
         $this->get('/class-reports?start_date=2026-10-05&end_date=2026-10-04')->assertSessionHasErrors('end_date');
+    }
+
+    public function test_class_punctuality_metrics_use_ended_eligible_sessions_and_saved_scheduled_times(): void
+    {
+        $this->travelTo(Carbon::parse('2026-10-05 12:00', 'Asia/Manila'));
+        $first = $this->faculty();
+        $second = $this->faculty('TWO');
+        $excluded = $this->faculty('EXCLUDED');
+        $late = $this->schedule($first);
+        $incomplete = $this->schedule($first, '10:00', '11:00');
+        $this->schedule($first, '11:00', '12:00');
+        $future = $this->schedule($first, '13:00', '14:00');
+        $this->schedule($first, '15:00', '16:00', 'consultation');
+        $onTime = $this->schedule($second);
+        $excludedSchedule = $this->schedule($excluded);
+        foreach ([[$first, $late, '08:05:01', '09:49:59'], [$first, $incomplete, '10:05:00', null],
+            [$first, $future, '13:20:00', '13:40:00'], [$second, $onTime, '07:55:00', '10:03:00'],
+            [$excluded, $excludedSchedule, '08:30:00', '09:00:00']] as [$employee, $schedule, $in, $out]) {
+            AttendanceLog::create(['employee_id' => $employee->id, ...ClassAttendanceService::snapshot($schedule),
+                'attendance_date' => '2026-10-05', 'time_in' => $in, 'time_out' => $out]);
+        }
+        $event = CalendarEvent::create(['title' => 'Faculty activity', 'type' => 'official_school_activity',
+            'start_date' => '2026-10-05', 'end_date' => '2026-10-05', 'scope_type' => 'faculty', 'is_paid' => false]);
+        $event->employees()->attach($excluded);
+        $late->update(['start_time' => '09:00', 'end_time' => '09:30']);
+        $filters = ['start_date' => '2026-10-05', 'end_date' => '2026-10-05'];
+        $report = app(ClassReportService::class)->build($filters);
+        foreach (['expected' => 5, 'ended' => 4, 'complete' => 2, 'late' => 2, 'undertime' => 1,
+            'on_time' => 1, 'missed' => 1, 'incomplete' => 1, 'excluded' => 1,
+            'total_late_minutes' => 11, 'total_undertime_minutes' => 11] as $key => $expected) {
+            $this->assertSame($expected, $report['summary'][$key], $key);
+        }
+        $this->assertSame(50.0, $report['summary']['completion_rate']);
+        $faculty = $report['faculty_breakdown']->firstWhere('value', $first->id);
+        $this->assertSame(2, $faculty['late']);
+        $this->assertSame(1, $faculty['undertime']);
+        $this->assertSame(11, $faculty['total_late_minutes']);
+        $this->assertSame(11, $report['subject_breakdown'][0]['total_undertime_minutes']);
+        $this->assertSame(2, $report['trend'][0]['late']);
+        $filtered = app(ClassReportService::class)->build([...$filters, 'employee_id' => $second->id]);
+        $this->assertSame(1, $filtered['summary']['on_time']);
+        $this->assertSame(0, $filtered['summary']['late']);
+        $this->assertSame(0, $filtered['summary']['undertime']);
+        $this->assertDatabaseCount('entrance_attendances', 0);
     }
 
     public function test_faculty_access_is_private_and_admin_routes_are_forbidden(): void

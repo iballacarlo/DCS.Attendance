@@ -4,12 +4,52 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Models\HardwareEnrollment;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class EmployeeCredentialController extends Controller
 {
+    public function registerNfc(Request $request, Employee $employee): JsonResponse
+    {
+        if (is_string($request->input('identifier'))) {
+            $request->merge(['identifier' => strtoupper(preg_replace('/[:\s-]/', '', $request->input('identifier')))]);
+        }
+        $data = $request->validate([
+            'identifier' => ['required', 'string', 'max:100', 'regex:/\A(?:[0-9A-F]{2})+\z/'],
+            'current_identifier' => ['present', 'nullable', 'string', 'max:100'],
+            'confirmation' => ['required', 'in:REGISTER'],
+        ]);
+        try {
+            DB::transaction(function () use ($request, $employee, $data) {
+                $employee = Employee::query()->lockForUpdate()->findOrFail($employee->id);
+                $credential = $employee->rfidCards()->first();
+                $previous = $credential?->rfid_uid;
+                abort_unless(strtoupper($previous ?? '') === strtoupper($data['current_identifier'] ?? ''), 409,
+                    'The RFID registration has changed. Reload the faculty profile before trying again.');
+                abort_if(HardwareEnrollment::where('employee_id', $employee->id)->where('method', 'rfid')
+                    ->whereIn('status', ['pending', 'processing'])->where('expires_at', '>', now())->exists(), 409,
+                    'Finish or cancel the RFID hardware registration before registering through NFC.');
+                // Include archived assignments; their cards must not be reassigned.
+                if (DB::table('rfid_cards')->whereRaw('UPPER(rfid_uid) = ?', [$data['identifier']])
+                    ->when($credential, fn ($query) => $query->where('id', '!=', $credential->id))->exists()) {
+                    throw ValidationException::withMessages(['identifier' => 'This RFID card is already assigned to another faculty member.']);
+                }
+                $credential ??= $employee->rfidCards()->make();
+                $credential->fill(['rfid_uid' => $data['identifier'], 'status' => 'active', 'registered_at' => now()])->save();
+                $this->audit($request->user()->id, $previous ? 'credential.replaced' : 'credential.registered', $employee->id,
+                    'RFID '.($previous ? $previous.' replaced with ' : '').$data['identifier'].' registered through cellphone NFC.');
+            });
+        } catch (UniqueConstraintViolationException) {
+            throw ValidationException::withMessages(['identifier' => 'This RFID card is already assigned to another faculty member.']);
+        }
+
+        return response()->json(['method' => 'rfid', 'operation' => 'replace', 'status' => 'completed',
+            'identifier' => $data['identifier'], 'message' => 'RFID card registered through NFC.']);
+    }
+
     public function store(Request $request, Employee $employee): JsonResponse
     {
         $data = $request->validate([

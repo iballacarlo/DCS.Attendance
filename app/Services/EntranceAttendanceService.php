@@ -13,6 +13,7 @@ class EntranceAttendanceService
 {
     public function preview(string $uid, Carbon $at): array
     {
+        $this->validateRecordingDate($at);
         $card = RfidCard::whereRaw('UPPER(rfid_uid) = ?', [strtoupper(trim($uid))])->where('status', 'active')->first();
         $employee = $card?->employee;
         if (! $employee || $employee->status !== 'active') {
@@ -30,6 +31,8 @@ class EntranceAttendanceService
 
     public function record(string $uid, ?string $action, Carbon $at, int $actorId, ?string $expectedAction = null): EntranceAttendance
     {
+        $this->validateRecordingDate($at);
+
         return DB::transaction(function () use ($uid, $action, $at, $actorId, $expectedAction) {
             $card = RfidCard::whereRaw('UPPER(rfid_uid) = ?', [strtoupper(trim($uid))])->where('status', 'active')->first();
             $employee = $card ? Employee::whereKey($card->employee_id)->lockForUpdate()->first() : null;
@@ -66,5 +69,12 @@ class EntranceAttendanceService
 
             return $log->fresh();
         });
+    }
+
+    private function validateRecordingDate(Carbon $at): void
+    {
+        if ($at->copy()->setTimezone('Asia/Manila')->toDateString() > Carbon::now('Asia/Manila')->toDateString()) {
+            throw ValidationException::withMessages(['occurred_at' => 'Attendance cannot be recorded for a future date. A later time today is allowed.']);
+        }
     }
 }

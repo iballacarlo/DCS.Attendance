@@ -20,6 +20,9 @@ class DtrService
             $log = $logs->get($date->toDateString());
             $intervals = $log ? $log->schedule_snapshot : DailyScheduleService::snapshot($employee, $date);
             $scheduled = array_sum(array_map(fn ($i) => $i[1] - $i[0], $intervals));
+            // Keep unscheduled school visits in entrance history only. The saved
+            // daily schedule remains authoritative even after schedule edits.
+            $log = $scheduled > 0 ? $log : null;
             $complete = $log && $log->time_in && $log->time_out;
             $seconds = 0;
             if ($complete) {

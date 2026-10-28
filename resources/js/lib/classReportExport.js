@@ -1,6 +1,8 @@
-export const reportColumns = ['Date', 'Faculty', 'Subject', 'Section', 'Mode', 'Scheduled IN', 'Scheduled OUT', 'Actual IN', 'Actual OUT', 'Late (min)', 'Early out (min)', 'Status', 'Exclusion'];
-export const reportValues = (r) => [r.date, r.faculty, r.subject || '', r.section || '', r.class_mode || '', r.scheduled_start, r.scheduled_end, r.time_in || '', r.time_out || '', r.late_minutes, r.early_departure_minutes, r.status, r.exclusion || ''];
-export const reportSummary = (r) => [['Expected sessions', r.summary.expected], ['Eligible ended sessions', r.summary.ended], ['Complete', r.summary.complete], ['Incomplete', r.summary.incomplete], ['Missed', r.summary.missed], ['Excluded', r.summary.excluded], ['Completion rate (%)', r.summary.completion_rate]];
+import { sessionIndicators } from './classAnalytics.js';
+
+export const reportColumns = ['Date', 'Faculty', 'Subject', 'Section', 'Mode', 'Scheduled IN', 'Scheduled OUT', 'Actual IN', 'Actual OUT', 'Late (min)', 'Undertime (min)', 'Status', 'Exclusion'];
+export const reportValues = (r) => [r.date, r.faculty, r.subject || '', r.section || '', r.class_mode || '', r.scheduled_start, r.scheduled_end, r.time_in || '', r.time_out || '', r.late_minutes, r.early_departure_minutes, sessionIndicators(r).map((item) => item.label).join('; '), r.exclusion || ''];
+export const reportSummary = (r) => [['Expected sessions', r.summary.expected], ['Eligible ended sessions', r.summary.ended], ['Complete', r.summary.complete], ['Incomplete', r.summary.incomplete], ['Absent / no taps', r.summary.missed], ['Excluded', r.summary.excluded], ['Completion rate (%)', r.summary.completion_rate], ['On time & full class', r.summary.on_time || 0], ['Late classes', r.summary.late || 0], ['Undertime classes', r.summary.undertime || 0], ['Total late minutes', r.summary.total_late_minutes || 0], ['Total undertime minutes', r.summary.total_undertime_minutes || 0]];
 export const reportFilterLabel = (r) => Object.entries(r.filters).filter(([, v]) => v != null && v !== '').map(([k, v]) => `${k.replaceAll('_', ' ')}: ${v}`).join(' | ');
 
 export async function makeClassReportWorkbook(report) {
@@ -10,7 +12,7 @@ export async function makeClassReportWorkbook(report) {
     const summary = workbook.addWorksheet('Summary');
     summary.addRow(['DCS Attendance & DTR — Class Attendance Report']);
     summary.addRow([reportFilterLabel(report)]);
-    summary.addRow(['Complete / eligible ended sessions. Upcoming sessions are not missed.']);
+    summary.addRow(['Late and undertime use scheduled class times, with no grace period. One class may count in both. Absent = no class taps.']);
     summary.addRow([]);
     reportSummary(report).forEach((row) => summary.addRow(row));
     summary.getColumn(1).width = 65; summary.getColumn(2).width = 24;
@@ -25,10 +27,10 @@ export async function makeClassReportWorkbook(report) {
     details.views = [{ state: 'frozen', ySplit: 1 }];
     for (const [title, rows] of [['By Faculty', report.faculty_breakdown], ['By Subject', report.subject_breakdown], ['Daily Trend', report.trend]]) {
         const sheet = workbook.addWorksheet(title);
-        sheet.addRow(['Label', 'Expected', 'Ended', 'Complete', 'Incomplete', 'Missed', 'Excluded', 'Completion rate (%)']);
-        rows.forEach((r) => sheet.addRow([r.label, r.expected, r.ended, r.complete, r.incomplete, r.missed, r.excluded, r.completion_rate]));
+        sheet.addRow(['Label', 'Expected', 'Ended', 'Complete IN/OUT', 'Incomplete', 'Absent / no taps', 'Excluded', 'Completion rate (%)', 'On time & full class', 'Late', 'Undertime', 'Late minutes', 'Undertime minutes']);
+        rows.forEach((r) => sheet.addRow([r.label, r.expected, r.ended, r.complete, r.incomplete, r.missed, r.excluded, r.completion_rate, r.on_time || 0, r.late || 0, r.undertime || 0, r.total_late_minutes || 0, r.total_undertime_minutes || 0]));
         sheet.getColumn(1).width = 40;
-        for (let i = 2; i <= 8; i++) sheet.getColumn(i).width = 18;
+        for (let i = 2; i <= 13; i++) sheet.getColumn(i).width = 18;
     }
     workbook.eachSheet((sheet) => {
         sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -53,14 +55,14 @@ export async function makeClassReportPdf(report) {
     };
     line('DCS Attendance & DTR | Class Attendance Report', 15);
     line(reportFilterLabel(report));
-    line('Complete / eligible ended sessions. Future sessions are not missed. Class taps do not affect the DTR.');
+    line('Late and undertime use scheduled class times, with no grace period. One class may count in both. Absent = no class taps.');
     line(reportSummary(report).map(([k, v]) => `${k}: ${v ?? '-'}`).join(' | '));
     for (const [title, rows] of [['Daily trend', report.trend], ['By faculty', report.faculty_breakdown], ['By subject', report.subject_breakdown]]) {
         line(title, 11);
-        rows.forEach((r) => line(`${r.label} | Expected ${r.expected} | Ended ${r.ended} | Complete ${r.complete} | Incomplete ${r.incomplete} | Missed ${r.missed} | Excluded ${r.excluded} | Rate ${r.completion_rate ?? '-'}%`));
+        rows.forEach((r) => line(`${r.label} | Expected ${r.expected} | Ended ${r.ended} | Complete ${r.complete} | Incomplete ${r.incomplete} | Absent ${r.missed} | Excluded ${r.excluded} | Rate ${r.completion_rate ?? '-'}% | On time ${r.on_time || 0} | Late ${r.late || 0} (${r.total_late_minutes || 0} min) | Undertime ${r.undertime || 0} (${r.total_undertime_minutes || 0} min)`));
     }
     const widths = [21, 34, 36, 23, 20, 34, 31, 31, 20, 23];
-    const headers = ['Date', 'Faculty', 'Subject', 'Section / Mode', 'Status', 'Schedule', 'IN / OUT', 'Late / Early (min)', 'Excluded', 'Reason'];
+    const headers = ['Date', 'Faculty', 'Subject', 'Section / Mode', 'Status', 'Schedule', 'IN / OUT', 'Late / Undertime (min)', 'Excluded', 'Reason'];
     const header = () => {
         pdf.setFontSize(7); pdf.setFillColor(23, 84, 60); pdf.rect(12, y - 4, 273, 9, 'F'); pdf.setTextColor(255);
         let x = 12; headers.forEach((v, i) => { pdf.text(v, x + 1, y); x += widths[i]; }); pdf.setTextColor(0); y += 8;
@@ -73,7 +75,7 @@ export async function makeClassReportPdf(report) {
     pdf.addPage(); detailHeader();
     if (!report.rows.length) { pdf.setFontSize(9); pdf.text('No class sessions match the applied filters.', 12, y + 3); }
     report.rows.forEach((r) => {
-        const values = [r.date, r.faculty, r.subject || '-', `${r.section || '-'} / ${r.class_mode || '-'}`, r.status.replace('_', ' '), `${r.scheduled_start} - ${r.scheduled_end}`, `${r.time_in || '-'} / ${r.time_out || '-'}`, `${r.late_minutes ?? '-'} / ${r.early_departure_minutes ?? '-'}`, r.exclusion ? 'Yes' : 'No', r.exclusion || '-'];
+        const values = [r.date, r.faculty, r.subject || '-', `${r.section || '-'} / ${r.class_mode || '-'}`, sessionIndicators(r).map((item) => item.label.replace(' ? ', ' ')).join('; '), `${r.scheduled_start} - ${r.scheduled_end}`, `${r.time_in || '-'} / ${r.time_out || '-'}`, `${r.late_minutes ?? '-'} / ${r.early_departure_minutes ?? '-'}`, r.exclusion ? 'Yes' : 'No', r.exclusion || '-'];
         const wrapped = values.map((v, i) => pdf.splitTextToSize(String(v), widths[i] - 2));
         const height = Math.max(...wrapped.map((v) => v.length)) * 3.5 + 3;
         if (y + height > 195) { pdf.addPage(); detailHeader(); }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import ClassPunctuality from './ClassPunctuality';
 import { CalendarCheck2, CheckCircle2, Clock3, ScanLine } from 'lucide-react';
 import { attendanceOverview, attendanceStatuses, attendanceTrend } from '../lib/classAnalytics';
 
@@ -45,37 +45,22 @@ function DailyTrend({ trend, onSelect }) {
     </section>;
 }
 
-function Breakdown({ faculty, subjects, onSelect }) {
-    const [group, setGroup] = useState('faculty');
-    const [expanded, setExpanded] = useState(false);
-    const rows = [...(group === 'faculty' ? faculty : subjects)].filter((row) => row.ended > 0)
-        .sort((a, b) => (b.incomplete + b.missed) - (a.incomplete + a.missed) || b.ended - a.ended || a.label.localeCompare(b.label));
-    const maximum = Math.max(1, ...rows.map((r) => r.ended));
-    const visible = expanded ? rows : rows.slice(0, 5);
-    return <section className="panel ca-breakdown">
-        <div className="ca-heading"><div><h2>Where are records missing?</h2></div><div className="ca-switch" role="group" aria-label="Group attendance by">{['faculty', 'subject'].map((value) => <button type="button" key={value} aria-pressed={group === value} onClick={() => { setGroup(value); setExpanded(false); }}>By {value}</button>)}</div></div>
-        {visible.length ? <div className="ca-breakdown-list">{visible.map((row, index) => <div className="ca-breakdown-row" key={`${row.label}-${index}`}>
-            <div className="ca-breakdown-heading">{onSelect && row.value != null && row.value !== '' ? <button type="button" className="ca-drilldown" onClick={() => onSelect({ [group === 'faculty' ? 'employee_id' : 'subject']: row.value })}>{row.label} <span aria-hidden="true">↗</span></button> : <strong>{row.label}</strong>}<span>{row.complete} of {row.ended} complete</span></div>
-            <div className="ca-horizontal-track" role="img" aria-label={`${row.label}: ${row.complete} complete, ${row.incomplete} missing IN or OUT, ${row.missed} without taps`}><StatusSegments row={row} scale={maximum} /></div>
-            <div className="ca-row-counts">{attendanceStatuses.map((status) => <span key={status.key}><i className={`ca-dot is-${status.tone}`} />{row[status.key]} {status.short.toLowerCase()}</span>)}</div>
-        </div>)}</div> : <div className="ca-empty"><ScanLine size={28} /><strong>No finished classes to compare</strong></div>}
-        {rows.length > 5 && <button type="button" className="ca-show-more" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Show fewer' : `Show all ${rows.length} ${group === 'faculty' ? 'faculty members' : 'subjects'}`}</button>}
-    </section>;
-}
-
 export default function ClassAnalytics({ report, onSelect, onStatusSelect, selectedStatus = '' }) {
     const { summary, trend, faculty_breakdown, subject_breakdown } = report;
     const overview = attendanceOverview(summary);
     const metrics = [
-        { label: 'Classes finished', value: overview.due, help: 'Scheduled end time has passed', Icon: CalendarCheck2, tone: 'neutral' },
-        { label: 'Complete records', value: summary.complete, help: 'Both IN and OUT recorded', Icon: CheckCircle2, tone: 'complete' },
-        { label: 'Missing IN or OUT', value: summary.incomplete, help: 'One tap still needs checking', Icon: Clock3, tone: 'incomplete' },
-        { label: 'No recorded taps', value: summary.missed, help: 'Finished classes without a record', Icon: ScanLine, tone: 'missed' },
+        { label: 'Classes finished', value: overview.due, Icon: CalendarCheck2, tone: 'neutral' },
+        { label: 'On time & full class', value: summary.on_time || 0, Icon: CheckCircle2, tone: 'complete', status: 'on_time' },
+        { label: 'Late', value: summary.late || 0, Icon: Clock3, tone: 'late', status: 'late', detail: `${summary.total_late_minutes || 0} minutes total` },
+        { label: 'Undertime', value: summary.undertime || 0, Icon: Clock3, tone: 'undertime', status: 'undertime', detail: `${summary.total_undertime_minutes || 0} minutes total` },
+        { label: 'Absent / no taps', value: summary.missed, Icon: ScanLine, tone: 'missed', status: 'missed' },
+        { label: 'Incomplete IN/OUT', value: summary.incomplete, Icon: Clock3, tone: 'incomplete', status: 'incomplete' },
     ];
     return <div className="class-analytics">
-        <div className="ca-metrics">{metrics.map(({ label, value, Icon, tone }) => <article className={`panel ca-metric is-${tone}`} key={label}><span className="ca-metric-icon"><Icon size={20} /></span><span className="ca-metric-label">{label}</span><strong>{value}</strong></article>)}</div>
+        <div className="ca-metrics">{metrics.map(({ label, value, Icon, tone, status, detail }) => <article className={`panel ca-metric is-${tone}`} key={label} role={onStatusSelect && status ? 'button' : undefined} tabIndex={onStatusSelect && status ? 0 : undefined} aria-pressed={onStatusSelect && status ? selectedStatus === status : undefined} onClick={() => status && onStatusSelect?.(status)} onKeyDown={(event) => { if (status && onStatusSelect && ['Enter', ' '].includes(event.key)) { event.preventDefault(); onStatusSelect(status); } }}><span className="ca-metric-icon"><Icon size={20} /></span><span className="ca-metric-label">{label}</span><strong>{value}</strong>{detail && <small>{detail}</small>}</article>)}</div>
+        <p className="ca-status-note">Finished classes only. A class can be both late and undertime. Absent means no recorded class taps.</p>
         <div className="ca-overview-grid"><section className="panel ca-overview"><div className="ca-heading"><div><h2>Record completion</h2></div></div><CompletionRing summary={summary} overview={overview} onStatusSelect={onStatusSelect} selectedStatus={selectedStatus} /></section><DailyTrend trend={trend} onSelect={onSelect} /></div>
         <div className="ca-period-note"><span>{overview.notYetFinished} pending</span><span>{summary.excluded} excluded</span></div>
-        <Breakdown faculty={faculty_breakdown} subjects={subject_breakdown} onSelect={onSelect} />
+        <ClassPunctuality faculty={faculty_breakdown} subjects={subject_breakdown} onSelect={onSelect} />
     </div>;
 }

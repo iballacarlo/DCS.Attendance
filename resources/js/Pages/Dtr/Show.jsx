@@ -22,8 +22,8 @@ export default function DtrShow({ dtr, employees, canSelectFaculty }) {
         }
         setAction(`${kind}-${operation}`);
         try {
-            const filename = documentFilename(fullName(employee), 'DTR_FORM_48', cutoff.start_date, cutoff.end_date, operation === 'excel' ? 'xlsx' : 'pdf');
             if (operation === 'excel') {
+                const filename = documentFilename(fullName(employee), 'DTR_FORM_48', cutoff.start_date, cutoff.end_date, 'xlsx');
                 const { downloadForm48Excel } = await import('../../lib/form48Excel');
                 await downloadForm48Excel(dtr, filename);
             } else {
@@ -32,8 +32,7 @@ export default function DtrShow({ dtr, employees, canSelectFaculty }) {
                 const { drawForm48 } = await import('../../lib/form48Pdf');
                 drawForm48(pdf, dtr);
 
-                if (operation === 'pdf') pdf.save(filename);
-                else sendPdfToPrint(pdf, popup);
+                sendPdfToPrint(pdf, popup);
             }
         } catch {
             popup?.close();
@@ -46,7 +45,7 @@ export default function DtrShow({ dtr, employees, canSelectFaculty }) {
         <div className="dtr-export-toolbar dtr-form-controls print-hidden">
             {canSelectFaculty && <FacultyCombobox employees={employees} selectedId={employee.id} disabled={!!action} onSelect={(id) => reload({ employee_id: id })} />}
             <CutoffPicker value={cutoff.start_date} disabled={!!action} onChange={(period) => reload({ start_date: period.start })} />
-            <div className="dtr-form-export-actions">{exportButton('form', 'print', 'Print DTR', Printer)}{exportButton('form', 'excel', 'Download Excel', FileSpreadsheet)}{exportButton('form', 'pdf', 'Download PDF', Printer)}</div>
+            <div className="dtr-form-export-actions">{exportButton('form', 'print', 'Print DTR', Printer)}{exportButton('form', 'excel', 'Download Excel', FileSpreadsheet)}</div>
         </div>
         <div className="dtr-sheet-viewport"><Form48 dtr={dtr} /></div>
         <section className="panel print-hidden">
