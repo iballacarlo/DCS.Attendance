@@ -439,6 +439,16 @@ void successSignal() {
   digitalWrite(GREEN_LED_PIN, LOW);
 }
 
+void waitSignal() {
+  digitalWrite(GREEN_LED_PIN, LOW);
+  digitalWrite(RED_LED_PIN, LOW);
+  digitalWrite(YELLOW_LED_PIN, HIGH);
+  tone(BUZZER_PIN, 850, 120);
+  delay(180);
+  noTone(BUZZER_PIN);
+  digitalWrite(YELLOW_LED_PIN, LOW);
+}
+
 void doneSignal() {
   digitalWrite(RED_LED_PIN, LOW);
   digitalWrite(YELLOW_LED_PIN, LOW);
@@ -880,6 +890,7 @@ void maintainWiFi() {
 
 void showClock() {
   if (fingerprintImageConfirmations > 0) return;
+  if (!displayShowingClock && timeOutAvailableAt > time(nullptr)) return;
   if (!displayShowingClock && millis() - displayMessageStarted < 3000) return;
   drawDisplayHeading(hasValidClock() ? "READY TO SCAN" : "SYNCING CLOCK");
   if (!displayShowingClock) {
@@ -1493,27 +1504,35 @@ bool shouldQueueAttendance(int code) {
   return code < 0 || code == 408 || code == 429 || code >= 500;
 }
 
+void showTimeOutWait(const String& message) {
+  if (lastDisplayLines[1] == message) return;
+  lastDisplayLines[1] = message;
+  drawTextBand(DISPLAY_SECOND_ROW_Y, message, 2, DISPLAY_WARNING, true);
+}
+
 void refreshTimeOutCountdown() {
   if (timeOutAvailableAt == 0 || displayShowingClock) return;
   time_t now = time(nullptr);
   unsigned long remaining = timeOutAvailableAt > now ? timeOutAvailableAt - now : 0;
-  char countdown[32];
-  snprintf(countdown, sizeof(countdown), "Time-out in %02lu:%02lu", remaining / 60, remaining % 60);
-  printLine(1, remaining ? String(countdown) : "You may scan again", 2, true);
+  char countdown[40];
+  snprintf(countdown, sizeof(countdown), "WAIT %02lu:%02lu for OUT", remaining / 60, remaining % 60);
+  showTimeOutWait(remaining ? String(countdown) : "Scan again for OUT");
 }
 
 void showAttendanceResponse(int code, const String& response, const String& method) {
   if (code == 200) {
     String action = jsonValue(response, "action");
     String displayTime = jsonValue(response, "display_time");
-    showMessage(jsonValue(response, "display_name"), attendanceDisplayLine(action, displayTime), true);
     if (action == "WAIT") {
+      showMessage(jsonValue(response, "display_name"), "OUT NOT RECORDED", true);
+      drawDisplayHeading("WAIT / OUT NOT RECORDED");
       timeOutAvailableAt = static_cast<time_t>(jsonValue(response, "time_out_available_at").toInt());
       if (timeOutAvailableAt > 0) refreshTimeOutCountdown();
-      else printLine(1, "Time-out at " + displayTime, 2, true);
-      doneSignal();
+      else showTimeOutWait("Wait until " + displayTime);
+      waitSignal();
       return;
     }
+    showMessage(jsonValue(response, "display_name"), attendanceDisplayLine(action, displayTime), true);
     if (action == "IN" || action == "OUT") successSignal();
     else if (action == "ALREADY OUT") doneSignal();
     else {

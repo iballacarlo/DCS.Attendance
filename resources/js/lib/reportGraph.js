@@ -8,7 +8,8 @@ export const reportMeasures = [
 ];
 const unspecified = '__unspecified_subject__';
 const subjectKey = (row) => row.subject || unspecified;
-export const initialGraphState = () => ({ view: 'overall', chartType: 'bar', measure: 'late', faculty: '', subject: '', day: '', page: 1, history: [] });
+// Keep the internal "donut" key compatible with saved graph state; the UI now renders a pie.
+export const initialGraphState = () => ({ view: 'overall', chartType: 'donut', highlight: '', lineHighlight: '', barSelection: '', measure: 'late', faculty: '', subject: '', day: '', page: 1, history: [] });
 const chartForView = (view) => view === 'daily' ? 'line' : 'bar';
 const chartAllowed = (chartType, view) => ['bar', 'line', 'donut'].includes(chartType)
     && (chartType !== 'bar' || view !== 'daily')
@@ -31,7 +32,9 @@ function validSelection(state, rows) {
     if (next.faculty && !rows.some((row) => String(row.employee_id) === next.faculty)) next.faculty = '';
     if (next.subject && !graphChoices(rows, next.faculty).subjects.some((option) => option.value === next.subject)) next.subject = '';
     if (next.day && !scopedRows(rows, next).some((row) => row.date === next.day && row.ended && row.status !== 'excluded')) next.day = '';
-    next.page = graphView(rows, next).page;
+    const current = graphView(rows, next);
+    next.page = current.page;
+    if (next.barSelection && !current.bars.some((bar) => bar.value === next.barSelection)) next.barSelection = '';
     return next;
 }
 
@@ -46,18 +49,33 @@ export function graphReducer(state, action) {
         if (!state.history.length) return state;
         return { ...state.history.at(-1), history: state.history.slice(0, -1) };
     }
-    if (action.type === 'page') return { ...state, page: action.page };
+    if (action.type === 'page') return { ...state, page: action.page, barSelection: '' };
     if (action.type === 'day') return { ...state, day: state.day === action.day ? '' : action.day };
+    if (action.type === 'bar-select') return { ...state, barSelection: state.barSelection === action.value ? '' : action.value,
+        ...(state.view === 'overall' && reportMeasures.some((item) => item.key === action.value) ? { measure: action.value } : {}) };
+    if (action.type === 'clear-selection') return { ...state, barSelection: '', day: '', highlight: '', lineHighlight: '' };
+    if (action.type === 'summary') {
+        if (!reportMeasures.some((item) => item.key === action.measure)) return state;
+        if (state.chartType === 'donut') return graphReducer(state, { type: 'highlight', highlight: action.measure });
+        if (state.chartType === 'line') return { ...state, measure: action.measure, lineHighlight: state.lineHighlight === action.measure ? '' : action.measure, day: '' };
+        if (state.view === 'overall') return graphReducer(state, { type: 'bar-select', value: action.measure });
+        return { ...state, measure: action.measure, barSelection: '', day: '', page: 1 };
+    }
     const { history, ...previous } = state;
+    if (action.type === 'highlight') {
+        if (!['', 'on_time', 'late', 'undertime', 'late_undertime', 'missed', 'incomplete'].includes(action.highlight)) return state;
+        return { ...state, view: 'overall', chartType: 'donut', highlight: state.chartType === 'donut' && state.highlight === action.highlight ? '' : action.highlight,
+            day: '', barSelection: '', page: 1, history: state.chartType === 'donut' ? history : [...history, previous] };
+    }
     if (action.type === 'chart') {
         if (!['bar', 'line', 'donut'].includes(action.chartType) || action.chartType === state.chartType) return state;
         const view = action.chartType === 'line' ? 'daily' : action.chartType === 'donut' || state.view === 'daily' ? 'overall' : state.view;
-        return { ...state, view, chartType: action.chartType, day: '', page: 1, ...(action.chartType === 'donut' ? { measure: 'late' } : {}), history: [...history, previous] };
+        return { ...state, view, chartType: action.chartType, day: '', lineHighlight: '', barSelection: '', page: 1, ...(action.chartType === 'donut' ? { measure: 'late', highlight: '' } : {}), history: [...history, previous] };
     }
-    if (action.type === 'view') return { ...state, view: action.view, chartType: chartForView(action.view), day: '', page: 1, history: [...history, previous] };
-    if (action.type === 'overall') return { ...state, view: 'faculty', chartType: 'bar', measure: action.measure, day: '', page: 1, history: [...history, previous] };
-    if (action.type === 'group') return { ...state, view: 'daily', chartType: 'line', [state.view === 'faculty' ? 'faculty' : 'subject']: action.value, day: '', page: 1, history: [...history, previous] };
-    if (action.type === 'filter') return { ...state, [action.field]: action.value, ...(action.field === 'faculty' ? { subject: '' } : {}), day: '', page: 1 };
+    if (action.type === 'view') return { ...state, view: action.view, chartType: chartForView(action.view), day: '', barSelection: '', page: 1, history: [...history, previous] };
+    if (action.type === 'overall') return { ...state, view: 'faculty', chartType: 'bar', measure: action.measure, day: '', barSelection: '', page: 1, history: [...history, previous] };
+    if (action.type === 'group') return { ...state, view: 'daily', chartType: 'line', lineHighlight: '', [state.view === 'faculty' ? 'faculty' : 'subject']: action.value, day: '', barSelection: '', page: 1, history: [...history, previous] };
+    if (action.type === 'filter') return { ...state, [action.field]: action.value, ...(action.field === 'faculty' ? { subject: '' } : {}), day: '', barSelection: '', page: 1 };
     return state;
 }
 
@@ -90,7 +108,17 @@ export function graphView(rows, state) {
     const pages = ['faculty', 'subject'].includes(state.view) ? Math.max(1, Math.ceil(bars.length / 5)) : 1;
     const page = Math.max(1, Math.min(state.page, pages));
     const visible = ['faculty', 'subject'].includes(state.view) ? bars.slice((page - 1) * 5, page * 5) : bars;
-    return { bars: visible, allBars: bars, total: ended.length, measure, page, pages };
+    const days = new Map();
+    if (state.view === 'daily') {
+        for (const row of ended) {
+            if (!days.has(row.date)) days.set(row.date, []);
+            days.get(row.date).push(row);
+        }
+    }
+    const series = state.view === 'daily' ? reportMeasures.map((item) => ({ ...item,
+        bars: [...days].sort(([a], [b]) => a.localeCompare(b)).map(([date, items]) => ({ key: item.key, value: date, label: shortChartDate(date), ...metric(items, item.key) })),
+    })) : [];
+    return { bars: visible, allBars: bars, series, endedRows: ended, total: ended.length, measure, page, pages };
 }
 
 // Plot actual dates at their calendar spacing; days without observations are not zeroes.

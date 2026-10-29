@@ -14,10 +14,13 @@ class AttendanceController extends Controller
     {
         $faculty = $request->user()->role === 'faculty';
         $filters = $request->validate([
+            'page' => ['nullable', 'integer', 'min:1'], 'per_page' => ['nullable', 'integer', 'in:10,25,50'],
             'search' => ['nullable', 'string', 'max:100'], 'cutoff_start' => ['nullable', 'date_format:Y-m-d'],
             'employee_id' => ['nullable', 'integer', 'exists:employees,id'],
             'status' => ['nullable', 'in:present,late_undertime'], 'method' => ['nullable', 'in:rfid,fingerprint,manual'],
         ]);
+        unset($filters['page']);
+        $filters['per_page'] = (int) ($filters['per_page'] ?? 10);
         [$start, $end] = CutoffService::range($filters['cutoff_start'] ?? null);
         $filters = array_merge(['search' => '', 'employee_id' => '', 'status' => '', 'method' => ''], $filters, ['cutoff_start' => $start->toDateString()]);
         $query = AttendanceLog::with('employee')->where('is_legacy', false)->where('schedule_type', 'class')->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()]);
@@ -36,9 +39,15 @@ class AttendanceController extends Controller
         $query->when($filters['status'], fn ($q, $status) => $q->attendanceStatus($status))
             ->when($filters['method'], fn ($q, $method) => $q->where(fn ($q) => $q->where('method_in', $method)->orWhere('method_out', $method)));
 
+        $query->orderByDesc('attendance_date')->orderByDesc('scheduled_start')->orderByDesc('time_in')->orderByDesc('id');
+        $logs = $query->paginate($filters['per_page'])->onEachSide(1)->withQueryString();
+        if ($logs->currentPage() > $logs->lastPage()) {
+            $logs = $query->paginate($filters['per_page'], ['*'], 'page', $logs->lastPage())->onEachSide(1)->withQueryString();
+        }
+
         return Inertia::render('Attendance/Index', [
             'employees' => $faculty ? [] : Employee::with('schedules')->where('status', 'active')->orderBy('last_name')->get(),
-            'logs' => $query->orderByDesc('attendance_date')->orderByDesc('scheduled_start')->orderByDesc('time_in')->orderByDesc('id')->paginate(15)->withQueryString(),
+            'logs' => $logs,
             'filters' => $filters,
         ]);
     }

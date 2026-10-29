@@ -41,7 +41,7 @@ class ClassAttendanceService
             $schedule = $eligible->first(fn ($item) => $now->gte(Carbon::parse($date.' '.$item->start_time, 'Asia/Manila')))
                 ?? $eligible->first();
             if ($open && ($now->lte(Carbon::parse($date.' '.$open->scheduled_end, 'Asia/Manila')) || ! $schedule)) {
-                $available = Carbon::parse($date.' '.$open->time_in, 'Asia/Manila')->addMinutes(3);
+                $available = Carbon::parse($date.' '.$open->time_in, 'Asia/Manila')->addMinutes(2);
                 if ($now->lt($available)) {
                     return ['action' => 'WAIT', 'message' => 'Please wait before recording time out.', 'time' => $available->format('h:i A'),
                         'available_at' => $available->format('h:i A'), 'time_out_available_at' => (string) $available->timestamp, 'log' => $open];

@@ -111,7 +111,11 @@ class HardwareAttendanceTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_hardware_allows_time_out_after_three_minutes(): void
+    #[\PHPUnit\Framework\Attributes\TestWith(['rfid', 'http'])]
+    #[\PHPUnit\Framework\Attributes\TestWith(['rfid', 'https'])]
+    #[\PHPUnit\Framework\Attributes\TestWith(['fingerprint', 'http'])]
+    #[\PHPUnit\Framework\Attributes\TestWith(['fingerprint', 'https'])]
+    public function test_hardware_allows_time_out_at_exactly_two_minutes(string $method, string $scheme): void
     {
         config(['services.hardware.api_key' => 'device-secret']);
         $startedAt = Carbon::parse('2026-09-21 08:00:00', 'Asia/Manila');
@@ -119,7 +123,7 @@ class HardwareAttendanceTest extends TestCase
         $rank = FacultyRank::where('is_active', true)->firstOrFail();
         $employee = Employee::create([
             'employee_no' => 'COS-COOLDOWN-1',
-            'first_name' => 'Three',
+            'first_name' => 'Two',
             'last_name' => 'Minutes',
             'faculty_rank_id' => $rank->id,
             'rate_type' => 'hourly',
@@ -127,21 +131,28 @@ class HardwareAttendanceTest extends TestCase
             'status' => 'active',
         ]);
         $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'break_minutes' => 0]);
-        $employee->rfidCards()->create([
-            'rfid_uid' => 'THREE-MINUTE-CARD',
-            'status' => 'active',
-        ]);
+        $identifier = $method === 'rfid' ? 'TWO-MINUTE-CARD' : 'FP-2';
+        if ($method === 'rfid') {
+            $employee->rfidCards()->create(['rfid_uid' => $identifier, 'status' => 'active']);
+        } else {
+            $employee->fingerprintTemplates()->create(['fingerprint_code' => $identifier, 'status' => 'active']);
+        }
         $tap = fn () => $this->withHeader('X-Hardware-Key', 'device-secret')
-            ->postJson('/api/hardware/tap', [
-                'identifier' => 'THREE-MINUTE-CARD',
-                'method' => 'rfid',
+            ->postJson($scheme.'://localhost/api/hardware/tap', [
+                'identifier' => $identifier,
+                'method' => $method,
             ]);
 
         $tap()->assertOk()->assertJsonPath('action', 'IN');
-        Carbon::setTestNow($startedAt->copy()->addMinutes(2)->addSeconds(59));
-        $tap()->assertOk()->assertJsonPath('action', 'WAIT');
-        Carbon::setTestNow($startedAt->copy()->addMinutes(3));
+        Carbon::setTestNow($startedAt->copy()->addMinute()->addSeconds(59));
+        $tap()->assertOk()->assertJsonPath('action', 'WAIT')
+            ->assertJsonPath('time_out_available_at', (string) $startedAt->copy()->addMinutes(2)->timestamp);
+        $this->assertDatabaseHas('attendance_logs', ['employee_id' => $employee->id, 'time_out' => null]);
+        Carbon::setTestNow($startedAt->copy()->addMinutes(2));
         $tap()->assertOk()->assertJsonPath('action', 'OUT');
+        $this->assertDatabaseHas('attendance_logs', [
+            'employee_id' => $employee->id, 'time_out' => '08:02:00', 'method_out' => $method,
+        ]);
 
         Carbon::setTestNow();
     }

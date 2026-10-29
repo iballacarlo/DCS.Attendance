@@ -23,7 +23,7 @@ Keep internet time synchronization working for certificate checks. If the
 domain or issuer changes, verify and update the trust anchor before flashing.
 
 The server chooses the eligible class session for each RFID/fingerprint tap.
-IN opens 30 minutes before class; OUT requires at least three minutes after IN.
+IN opens 30 minutes before class; OUT requires at least two minutes after IN.
 Each class has its own IN/OUT pair. Consultation, lunch breaks, and school
 entrance attendance are separate from these hardware class taps.
 Only `IN` and `OUT` produce a recorded-attendance success signal. `WAIT`
@@ -32,7 +32,7 @@ produces a neutral signal (and a countdown on the maintained TFT sketch).
 HTTP 409 is a record conflict, not a missing schedule.
 
 Before relying on a flashed device, test IN, an early OUT attempt (`WAIT`),
-OUT after three minutes, a second class, `NO CLASS`, and disconnected scans
+OUT after two minutes, a second class, `NO CLASS`, and disconnected scans
 followed by reconnection. Offline saved scans still need server processing.
 Confirm the resulting records in Class Attendance and verify that School
 Attendance has not changed. Compile with the board and partition scheme
@@ -287,3 +287,13 @@ After uploading, check these on the actual hardware:
 6. If the screen says `FINGERPRINT SENSOR UNAVAILABLE`, check sensor TX to D13, sensor RX
    to D14, common ground, and regulated sensor power. Send the Serial Monitor
    output if detection or matching still fails; compiling cannot verify wiring.
+
+## OUT waiting indication
+
+A tap before the two-minute minimum returns WAIT and does not save an OUT.
+The TFT shows `WAIT / OUT NOT RECORDED` with an amber countdown and a yellow
+LED pulse. The wait screen remains until the countdown ends or another scan
+replaces it. Scan again after the wait; expiry never creates an OUT by itself.
+WAIT never uses the green success signal. A recorded IN/OUT keeps its normal
+green indication; queued offline scans retain their separate saved-on-device
+message until uploaded.

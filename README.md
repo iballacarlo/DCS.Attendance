@@ -11,6 +11,9 @@ Open `DCSAttendanceTFT.ino` with all companion headers in the same folder.
 The other retained sketches are `hardware/DCSAttendanceLCD` and
 `hardware/DCSAttendanceTFTBeforeCredentialFlow`; each main `.ino` filename
 matches its folder. The WiFi test and logo preview use the renamed paths.
+For LAN-only testing, use the separate [`DCSAttendanceTFTLocal`](hardware/DCSAttendanceTFTLocal/README.md)
+sketch. Its HTTP connection, queue and RFID cache are isolated from Railway.
+
 
 | Flow | Capture | Output |
 | --- | --- | --- |

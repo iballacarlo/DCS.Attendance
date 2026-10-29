@@ -36,6 +36,9 @@ class DashboardController extends Controller
         return Inertia::render('Dashboard', [
             'employeeCount' => ! $faculty ? Employee::where('status', 'active')->count() : null,
             'entrance' => $entrance, 'presentToday' => $entrance->count(), 'incompleteToday' => $entrance->whereNull('time_out')->count(),
+            'adminOverview' => $faculty ? null : [
+                'classes_today' => collect($report['rows'])->where('date', $today->toDateString())->where('status', '!=', 'excluded')->count(),
+            ],
             'classAnalytics' => $report ? collect($report)->except(['rows'])->all() : null,
             'todaySchedule' => $schedule['items'],
             'todayScheduleSummary' => $schedule['summary'],

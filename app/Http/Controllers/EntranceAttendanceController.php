@@ -15,6 +15,7 @@ class EntranceAttendanceController extends Controller
     public function index(Request $request)
     {
         $data = $request->validate([
+            'page' => ['nullable', 'integer', 'min:1'], 'per_page' => ['nullable', 'integer', 'in:10,25,50'],
             'date' => ['nullable', 'date_format:Y-m-d'],
             'cutoff_start' => ['nullable', 'date_format:Y-m-d'],
             'employee_id' => ['nullable', 'integer', 'exists:employees,id'],
@@ -28,7 +29,7 @@ class EntranceAttendanceController extends Controller
             $cutoff = $anchor->copy()->day($anchor->day <= 15 ? 1 : 16)->toDateString();
         }
         [$start, $end] = CutoffService::range($cutoff);
-        $filters = ['cutoff_start' => $start->toDateString(),
+        $filters = ['per_page' => (int) ($data['per_page'] ?? 10), 'cutoff_start' => $start->toDateString(),
             'employee_id' => $faculty ? '' : ($data['employee_id'] ?? ''), 'status' => $data['status'] ?? ''];
         $logs = EntranceAttendance::with('employee')->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()]);
         if ($faculty) {
@@ -42,12 +43,18 @@ class EntranceAttendanceController extends Controller
             $logs->where(fn ($query) => $query->whereNull('time_in')->orWhereNull('time_out'));
         }
 
+        $logs->orderByDesc('attendance_date')->orderByDesc('time_in')->orderByDesc('id');
+        $records = $logs->paginate($filters['per_page'])->onEachSide(1)->withQueryString();
+        if ($records->currentPage() > $records->lastPage()) {
+            $records = $logs->paginate($filters['per_page'], ['*'], 'page', $records->lastPage())->onEachSide(1)->withQueryString();
+        }
+
         return Inertia::render('Entrance/Index', [
             'filters' => $filters,
             'employees' => $faculty ? [] : Employee::orderBy('last_name')->get(['id', 'employee_no', 'first_name', 'middle_name', 'last_name', 'suffix']),
             'canSelectFaculty' => ! $faculty,
             'canRecord' => false,
-            'logs' => $logs->orderByDesc('attendance_date')->orderByDesc('time_in')->orderByDesc('id')->paginate(15)->withQueryString(),
+            'logs' => $records,
         ]);
     }
 

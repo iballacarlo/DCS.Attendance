@@ -121,7 +121,7 @@ test('graph filters never affect report exports, explicit table status or origin
 
 test('three graph types automatically choose the correct function and Back restores the previous graph', () => {
     let state = initialGraphState();
-    assert.equal(state.chartType, 'bar');
+    assert.equal(state.chartType, 'donut');
     for (const chartType of ['column', 'pie']) assert.equal(graphReducer(state, { type: 'chart', chartType }), state);
     state = graphReducer(state, { type: 'view', view: 'subject' });
     const comparison = state;
@@ -201,7 +201,7 @@ test('donut uses only the selected status with all eligible finished classes as 
 });
 
 test('donut is Overall-only, defaults to Late and survives refresh and Back from drilldown', () => {
-    let state = graphReducer({ ...initialGraphState(), measure: 'missed' }, { type: 'chart', chartType: 'donut' });
+    let state = graphReducer({ ...initialGraphState(), chartType: 'bar', measure: 'missed' }, { type: 'chart', chartType: 'donut' });
     assert.equal(state.chartType, 'donut');
     assert.equal(state.measure, 'late');
     state = graphReducer(state, { type: 'filter', field: 'measure', value: 'on_time' });
@@ -220,4 +220,85 @@ test('donut is Overall-only, defaults to Late and survives refresh and Back from
     assert.deepEqual(graphReducer(drilled, { type: 'reset' }), initialGraphState());
     const daily = graphReducer(state, { type: 'view', view: 'daily' });
     assert.equal(graphReducer(daily, { type: 'chart', chartType: 'donut' }).view, 'overall');
+});
+
+test('bar selection highlights locally without changing view, totals, filters or export scope', () => {
+    const rows = fixture();
+    const report = { filters: {}, rows };
+    const originalExport = classReportView(report, 'late');
+    const before = { ...initialGraphState(), chartType: 'bar' };
+    const selected = graphReducer(before, { type: 'bar-select', value: 'late' });
+    assert.equal(selected.view, 'overall');
+    assert.equal(selected.chartType, 'bar');
+    assert.equal(selected.barSelection, 'late');
+    assert.deepEqual(graphView(rows, selected).bars, graphView(rows, before).bars);
+    assert.deepEqual(classReportView(report, 'late'), originalExport);
+    assert.equal(graphReducer(selected, { type: 'bar-select', value: 'late' }).barSelection, '');
+    assert.equal(graphReducer(selected, { type: 'clear-selection' }).barSelection, '');
+});
+
+test('summary cards select the status within the active bar or line instead of switching to pie', () => {
+    for (const [chartType, view] of [['bar', 'overall'], ['bar', 'faculty'], ['line', 'daily']]) {
+        const selected = graphReducer({ ...initialGraphState(), chartType, view, faculty: '1', subject: 'DCIT 24' }, { type: 'summary', measure: 'undertime' });
+        assert.equal(selected.chartType, chartType);
+        assert.equal(selected.view, view);
+        assert.equal(selected.measure, 'undertime');
+        assert.equal(selected.faculty, '1');
+        assert.equal(selected.subject, 'DCIT 24');
+        assert.equal(selected.barSelection, view === 'overall' ? 'undertime' : '');
+    }
+    assert.equal(graphReducer(initialGraphState(), { type: 'summary', measure: 'late' }).highlight, 'late');
+});
+
+test('explicit breakdown keeps Back history while refresh retains only visible valid bar selections', () => {
+    const rows = fixture();
+    const selected = graphReducer({ ...initialGraphState(), chartType: 'bar' }, { type: 'bar-select', value: 'late' });
+    const breakdown = graphReducer(selected, { type: 'overall', measure: 'late' });
+    assert.equal(breakdown.view, 'faculty');
+    assert.equal(breakdown.barSelection, '');
+    assert.deepEqual(graphReducer(breakdown, { type: 'back' }), selected);
+    const faculty = graphReducer(breakdown, { type: 'bar-select', value: '2' });
+    assert.equal(graphReducer(faculty, { type: 'refresh', rows }).barSelection, '2');
+    assert.equal(graphReducer(faculty, { type: 'refresh', rows: rows.filter((row) => row.employee_id === 1) }).barSelection, '');
+    assert.equal(graphReducer(faculty, { type: 'page', page: 2 }).barSelection, '');
+    const daily = graphReducer(faculty, { type: 'group', value: '2' });
+    const point = graphReducer(daily, { type: 'day', day: '2026-10-10' });
+    const cleared = graphReducer(point, { type: 'clear-selection' });
+    assert.equal(cleared.day, '');
+    assert.equal(cleared.view, 'daily');
+    assert.equal(cleared.faculty, '2');
+});
+
+test('daily trend contains all four status series with shared daily denominators and overlapping late/undertime counts', () => {
+    const rows = [session(1, { date: '2026-10-01' }), session(2, { date: '2026-10-01', late_minutes: 5, early_departure_minutes: 10 }),
+        session(3, { date: '2026-10-01', status: 'missed' }), session(4, { date: '2026-10-01', status: 'incomplete' }),
+        session(5, { date: '2026-10-03', status: 'incomplete' }), session(6, { date: '2026-10-02', ended: false }), session(7, { date: '2026-10-02', status: 'excluded' })];
+    const state = { ...initialGraphState(), chartType: 'line', view: 'daily' };
+    const graph = graphView(rows, state);
+    assert.deepEqual(graph.series.map((item) => item.key), ['on_time', 'late', 'undertime', 'missed']);
+    for (const item of graph.series) {
+        assert.deepEqual(item.bars.map((bar) => [bar.value, bar.count, bar.total]), [['2026-10-01', 1, 4], ['2026-10-03', 0, 1]]);
+        assert.equal(item.bars[0].percentage, 25);
+        assert.equal(item.bars[1].percentage, 0);
+    }
+    const selected = graphReducer(state, { type: 'summary', measure: 'late' });
+    assert.equal(selected.lineHighlight, 'late');
+    assert.deepEqual(graphView(rows, selected).series, graph.series);
+    assert.equal(graphReducer(selected, { type: 'summary', measure: 'late' }).lineHighlight, '');
+    assert.equal(graphReducer(selected, { type: 'clear-selection' }).lineHighlight, '');
+    assert.equal(graphReducer(selected, { type: 'refresh', rows }).lineHighlight, 'late');
+});
+
+test('line graph filters scope all series together and re-entering Line displays all statuses', () => {
+    const rows = fixture();
+    const state = { ...initialGraphState(), chartType: 'line', view: 'daily', faculty: '2', subject: 'DCIT 26' };
+    const graph = graphView(rows, state);
+    assert.equal(graph.series.length, 4);
+    assert.ok(graph.endedRows.every((row) => row.employee_id === 2 && row.subject === 'DCIT 26'));
+    assert.ok(graph.series.every((item) => item.bars.reduce((sum, bar) => sum + bar.total, 0) === graph.total));
+    const highlighted = graphReducer(state, { type: 'summary', measure: 'missed' });
+    const bar = graphReducer(highlighted, { type: 'chart', chartType: 'bar' });
+    const line = graphReducer(bar, { type: 'chart', chartType: 'line' });
+    assert.equal(line.lineHighlight, '');
+    assert.equal(line.faculty, '2');
 });

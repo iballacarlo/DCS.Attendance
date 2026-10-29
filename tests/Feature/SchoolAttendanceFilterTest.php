@@ -84,12 +84,12 @@ class SchoolAttendanceFilterTest extends TestCase
         }
         $this->actingAs(User::factory()->create(['role' => 'admin']));
         $url = '/entrance?cutoff_start=2026-10-16&employee_id='.$employee->id.'&status=incomplete';
-        $response = $this->get($url)->assertInertia(fn (Assert $p) => $p->has('logs.data', 15)->where('logs.total', 16)
+        $response = $this->get($url)->assertInertia(fn (Assert $p) => $p->has('logs.data', 10)->where('logs.total', 16)
             ->where('logs.data.0.attendance_date', '2026-10-31'));
         $next = $response->viewData('page')['props']['logs']['next_page_url'];
         $this->assertStringContainsString('cutoff_start=2026-10-16', $next);
         $this->assertStringContainsString('employee_id='.$employee->id, $next);
         $this->assertStringContainsString('status=incomplete', $next);
-        $this->get($url.'&page=2')->assertInertia(fn (Assert $p) => $p->has('logs.data', 1)->where('logs.data.0.attendance_date', '2026-10-16'));
+        $this->get($url.'&page=2')->assertInertia(fn (Assert $p) => $p->has('logs.data', 6)->where('logs.data.0.attendance_date', '2026-10-21'));
     }
 }
