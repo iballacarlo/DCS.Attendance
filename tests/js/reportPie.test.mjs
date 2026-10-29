@@ -55,6 +55,43 @@ test('external labels stay separated even when five categories have tiny slices 
     }
 });
 
+test('pie leaders stay outside slices and do not cross for crowded and dominant categories', () => {
+    const profiles = [[121, 9, 2, 2, 4, 0], ...Array.from({ length: 6 }, (_, dominant) =>
+        Array.from({ length: 6 }, (_, index) => index === dominant ? 1000 : index + 1))];
+    const definitions = [row(), row({ late_minutes: 5 }), row({ late_minutes: 5, early_departure_minutes: 5 }),
+        row({ early_departure_minutes: 5 }), row({ status: 'missed' }), row({ status: 'incomplete' })];
+    const cross = (a, b, c) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+    for (const counts of profiles) {
+        const model = pieGraphModel(counts.flatMap((count, index) => Array.from({ length: count }, () => definitions[index])));
+        const leaders = model.slices.map((slice) => slice.leader.split(' ').map((point) => {
+            const [x, y] = point.split(',').map(Number);
+            return { x, y };
+        }));
+        leaders.forEach((points, index) => {
+            assert.equal(points.length, 4);
+            assert.deepEqual(points[0], model.slices[index].anchor);
+            assert.ok(Math.abs(Math.hypot(points[0].x - 320, points[0].y - 185) - 126) < .02);
+            for (let segment = 1; segment < points.length; segment++) {
+                for (let step = 0; step <= 20; step++) {
+                    const fraction = step / 20;
+                    const x = points[segment - 1].x + (points[segment].x - points[segment - 1].x) * fraction;
+                    const y = points[segment - 1].y + (points[segment].y - points[segment - 1].y) * fraction;
+                    assert.ok(Math.hypot(x - 320, y - 185) >= 125.98, 'Leader must not cut through the pie');
+                }
+            }
+            for (const other of leaders.slice(index + 1)) {
+                for (let a = 1; a < points.length; a++) {
+                    for (let b = 1; b < other.length; b++) {
+                        const intersects = cross(points[a - 1], points[a], other[b - 1]) * cross(points[a - 1], points[a], other[b]) < -1e-6
+                            && cross(other[b - 1], other[b], points[a - 1]) * cross(other[b - 1], other[b], points[a]) < -1e-6;
+                        assert.equal(intersects, false, 'Status leaders must not cross');
+                    }
+                }
+            }
+        });
+    }
+});
+
 test('highlighting is local, toggles off, survives refresh and never changes exports or session details', () => {
     const report = { rows: fixture(), filters: {} };
     const exported = classReportView(report, 'late');

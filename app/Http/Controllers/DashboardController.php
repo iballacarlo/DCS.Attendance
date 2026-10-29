@@ -14,6 +14,10 @@ class DashboardController extends Controller
 {
     public function __invoke(Request $request, ClassReportService $reports, TodayScheduleService $todaySchedules)
     {
+        if ($request->user()->role === 'generator') {
+            return redirect()->route('generator.index');
+        }
+
         if ($request->user()->role === 'guard') {
             return redirect()->route('entrance.kiosk');
         }

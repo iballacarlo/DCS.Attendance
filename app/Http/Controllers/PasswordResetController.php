@@ -23,7 +23,7 @@ class PasswordResetController extends Controller
     public function store(Request $request, GoogleAppsScriptMailer $mailer)
     {
         $data = $request->validate(['email' => ['required', 'email']]);
-        $user = User::where('email', $data['email'])->first();
+        $user = User::where('email', $data['email'])->where('role', '!=', 'generator')->first();
 
         if ($user) {
             $token = Password::broker()->createToken($user);
@@ -53,6 +53,10 @@ class PasswordResetController extends Controller
             'email' => ['required', 'email'],
             'password' => ['required', 'string', 'confirmed', 'max:72', new PasswordByteLimit, PasswordRule::min(12)],
         ]);
+
+        if (User::where('email', $data['email'])->where('role', 'generator')->exists()) {
+            return back()->withErrors(['email' => __(Password::INVALID_USER)])->onlyInput('email');
+        }
 
         $status = Password::reset($data, function (User $user, string $password) use ($security) {
             $user->forceFill([

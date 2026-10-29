@@ -25,6 +25,10 @@ class AccountPasswordController extends Controller
         $user->update(['password' => $data['password'], 'must_change_password' => false]);
         $security->revokeSessions($user, $request);
 
-        return redirect()->route($user->role === 'guard' ? 'entrance.kiosk' : 'dashboard')->with('success', 'Password changed. Other sessions have been signed out.');
+        return redirect()->route(match ($user->role) {
+            'guard' => 'entrance.kiosk',
+            'generator' => 'generator.index',
+            default => 'dashboard',
+        })->with('success', 'Password changed. Other sessions have been signed out.');
     }
 }

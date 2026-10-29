@@ -19,7 +19,7 @@ class UserController extends Controller
             'search' => ['nullable', 'string', 'max:100'],
             'role' => ['nullable', 'in:admin,faculty,guard'],
         ]);
-        $users = User::with('employee')->latest();
+        $users = User::with('employee')->where('role', '!=', 'generator')->latest();
         $terms = preg_split('/\s+/', trim($filters['search'] ?? ''), -1, PREG_SPLIT_NO_EMPTY);
         foreach ($terms as $term) {
             $users->where(function ($userQuery) use ($term) {
@@ -61,6 +61,8 @@ class UserController extends Controller
 
     public function edit(User $user)
     {
+        abort_if($user->role === 'generator', 404);
+
         return Inertia::render('Users/Form', [
             'user' => $user,
             'employees' => Employee::orderBy('last_name')->get(),
@@ -69,6 +71,8 @@ class UserController extends Controller
 
     public function update(Request $request, User $user, AccountSecurityService $security)
     {
+        abort_if($user->role === 'generator', 404);
+
         $data = $this->validated($request, $user);
         $user->fill($data);
         $accessChanged = $user->isDirty(['password', 'email', 'role', 'employee_id']);
@@ -82,6 +86,8 @@ class UserController extends Controller
 
     public function destroy(User $user, AccountSecurityService $security)
     {
+        abort_if($user->role === 'generator', 404);
+
         if (auth()->id() === $user->id) {
             return back()->withErrors(['user' => 'You cannot delete your own account while logged in.']);
         }

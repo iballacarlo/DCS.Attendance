@@ -13,11 +13,11 @@ export default function ReportPie({ rows = [], highlight = '', onHighlight = () 
         {model.slices.map((slice) => <path key={slice.key} className={`report-pie-slice is-${slice.key}${slice.highlighted ? ' is-highlighted' : ' is-muted'}`} d={slice.path}
             role="button" tabIndex={0} aria-label={`${describe(slice)}. Highlight ${slice.key === 'late' ? 'Late' : slice.key === 'undertime' ? 'Undertime' : slice.label}.`}
             aria-pressed={!!highlight && slice.highlighted} onClick={() => onHighlight(slice.key)} onKeyDown={(event) => activate(event, slice.key)}><title>{describe(slice)}</title></path>)}
-        {!compact && model.slices.map((slice) => <g className={`report-pie-label${slice.highlighted ? '' : ' is-muted'}`} key={slice.key}
+        {!compact && model.slices.map((slice) => <g className={`report-pie-label is-${slice.key}${slice.highlighted ? '' : ' is-muted'}`} key={slice.key}
             role="button" tabIndex={0} aria-label={`Highlight ${describe(slice)}`} aria-pressed={!!highlight && slice.highlighted}
             onClick={() => onHighlight(slice.key)} onKeyDown={(event) => activate(event, slice.key)}>
             <title>{describe(slice)}</title><rect className="report-pie-label-target" x={slice.side === 'left' ? slice.labelX : slice.labelX - 165} y={slice.labelY - 26} width="165" height="48" rx="4" />
-            <polyline points={slice.leader} /><text x={slice.labelX} y={slice.labelY - 7} textAnchor={slice.side === 'left' ? 'start' : 'end'}>{slice.label}</text>
+            <polyline points={slice.leader} /><circle className="report-pie-leader-dot" cx={slice.anchor.x} cy={slice.anchor.y} r="1.8" aria-hidden="true" /><text x={slice.labelX} y={slice.labelY - 7} textAnchor={slice.side === 'left' ? 'start' : 'end'}>{slice.label}</text>
             <text className="report-pie-label-detail" x={slice.labelX} y={slice.labelY + 16} textAnchor={slice.side === 'left' ? 'start' : 'end'}>{countLabel(slice.count)} · {Math.round(slice.percentage * 10) / 10}%</text>
         </g>)}
         {!model.total && <text className="report-pie-empty-label" x="320" y="190" textAnchor="middle">No finished classes</text>}

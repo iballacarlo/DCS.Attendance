@@ -1,0 +1,8 @@
+#workspace .attendance-status-cell { display: grid; justify-items: start; gap: 5px; min-width: 125px; }
+#workspace .attendance-status-cell small { color: var(--ui-muted); font-size: 12px; line-height: 1.4; }
+#workspace .attendance-status-badge { display: inline-flex; padding: 5px 9px; border: 1px solid #d1d9d5; border-radius: 6px; background: #f0f4f2; color: #42534a; font-size: 12px; font-weight: 700; line-height: 1.5; white-space: nowrap; }
+#workspace .attendance-status-badge.is-on_time { background: #e7f5ed; color: #17623e; border-color: #b6d8c3; }
+#workspace .attendance-status-badge:is(.is-late, .is-for_review) { background: #fff4dc; color: #805300; border-color: #e4cd95; }
+#workspace .attendance-status-badge.is-undertime { background: #f0eafb; color: #62458c; border-color: #d7c7eb; }
+#workspace .attendance-status-badge:is(.is-late_undertime, .is-checked_in) { background: #e8f2fc; color: #235c8e; border-color: #b9d4ec; }
+#workspace .attendance-status-badge.is-absent { background: #fcebed; color: #a02f3e; border-color: #e9bdc4; }

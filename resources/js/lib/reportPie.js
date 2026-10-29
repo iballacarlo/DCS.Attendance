@@ -33,7 +33,7 @@ export function pieGraphModel(rows, highlight = '') {
         const start = point(angle);
         const end = point(endAngle);
         const mid = (angle + endAngle) / 2;
-        const anchor = point(mid, 134);
+        const anchor = point(mid);
         const side = Math.cos(mid) >= 0 ? 'right' : 'left';
         const path = item.count === total
             ? 'M320,59 A126,126 0 1 1 320,311 A126,126 0 1 1 320,59 Z'
@@ -49,7 +49,11 @@ export function pieGraphModel(rows, highlight = '') {
         group.forEach((slice) => {
             slice.labelY = round(slice.labelY - overflow);
             slice.labelX = side === 'left' ? 10 : 630;
-            slice.leader = `${slice.anchor.x},${slice.anchor.y} ${side === 'left' ? 178 : 462},${slice.labelY} ${slice.labelX},${slice.labelY}`;
+            // Leave the slice horizontally before adjusting the label height.
+            // Both routing points stay outside the pie, keeping crowded leaders apart.
+            const railX = side === 'left' ? 186 : 454;
+            const labelEdgeX = side === 'left' ? 178 : 462;
+            slice.leader = `${slice.anchor.x},${slice.anchor.y} ${railX},${slice.anchor.y} ${labelEdgeX},${slice.labelY} ${slice.labelX},${slice.labelY}`;
         });
     }
     const highlights = [

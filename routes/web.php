@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AccountPasswordController;
 use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\AttendanceGeneratorController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BackupController;
 use App\Http\Controllers\CalendarController;
@@ -43,6 +44,11 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::get('account/password', [AccountPasswordController::class, 'edit'])->name('account.password.edit');
     Route::put('account/password', [AccountPasswordController::class, 'update'])->middleware('throttle:5,1')->name('account.password.update');
     Route::post('logout', [AuthController::class, 'logout'])->name('logout');
+    Route::middleware(['generator.enabled', 'role:generator'])->prefix('tools/attendance-generator')->name('generator.')->group(function () {
+        Route::get('/', [AttendanceGeneratorController::class, 'index'])->name('index');
+        Route::post('preview', [AttendanceGeneratorController::class, 'preview'])->middleware('throttle:15,1,generator-preview:')->name('preview');
+        Route::post('generate', [AttendanceGeneratorController::class, 'generate'])->middleware('throttle:5,1,generator-generate:')->name('generate');
+    });
     Route::get('/', DashboardController::class)->name('dashboard');
     Route::get('profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::put('profile', [ProfileController::class, 'update'])->name('profile.update');

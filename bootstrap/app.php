@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureAccountSecurity;
 use App\Http\Middleware\EnsureActiveSystemRole;
+use App\Http\Middleware\EnsureAttendanceGeneratorEnabled;
 use App\Http\Middleware\EnsureFacultyIsNotArchived;
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -28,6 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'role' => EnsureUserHasRole::class,
+            'generator.enabled' => EnsureAttendanceGeneratorEnabled::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

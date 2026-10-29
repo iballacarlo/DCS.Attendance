@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Models\EntranceAttendance;
+use App\Services\AttendanceRecordService;
 use App\Services\CutoffService;
 use App\Services\EntranceAttendanceService;
 use Illuminate\Http\Request;
@@ -12,14 +13,14 @@ use Inertia\Inertia;
 
 class EntranceAttendanceController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, AttendanceRecordService $records)
     {
         $data = $request->validate([
             'page' => ['nullable', 'integer', 'min:1'], 'per_page' => ['nullable', 'integer', 'in:10,25,50'],
             'date' => ['nullable', 'date_format:Y-m-d'],
             'cutoff_start' => ['nullable', 'date_format:Y-m-d'],
             'employee_id' => ['nullable', 'integer', 'exists:employees,id'],
-            'status' => ['nullable', 'in:complete,incomplete'],
+            'status' => ['nullable', 'in:'.AttendanceRecordService::FILTERS],
         ]);
         $faculty = $request->user()->role === 'faculty';
         $cutoff = $data['cutoff_start'] ?? null;
@@ -31,23 +32,14 @@ class EntranceAttendanceController extends Controller
         [$start, $end] = CutoffService::range($cutoff);
         $filters = ['per_page' => (int) ($data['per_page'] ?? 10), 'cutoff_start' => $start->toDateString(),
             'employee_id' => $faculty ? '' : ($data['employee_id'] ?? ''), 'status' => $data['status'] ?? ''];
-        $logs = EntranceAttendance::with('employee')->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()]);
-        if ($faculty) {
-            $logs->where('employee_id', $request->user()->employee_id ?? 0);
-        } else {
-            $logs->when($filters['employee_id'], fn ($query, $id) => $query->where('employee_id', $id));
-        }
-        if ($filters['status'] === 'complete') {
-            $logs->whereNotNull('time_in')->whereNotNull('time_out');
-        } elseif ($filters['status'] === 'incomplete') {
-            $logs->where(fn ($query) => $query->whereNull('time_in')->orWhereNull('time_out'));
-        }
-
-        $logs->orderByDesc('attendance_date')->orderByDesc('time_in')->orderByDesc('id');
-        $records = $logs->paginate($filters['per_page'])->onEachSide(1)->withQueryString();
-        if ($records->currentPage() > $records->lastPage()) {
-            $records = $logs->paginate($filters['per_page'], ['*'], 'page', $records->lastPage())->onEachSide(1)->withQueryString();
-        }
+        $people = Employee::with(['schedules', 'scheduleBreaks'])
+            ->when($faculty, fn ($q) => $q->whereKey($request->user()->employee_id ?? 0))
+            ->when(! $faculty && $filters['employee_id'], fn ($q) => $q->whereKey($filters['employee_id']))
+            ->get()->keyBy('id');
+        $logs = EntranceAttendance::with('employee')->whereIn('employee_id', $people->keys())
+            ->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()])->get();
+        $rows = $records->schoolRows($logs, $people, $start, $end);
+        $records = $records->paginate($rows, $request, $filters);
 
         return Inertia::render('Entrance/Index', [
             'filters' => $filters,

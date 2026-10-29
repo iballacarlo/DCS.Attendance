@@ -84,7 +84,7 @@ test('pie shows colored slices, external labels, keyboard highlight controls and
     assert.match(html, /Late only/);
     assert.match(html, /Late &amp; undertime/);
     assert.match(html, /25%/);
-    assert.match(html, /class="report-pie-label"[^>]+role="button" tabindex="0"/);
+    assert.match(html, /class="report-pie-label[^"]*"[^>]+role="button" tabindex="0"/);
     assert.match(html, /class="report-pie-legend report-pie-mobile-legend"/);
     assert.match(html, /<polyline/);
     assert.match(html, /role="button" tabindex="0"/);

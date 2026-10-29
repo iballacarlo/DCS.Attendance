@@ -1,0 +1,47 @@
+#generator-workspace { min-height: 100vh; padding: 0 24px 40px; background: #f3f7f4; color: #173b2a; font-family: inherit; }
+#generator-workspace * { box-sizing: border-box; }
+#generator-workspace .generator-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 20px; max-width: 1240px; margin: 0 auto 28px; padding: 24px 0; border-bottom: 1px solid #ceded3; }
+#generator-workspace .generator-brand { display: flex; align-items: center; gap: 12px; }
+#generator-workspace .generator-brand img { width: 44px; height: 44px; object-fit: contain; }
+#generator-workspace .generator-brand div { display: grid; gap: 4px; }
+#generator-workspace .generator-brand span { font-size: 12px; color: #526a5d; }
+#generator-workspace nav { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; font-size: 12px; }
+#generator-workspace nav :is(a, button) { display: inline-flex; align-items: center; gap: 7px; min-height: 42px; padding: 8px 12px; background: #fff; color: #176b46; border: 1px solid #ceded3; border-radius: 8px; box-shadow: none; }
+#generator-workspace .generator-panel { max-width: 1240px; margin: 0 auto 22px; padding: 26px; border: 1px solid #ceded3; border-radius: 14px; background: #fff; }
+#generator-workspace h1 { font-size: 24px; margin: 0 0 24px; }
+#generator-workspace h2 { display: flex; align-items: center; gap: 8px; font-size: 19px; margin: 0 0 10px; }
+#generator-workspace .generator-filters { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 18px; }
+#generator-workspace label { display: grid; gap: 7px; margin: 0; font-size: 12px; font-weight: 700; }
+#generator-workspace .generator-filters > label { flex: 1 1 190px; }
+#generator-workspace .cutoff-picker { flex: 1.6 1 370px; }
+#generator-workspace .cutoff-picker-fields { display: grid; grid-template-columns: minmax(105px, 1fr) 90px minmax(120px, 1fr); gap: 12px; }
+#generator-workspace :is(input, select) { width: 100%; min-width: 0; min-height: 46px; padding: 9px 12px; font: inherit; color: #173b2a; background: #fff; border: 1px solid #bdcfc3; border-radius: 8px; }
+#generator-workspace .cutoff-picker-error { color: #a22e38; font-size: 12px; }
+#generator-workspace .generator-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+#generator-workspace .generator-actions button { display: inline-flex; gap: 8px; align-items: center; justify-content: center; min-height: 46px; padding: 10px 18px; background: #eaf3ed; color: #176b46; border: 1px solid #9fbeab; border-radius: 8px; box-shadow: none; font-size: 13px; }
+#generator-workspace .generator-actions .generator-generate { color: #fff; background: #176b46; border-color: #176b46; }
+#generator-workspace button:disabled, #generator-workspace :is(input, select):disabled { opacity: .5; cursor: not-allowed; }
+#generator-workspace .generator-error, #generator-workspace .generator-success { margin: 20px 0 0; padding: 12px; border-radius: 8px; font-size: 13px; line-height: 1.6; }
+#generator-workspace .generator-error { color: #a22e38; background: #fff0f0; }
+#generator-workspace .generator-success { color: #176b46; background: #eaf3ed; }
+#generator-workspace .generator-period, #generator-workspace .generator-sample-caption { color: #526a5d; font-size: 12px; line-height: 1.6; }
+#generator-workspace .generator-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 22px 0; }
+#generator-workspace .generator-summary > div { display: grid; gap: 9px; padding: 18px; border-radius: 9px; background: #f3f7f4; }
+#generator-workspace .generator-summary span { font-size: 12px; }
+#generator-workspace .generator-summary strong { font-size: 28px; }
+#generator-workspace .generator-skips { font-size: 12px; margin: 16px 0; }
+#generator-workspace .generator-skips summary { padding: 8px 0; cursor: pointer; }
+#generator-workspace .generator-skips ul { list-style: none; padding: 0; display: grid; gap: 10px; }
+#generator-workspace .generator-skips li { display: flex; justify-content: space-between; gap: 16px; }
+#generator-workspace .generator-table { max-width: 100%; overflow: auto; border: 1px solid #ceded3; border-radius: 8px; }
+#generator-workspace table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; }
+#generator-workspace :is(td, th) { padding: 12px; border-bottom: 1px solid #ceded3; white-space: nowrap; }
+#generator-workspace th { background: #f3f7f4; }
+#generator-workspace tr:last-child td { border-bottom: 0; }
+#generator-workspace :is(a, button, input, select, summary):focus-visible { outline: 3px solid #77a9d6; outline-offset: 3px; }
+@media (max-width: 620px) { #generator-workspace { padding: 0 14px 24px; } #generator-workspace .generator-panel { padding: 18px; } #generator-workspace .cutoff-picker { flex-basis: 100%; } #generator-workspace .cutoff-picker-fields { grid-template-columns: minmax(80px, 1fr) 75px minmax(105px, 1fr); gap: 8px; } #generator-workspace .generator-summary { gap: 8px; } #generator-workspace .generator-summary > div { padding: 12px; } #generator-workspace .generator-summary strong { font-size: 23px; } }
+@media (max-width: 420px) { #generator-workspace .cutoff-picker-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } #generator-workspace .cutoff-picker-fields > label:last-child { grid-column: 1 / -1; } #generator-workspace .generator-summary { grid-template-columns: 1fr; } }
+#generator-workspace :is(.generator-overwrite-option, .generator-overwrite-confirm) { display: flex; align-items: center; gap: 10px; margin-top: 20px; font-size: 13px; line-height: 1.6; }
+#generator-workspace :is(.generator-overwrite-option, .generator-overwrite-confirm) input { flex: 0 0 18px; width: 18px; height: 18px; min-height: 18px; padding: 0; margin: 0; accent-color: #176b46; }
+#generator-workspace .generator-overwrite-confirm { padding: 12px; border: 1px solid #d6bf8b; border-radius: 8px; background: #fff7e5; color: #72531b; }
+@media (min-width: 421px) and (max-width: 620px) { #generator-workspace .generator-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

@@ -20,13 +20,21 @@ class AuthController extends Controller
             'password' => ['required'],
         ]);
 
-        if (Auth::attempt([...$credentials, fn ($query) => $query->whereIn('role', ['admin', 'faculty', 'guard'])])) {
+        $roles = ['admin', 'faculty', 'guard'];
+        if (config('attendance_generator.enabled')) {
+            $roles[] = 'generator';
+        }
+        if (Auth::attempt([...$credentials, fn ($query) => $query->whereIn('role', $roles)])) {
             $request->session()->regenerate();
             $request->session()->put('account_security_version', Auth::user()->security_version);
 
             $request->session()->forget('url.intended');
 
-            return redirect()->route(Auth::user()->role === 'guard' ? 'entrance.kiosk' : 'dashboard');
+            return redirect()->route(match (Auth::user()->role) {
+                'guard' => 'entrance.kiosk',
+                'generator' => Auth::user()->must_change_password ? 'account.password.edit' : 'generator.index',
+                default => 'dashboard',
+            });
         }
 
         return back()->withErrors([

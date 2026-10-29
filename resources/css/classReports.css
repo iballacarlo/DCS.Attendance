@@ -239,7 +239,8 @@ html[data-theme='dark'] #workspace .report-donut-layout { --report-donut-neutral
 #workspace .report-pie-slice:hover, #workspace .report-pie-slice:focus-visible { stroke: var(--ui-ink); stroke-width: 3; }
 #workspace .report-pie-label { cursor: pointer; outline: none; transition: opacity 150ms ease-out; }
 #workspace .report-pie-label.is-muted { opacity: .4; }
-#workspace .report-pie-label polyline { fill: none; stroke: var(--ui-muted); stroke-width: .8; }
+#workspace .report-pie-label polyline { fill: none; stroke: var(--report-status-color); stroke-width: 1; stroke-linecap: round; stroke-linejoin: round; opacity: .8; }
+#workspace .report-pie-leader-dot { fill: var(--report-status-color); pointer-events: none; }
 #workspace .report-pie-label text { fill: var(--ui-ink); font-size: 12px; font-weight: 700; }
 #workspace .report-pie-label text.report-pie-label-detail { fill: var(--ui-muted); font-size: 11px; font-weight: 400; }
 #workspace .report-pie-empty { fill: var(--ui-surface); stroke: var(--ui-line); stroke-width: 1; }

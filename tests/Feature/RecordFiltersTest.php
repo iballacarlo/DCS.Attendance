@@ -44,13 +44,17 @@ class RecordFiltersTest extends TestCase
         $earlyOut = $this->log($employee, ['time_out' => '09:59', 'worked_seconds' => 7140, 'total_hours' => 1.9833]);
         $missing = $this->log($employee, ['time_out' => null, 'status' => 'incomplete', 'worked_seconds' => 0, 'total_hours' => 0]);
         $this->actingAs(User::factory()->create(['role' => 'admin']));
+        $this->get('/attendance?cutoff_start=2026-10-01&status=late')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('logs.data', 1)->where('logs.data.0.attendance_status', 'late'));
+        $this->get('/attendance?cutoff_start=2026-10-01&status=undertime')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('logs.data', 1)->where('logs.data.0.attendance_status', 'undertime'));
         $this->get('/attendance?cutoff_start=2026-10-01&status=late_undertime')->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->has('logs.data', 2)->where('logs.data.0.display_status', 'late_undertime'));
+            ->assertInertia(fn (Assert $page) => $page->has('logs.data', 0));
         $this->get('/attendance?cutoff_start=2026-10-01&status=present')->assertOk()
             ->assertInertia(fn (Assert $page) => $page->has('logs.data', 1)->where('logs.data.0.id', $complete->id));
         $this->get('/attendance?cutoff_start=2026-10-01')->assertOk()
             ->assertInertia(fn (Assert $page) => $page->has('logs.data', 4)->where('logs.data', fn ($logs) => collect($logs)->firstWhere('id', $missing->id)['display_status'] === null));
-        $this->get('/attendance?status=incomplete')->assertSessionHasErrors('status');
+        $this->get('/attendance?status=invalid')->assertSessionHasErrors('status');
         $this->assertSame('late_undertime', $late->refresh()->display_status);
         $this->assertSame('late_undertime', $earlyOut->refresh()->display_status);
         $this->assertEquals(1.9833, $late->total_hours);
@@ -70,11 +74,11 @@ class RecordFiltersTest extends TestCase
                 'time_in' => $i % 2 ? '13:01' : '08:01', 'time_out' => $i % 2 ? '15:00' : '10:00']);
         }
         $own = $this->log($second);
-        $url = '/attendance?cutoff_start=2026-10-01&employee_id='.$first->id.'&status=late_undertime&method=rfid';
+        $url = '/attendance?cutoff_start=2026-10-01&employee_id='.$first->id.'&status=late&method=rfid';
         $this->actingAs(User::factory()->create(['role' => 'admin']))->get($url.'&page=2')->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->where('logs.total', 17)->has('logs.data', 2)
+            ->assertInertia(fn (Assert $page) => $page->where('logs.total', 17)->where('logs.per_page', 10)->has('logs.data', 7)->where('logs.from', 11)->where('logs.to', 17)
                 ->where('logs.data.0.employee_id', $first->id)->has('facultyChoices', 2)
-                ->where('logs.prev_page_url', fn ($url) => str_contains($url, 'employee_id='.$first->id) && str_contains($url, 'status=late_undertime')));
+                ->where('logs.prev_page_url', fn ($url) => str_contains($url, 'employee_id='.$first->id) && str_contains($url, 'status=late')));
         $this->actingAs(User::factory()->create(['role' => 'faculty', 'employee_id' => $second->id]))
             ->get('/attendance?cutoff_start=2026-10-01&employee_id='.$first->id)->assertOk()
             ->assertInertia(fn (Assert $page) => $page->has('facultyChoices', 0)->has('logs.data', 1)->where('logs.data.0.id', $own->id));

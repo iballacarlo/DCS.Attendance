@@ -2,7 +2,9 @@ import { Link, useForm, usePage } from '@inertiajs/react';
 import AuthLayout from '../../Layouts/AuthLayout';
 
 export default function ChangePassword() {
-    const guard = usePage().props.auth.user.role === 'guard';
+    const role = usePage().props.auth.user.role;
+    const guard = role === 'guard';
+    const generator = role === 'generator';
     const form = useForm({ current_password: '', password: '', password_confirmation: '' });
     const submit = (event) => {
         event.preventDefault();
@@ -23,7 +25,7 @@ export default function ChangePassword() {
                     {form.errors[field] && <span className="field-error" role="alert">{form.errors[field]}</span>}
                 </label>)}
                 <button type="submit" className="full" disabled={form.processing}>{form.processing ? 'Saving…' : 'Save password'}</button>
-                <Link href={guard ? '/entrance-kiosk' : '/'}>{guard ? 'Back to kiosk' : 'Back to Dashboard'}</Link>
+                <Link href={generator ? '/tools/attendance-generator' : guard ? '/entrance-kiosk' : '/'}>{generator ? 'Back to generator' : guard ? 'Back to kiosk' : 'Back to Dashboard'}</Link>
             </form>
         </section>
     </AuthLayout>;
