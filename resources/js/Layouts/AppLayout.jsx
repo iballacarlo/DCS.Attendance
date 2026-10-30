@@ -5,7 +5,7 @@ import { dateLabel, fullName, roleLabel } from '../lib/format';
 import '../../css/sidebarNavigation.css';
 
 const navigation = [
-    { label: 'Dashboard', group: 'Overview', href: '/', icon: LayoutDashboard, tone: 'nav-dashboard', active: (url) => url === '/' },
+    { id: 'dashboard', label: 'Dashboard', group: 'Overview', href: '/', icon: LayoutDashboard, tone: 'nav-dashboard', active: (url) => url === '/' },
     { id: 'faculty', label: 'Faculty', group: 'Faculty Management', icon: GraduationCap, roles: ['admin'], children: [
         { label: 'Faculty List', href: '/employees', icon: GraduationCap, tone: 'nav-faculty', active: (url) => url.startsWith('/employees') },
         { label: 'Archived Faculty', href: '/archived-faculty', icon: Archive, tone: 'nav-faculty', active: (url) => url.startsWith('/archived-faculty') },
@@ -19,23 +19,56 @@ const navigation = [
         { label: 'Attendance Logs', mobileLabel: 'Class Attendance', href: '/attendance', icon: Clock3, tone: 'nav-attendance', active: (url) => url === '/attendance' },
         { label: 'Reports & Analytics', mobileLabel: 'Class Reports & Analytics', href: '/class-reports', icon: ChartNoAxesCombined, tone: 'nav-attendance', roles: ['admin'], active: (url) => url.startsWith('/class-reports') },
     ] },
-    { label: 'My Schedule', group: 'Operations', href: '/my-schedule', icon: CalendarDays, tone: 'nav-calendar', roles: ['faculty'], active: (url) => url.startsWith('/my-schedule') },
-    { label: 'Leave', group: 'Operations', href: '/leave', icon: FileCheck2, tone: 'nav-leave', active: (url) => url.startsWith('/leave') },
-    { label: 'Holidays & Suspensions', group: 'Operations', href: '/school-calendar', icon: CalendarDays, tone: 'nav-calendar', roles: ['faculty'], active: (url) => url.startsWith('/school-calendar') },
+    { id: 'schedule', label: 'My Schedule', group: 'Operations', href: '/my-schedule', icon: CalendarDays, tone: 'nav-calendar', roles: ['faculty'], active: (url) => url.startsWith('/my-schedule') },
+    { id: 'leave', label: 'Leave', group: 'Operations', href: '/leave', icon: FileCheck2, tone: 'nav-leave', active: (url) => url.startsWith('/leave') },
     { id: 'settings', label: 'Settings', group: 'Administration', icon: Settings2, roles: ['admin'], mobileHref: '/settings/semesters', children: [
         { label: 'Academic Setup', href: '/settings/semesters', icon: CalendarDays, tone: 'nav-settings', active: (url) => url.startsWith('/settings/semesters') || url.startsWith('/settings/holidays-suspensions') || url.startsWith('/school-calendar') || url.startsWith('/settings/dtr-signatories') },
         { label: 'Accounts', href: '/settings/accounts', icon: Users, tone: 'nav-settings', active: (url) => url.startsWith('/settings/accounts') },
         { label: 'Backup & Recovery', href: '/settings/backup', icon: DatabaseBackup, tone: 'nav-settings', active: (url) => url.startsWith('/settings/backup') },
     ] },
-    { label: 'My Profile', group: 'Account', href: '/profile', icon: UserRound, tone: 'nav-profile', active: (url) => url.startsWith('/profile') },
+    { label: 'My Profile', group: 'Account', href: '/profile', icon: UserRound, tone: 'nav-profile', roles: ['admin'], active: (url) => url.startsWith('/profile') },
+    { id: 'faculty-settings', label: 'Settings', group: 'Account', icon: Settings2, roles: ['faculty'], children: [
+        { label: 'Holidays & Suspensions', href: '/school-calendar', icon: CalendarDays, tone: 'nav-calendar', active: (url) => url.startsWith('/school-calendar') },
+        { label: 'My Profile & Password', href: '/profile', icon: UserRound, tone: 'nav-profile', active: (url) => url.startsWith('/profile') },
+    ] },
 ];
 
 const isActive = (item, path) => item.children ? item.children.some((child) => isActive(child, path)) : item.active(path);
 
 function visibleNavigation(role) {
-    return navigation.filter((item) => !item.roles || item.roles.includes(role)).map((item) => item.children
-        ? { ...item, children: item.children.filter((child) => !child.roles || child.roles.includes(role)) }
-        : item);
+    const items = navigation.filter((item) => !item.roles || item.roles.includes(role)).map((item) => {
+        const children = item.children?.filter((child) => !child.roles || child.roles.includes(role));
+
+        // Faculty only has access to the attendance log. Keep it as one clear
+        // destination instead of showing an expandable menu with a single item.
+        if (role === 'faculty' && item.id === 'classes' && children?.length === 1) {
+            const [child] = children;
+            return {
+                ...child,
+                id: item.id,
+                group: item.group,
+                label: item.label,
+                mobileLabel: item.label,
+                icon: item.icon,
+            };
+        }
+
+        if (role === 'faculty' && item.id === 'school' && children) {
+            return {
+                ...item,
+                children: children.map((child) => child.href === '/entrance'
+                    ? { ...child, label: 'My school attendance' }
+                    : { ...child, label: 'My Daily Time Record' }),
+            };
+        }
+
+        return children ? { ...item, children } : item;
+    });
+
+    if (role !== 'faculty') return items;
+
+    const facultyOrder = ['dashboard', 'school', 'classes', 'schedule', 'leave', 'faculty-settings'];
+    return items.sort((left, right) => facultyOrder.indexOf(left.id) - facultyOrder.indexOf(right.id));
 }
 
 function savedMenus(role) {
