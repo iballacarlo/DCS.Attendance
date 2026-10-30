@@ -10,9 +10,12 @@ class DailyScheduleService
     // Seconds since midnight keep snapshots independent of later schedule edits.
     public static function snapshot(Employee $employee, Carbon $date): array
     {
-        $employee->loadMissing(['schedules', 'scheduleBreaks']);
+        $frozen = SemesterScheduleService::frozen($employee, $date);
+        if ($frozen !== null) {
+            return $frozen['intervals'];
+        }
         $seconds = fn ($time) => Carbon::parse('2000-01-01 '.$time, 'Asia/Manila')->secondsSinceMidnight();
-        $intervals = $employee->schedules->whereIn('schedule_type', ['class', 'consultation'])
+        $intervals = SemesterScheduleService::schedules($employee, $date)->whereIn('schedule_type', ['class', 'consultation'])
             ->where('day_of_week', $date->dayOfWeek)->sortBy('start_time')
             ->map(fn ($s) => [(int) $seconds($s->start_time), (int) $seconds($s->end_time)])->all();
         $merged = [];
@@ -27,7 +30,7 @@ class DailyScheduleService
                 $merged[] = [$from, $to];
             }
         }
-        foreach ($employee->scheduleBreaks->where('day_of_week', $date->dayOfWeek)->where('schedule_type', 'lunch_break') as $break) {
+        foreach (SemesterScheduleService::breaks($employee, $date)->where('day_of_week', $date->dayOfWeek)->where('schedule_type', 'lunch_break') as $break) {
             $remaining = [];
             $a = $seconds($break->start_time);
             $b = $seconds($break->end_time);

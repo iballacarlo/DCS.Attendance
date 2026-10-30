@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Archive, CalendarDays, ChartNoAxesCombined, ChevronDown, ChevronLeft, ChevronRight, Clock3, DatabaseBackup, FileCheck2, FileSignature, GraduationCap, KeyRound, LayoutDashboard, LogOut, MailWarning, Menu, Moon, Settings2, ShieldCheck, Sun, UserRound, Users, X } from 'lucide-react';
+import { Archive, CalendarDays, ChartNoAxesCombined, ChevronDown, ChevronLeft, ChevronRight, Clock3, DatabaseBackup, FileCheck2, GraduationCap, KeyRound, LayoutDashboard, LogOut, MailWarning, Menu, Moon, Settings2, ShieldCheck, Sun, UserRound, Users, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { dateLabel, fullName, roleLabel } from '../lib/format';
 import '../../css/sidebarNavigation.css';
@@ -22,11 +22,9 @@ const navigation = [
     { label: 'My Schedule', group: 'Operations', href: '/my-schedule', icon: CalendarDays, tone: 'nav-calendar', roles: ['faculty'], active: (url) => url.startsWith('/my-schedule') },
     { label: 'Leave', group: 'Operations', href: '/leave', icon: FileCheck2, tone: 'nav-leave', active: (url) => url.startsWith('/leave') },
     { label: 'Holidays & Suspensions', group: 'Operations', href: '/school-calendar', icon: CalendarDays, tone: 'nav-calendar', roles: ['faculty'], active: (url) => url.startsWith('/school-calendar') },
-    { id: 'settings', label: 'Settings', group: 'Administration', icon: Settings2, roles: ['admin'], mobileHref: '/settings/accounts', children: [
-        { label: 'General', href: '/settings/general', icon: Settings2, tone: 'nav-settings', active: (url) => url.startsWith('/settings/general') },
-        { label: 'Holidays & Suspensions', href: '/settings/holidays-suspensions', icon: CalendarDays, tone: 'nav-settings', active: (url) => url.startsWith('/settings/holidays-suspensions') || url.startsWith('/school-calendar') },
+    { id: 'settings', label: 'Settings', group: 'Administration', icon: Settings2, roles: ['admin'], mobileHref: '/settings/semesters', children: [
+        { label: 'Academic Setup', href: '/settings/semesters', icon: CalendarDays, tone: 'nav-settings', active: (url) => url.startsWith('/settings/semesters') || url.startsWith('/settings/holidays-suspensions') || url.startsWith('/school-calendar') || url.startsWith('/settings/dtr-signatories') },
         { label: 'Accounts', href: '/settings/accounts', icon: Users, tone: 'nav-settings', active: (url) => url.startsWith('/settings/accounts') },
-        { label: 'DTR Signatory', href: '/settings/dtr-signatories', icon: FileSignature, tone: 'nav-settings', active: (url) => url.startsWith('/settings/dtr-signatories') },
         { label: 'Backup & Recovery', href: '/settings/backup', icon: DatabaseBackup, tone: 'nav-settings', active: (url) => url.startsWith('/settings/backup') },
     ] },
     { label: 'My Profile', group: 'Account', href: '/profile', icon: UserRound, tone: 'nav-profile', active: (url) => url.startsWith('/profile') },

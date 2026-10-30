@@ -10,3 +10,27 @@ export function cutoffPeriod(start) {
     return { start, end, label: `${display(start)} - ${display(end)}` };
 }
 export const currentCutoff = () => { const today = dateToday(); return cutoffPeriod(`${today.slice(0, 8)}${Number(today.slice(8)) <= 15 ? '01' : '16'}`); };
+
+export function semesterCutoffs(term) {
+    if (!term?.start_date || !term?.end_date) return [];
+    const first = term.start_date.slice(0, 10), last = term.end_date.slice(0, 10);
+    const [startYear, startMonth] = first.split('-').map(Number);
+    const [endYear, endMonth] = last.split('-').map(Number);
+    const periods = [];
+    for (let monthIndex = startYear * 12 + startMonth - 1; monthIndex <= endYear * 12 + endMonth - 1; monthIndex++) {
+        const year = Math.floor(monthIndex / 12), month = String(monthIndex % 12 + 1).padStart(2, '0');
+        for (const day of ['01', '16']) {
+            const period = cutoffPeriod(`${year}-${month}-${day}`);
+            if (period && period.end >= first && period.start <= last) periods.push(period);
+        }
+    }
+    return periods;
+}
+
+export function constrainCutoff(value, term) {
+    const period = cutoffPeriod(value) || currentCutoff();
+    const choices = semesterCutoffs(term);
+    if (!choices.length) return period;
+    return choices.find((choice) => choice.start === period.start)
+        || (period.start < choices[0].start ? choices[0] : choices.at(-1));
+}

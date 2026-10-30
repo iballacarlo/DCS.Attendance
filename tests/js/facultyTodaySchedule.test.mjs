@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { transform } from 'esbuild';
+import { build } from 'esbuild';
+import { fileURLToPath } from 'node:url';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const sourceUrl = new URL('../../resources/js/components/FacultyTodaySchedule.jsx', import.meta.url);
-const { code } = await transform(await readFile(sourceUrl, 'utf8'), { loader: 'jsx', jsx: 'automatic', format: 'esm' });
-const resolved = code.replace(/from "([^"]+)"/g, (_, specifier) => `from ${JSON.stringify(specifier.startsWith('.') ? new URL(`${specifier}.js`, sourceUrl).href : import.meta.resolve(specifier))}`);
+const compiled = await build({ entryPoints: [fileURLToPath(sourceUrl)], bundle: true, write: false, format: 'esm', jsx: 'automatic', packages: 'external', loader: { '.css': 'empty' } });
+const resolved = compiled.outputFiles[0].text.replace(/from "([^"]+)"/g, (_, specifier) => `from ${JSON.stringify(import.meta.resolve(specifier))}`);
 const { default: FacultyTodaySchedule, shiftScheduleDate } = await import(`data:text/javascript;base64,${Buffer.from(resolved).toString('base64')}`);
 const session = (overrides = {}) => ({ key: 'class-1', schedule_type: 'class', subject: 'DCIT 24', section: 'BSIT 1A', class_mode: 'lecture',
     start_time: '08:00:00', end_time: '10:00:00', time_in: null, time_out: null, status: 'upcoming', is_current: false, ...overrides });
@@ -81,5 +82,6 @@ test('historical schedule has accessible date controls and date-specific empty m
     assert.match(html, /value="2026-10-04"/);
     assert.match(html, />Today</);
     assert.match(html, /aria-busy="true"/);
-    assert.equal((html.match(/disabled=""/g) || []).length, 4);
+    assert.equal((html.match(/disabled=""/g) || []).length, 6);
+    assert.match(html, /value="10\/04\/2026"/);
 });

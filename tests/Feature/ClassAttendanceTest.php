@@ -242,7 +242,7 @@ class ClassAttendanceTest extends TestCase
         foreach (['admin', 'faculty'] as $role) {
             $this->actingAs(User::factory()->create(['role' => $role, 'employee_id' => $role === 'faculty' ? $employee->id : null]))
                 ->get('/attendance?cutoff_start=2026-10-01')->assertOk()->assertInertia(fn (Assert $page) => $page
-                ->where('logs.data', fn ($logs) => collect($logs)->pluck('id')->all() === $expected));
+                ->where('logs.data', fn ($logs) => collect($logs)->where('has_record', true)->pluck('id')->all() === $expected));
         }
     }
 

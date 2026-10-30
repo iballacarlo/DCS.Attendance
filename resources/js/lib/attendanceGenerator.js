@@ -1,9 +1,9 @@
-export const generationKey = (filters) => JSON.stringify([filters.mode, filters.cutoff_start, String(filters.employee_id || ''), !!filters.overwrite]);
+export const generationKey = (filters) => JSON.stringify([filters.mode, filters.period === 'semester' ? ['semester', String(filters.term_id || '')] : filters.cutoff_start, String(filters.employee_id || ''), !!filters.overwrite]);
 
 export function generationPayload(filters) {
     return {
         mode: filters.mode,
-        cutoff_start: filters.cutoff_start,
+        ...(filters.period === 'semester' ? { period: 'semester', term_id: filters.term_id || null } : { cutoff_start: filters.cutoff_start }),
         employee_id: filters.employee_id || null,
         overwrite: !!filters.overwrite,
         confirm_overwrite: !!filters.overwrite,

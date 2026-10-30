@@ -1,14 +1,16 @@
 import { Link, usePage } from '@inertiajs/react';
-import { CalendarDays, CalendarRange, DatabaseBackup, FileSignature, Users } from 'lucide-react';
+import { CalendarDays, FileSignature } from 'lucide-react';
 
 export default function SettingsTabs() {
     const { url, props } = usePage();
-    const isAdmin = props.auth.user.role === 'admin';
-    return <nav className="settings-tabs" aria-label="Settings sections">
-        {isAdmin && <Link href="/settings/general" aria-current={url.startsWith('/settings/general') ? 'page' : undefined} className={url.startsWith('/settings/general') ? 'active' : ''}><CalendarRange size={17} />General</Link>}
-        {isAdmin && <Link href="/settings/holidays-suspensions" aria-current={url.startsWith('/settings/holidays-suspensions') || url.startsWith('/school-calendar') ? 'page' : undefined} className={url.startsWith('/settings/holidays-suspensions') || url.startsWith('/school-calendar') ? 'active' : ''}><CalendarDays size={17} />Holidays &amp; Suspensions</Link>}
-        {isAdmin && <Link href="/settings/accounts" aria-current={url.startsWith('/settings/accounts') ? 'page' : undefined} className={url.startsWith('/settings/accounts') ? 'active' : ''}><Users size={17} />Accounts</Link>}
-        <Link href="/settings/dtr-signatories" aria-current={url.startsWith('/settings/dtr-signatories') ? 'page' : undefined} className={url.startsWith('/settings/dtr-signatories') ? 'active' : ''}><FileSignature size={17} />DTR Signatory</Link>
-        {isAdmin && <Link href="/settings/backup" aria-current={url.startsWith('/settings/backup') ? 'page' : undefined} className={url.startsWith('/settings/backup') ? 'active' : ''}><DatabaseBackup size={17} />Backup &amp; Recovery</Link>}
+    const semesters = url.startsWith('/settings/semesters');
+    const holidays = url.startsWith('/settings/holidays-suspensions') || url.startsWith('/school-calendar');
+    const signatories = url.startsWith('/settings/dtr-signatories');
+    if (props.auth.user.role !== 'admin' || (!semesters && !holidays && !signatories)) return null;
+
+    return <nav className="settings-tabs" aria-label="Academic setup sections">
+        <Link href="/settings/semesters" aria-current={semesters ? 'page' : undefined} className={semesters ? 'active' : ''}><CalendarDays size={17} />Academic Years &amp; Semesters</Link>
+        <Link href="/settings/holidays-suspensions" aria-current={holidays ? 'page' : undefined} className={holidays ? 'active' : ''}><CalendarDays size={17} />Holidays &amp; Suspensions</Link>
+        <Link href="/settings/dtr-signatories" aria-current={signatories ? 'page' : undefined} className={signatories ? 'active' : ''}><FileSignature size={17} />Dean Management</Link>
     </nav>;
 }

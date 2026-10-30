@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\SemesterScheduleService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
@@ -13,6 +14,12 @@ class SystemSetting extends Model
     public static function academicTerm(): array
     {
         $automatic = self::automaticAcademicTerm();
+        if (SemesterScheduleService::managed()) {
+            $term = AcademicTerm::where('status', 'active')->first();
+
+            return ['mode' => 'managed', 'semester' => $term?->semester, 'school_year' => $term?->school_year,
+                'id' => $term?->id, 'label' => $term?->label ?? 'No active semester', 'automatic_label' => $automatic['label']];
+        }
 
         if (! Schema::hasTable('system_settings')) {
             return [...$automatic, 'mode' => 'automatic', 'automatic_label' => $automatic['label']];

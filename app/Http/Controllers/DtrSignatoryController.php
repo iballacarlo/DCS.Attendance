@@ -24,7 +24,7 @@ class DtrSignatoryController extends Controller
         $signatory = DtrSignatory::create([...$data, 'created_by' => $request->user()->id]);
         $this->audit($request, 'dtr_signatory.created', $signatory, "Added DTR signatory {$signatory->name}.");
 
-        return back()->with('success', 'DTR signatory period added.');
+        return back()->with('success', 'Dean record added.');
     }
 
     public function update(Request $request, DtrSignatory $dtrSignatory)
@@ -34,7 +34,7 @@ class DtrSignatoryController extends Controller
         $dtrSignatory->update($data);
         $this->audit($request, 'dtr_signatory.updated', $dtrSignatory, "Updated DTR signatory {$dtrSignatory->name}.");
 
-        return back()->with('success', 'DTR signatory period updated.');
+        return back()->with('success', 'Dean record updated.');
     }
 
     public function destroy(Request $request, DtrSignatory $dtrSignatory)
@@ -42,7 +42,7 @@ class DtrSignatoryController extends Controller
         $this->audit($request, 'dtr_signatory.deleted', $dtrSignatory, "Deleted DTR signatory {$dtrSignatory->name}.");
         $dtrSignatory->delete();
 
-        return back()->with('success', 'DTR signatory removed.');
+        return back()->with('success', 'Dean record removed.');
     }
 
     private function validated(Request $request): array
@@ -64,7 +64,7 @@ class DtrSignatoryController extends Controller
             ->exists();
 
         if ($overlap) {
-            throw ValidationException::withMessages(['effective_from' => 'This period overlaps an existing DTR signatory period.']);
+            throw ValidationException::withMessages(['effective_from' => 'This period overlaps an existing dean record.']);
         }
     }
 

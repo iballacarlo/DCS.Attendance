@@ -6,10 +6,11 @@ import AppLayout from '../../Layouts/AppLayout';
 import Pagination from '../../components/Pagination';
 import useDebouncedFilters from '../../hooks/useDebouncedFilters';
 import useConfirmDialog from '../../hooks/useConfirmDialog';
-import { fullName, money } from '../../lib/format';
+import { fullName } from '../../lib/format';
 
 const weeklyHours = (schedules = []) => {
-    const minutes = schedules.reduce((total, schedule) => {
+    const rows = Array.isArray(schedules) ? schedules : Object.values(schedules || {});
+    const minutes = rows.reduce((total, schedule) => {
         const toMinutes = (time) => {
             const [hours, mins] = String(time).slice(0, 5).split(':').map(Number);
             return (hours * 60) + mins;

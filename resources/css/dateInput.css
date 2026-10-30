@@ -1,0 +1,7 @@
+.date-input { position: relative; display: inline-flex; align-items: center; width: 100%; min-width: 0; vertical-align: middle; }
+.date-input > input[type="text"] { width: 100%; min-width: 0; padding-right: 46px !important; }
+.date-input > button.date-input-open { position: absolute; right: 5px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; min-width: 36px; min-height: 36px; padding: 7px; margin: 0; border: 0; border-radius: 7px; background: transparent; color: var(--ui-green, #176747); cursor: pointer; }
+.date-input > button.date-input-open:hover { background: var(--ui-soft-green, #e9f4ee); }
+.date-input > button.date-input-open:focus-visible { outline: 2px solid var(--ui-green, #176747); outline-offset: 1px; }
+.date-input > button.date-input-open:disabled { opacity: .45; cursor: default; }
+.date-input > input.date-input-native { position: absolute !important; left: 0 !important; bottom: 0 !important; width: 1px !important; height: 1px !important; min-height: 0 !important; padding: 0 !important; border: 0 !important; opacity: 0; pointer-events: none; }

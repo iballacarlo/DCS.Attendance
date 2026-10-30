@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicTerm;
 use App\Models\Employee;
 use App\Services\AttendanceGenerationService;
 use App\Services\CutoffService;
@@ -17,8 +18,11 @@ class AttendanceGeneratorController extends Controller
     {
         [$start] = CutoffService::range();
 
+        $semesters = AcademicTerm::whereIn('status', ['active', 'ended'])->inAcademicOrder()->get();
+
         return Inertia::render('Generator/Index', [
-            'filters' => ['mode' => 'class', 'cutoff_start' => $start->toDateString(), 'employee_id' => '', 'overwrite' => false],
+            'semesters' => $semesters,
+            'filters' => ['period' => 'cutoff', 'term_id' => ($semesters->firstWhere('status', 'active') ?? $semesters->first())?->id ?? '', 'mode' => 'class', 'cutoff_start' => $start->toDateString(), 'employee_id' => '', 'overwrite' => false],
             'employees' => Employee::where('status', 'active')->orderBy('last_name')->orderBy('id')
                 ->get(['id', 'employee_no', 'first_name', 'middle_name', 'last_name', 'suffix']),
         ]);
@@ -74,10 +78,19 @@ class AttendanceGeneratorController extends Controller
     {
         $data = $request->validate([
             'mode' => ['required', 'in:class,school'],
-            'cutoff_start' => ['required', 'date_format:Y-m-d'],
+            'period' => ['sometimes', 'in:cutoff,semester'],
+            'term_id' => ['required_if:period,semester', 'nullable', 'integer'],
+            'cutoff_start' => ['required_unless:period,semester', 'nullable', 'date_format:Y-m-d'],
             'overwrite' => ['sometimes', 'boolean'],
             'employee_id' => ['nullable', 'integer', Rule::exists('employees', 'id')->where('status', 'active')->whereNull('archived_at')],
         ]);
+        if (($data['period'] ?? 'cutoff') === 'semester') {
+            [$start, $end] = AttendanceGenerationService::periodRange($data);
+
+            return ['mode' => $data['mode'], 'period' => 'semester', 'term_id' => (int) $data['term_id'],
+                'semester_start_date' => $start->toDateString(), 'semester_end_date' => $end->toDateString(),
+                'employee_id' => $data['employee_id'] ?? null, 'overwrite' => (bool) ($data['overwrite'] ?? false)];
+        }
         [$start] = CutoffService::range($data['cutoff_start']);
 
         return ['mode' => $data['mode'], 'cutoff_start' => $start->toDateString(), 'employee_id' => $data['employee_id'] ?? null,

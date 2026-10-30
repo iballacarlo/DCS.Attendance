@@ -3,8 +3,6 @@ import '../../css/attendanceStatus.css';
 export const attendanceStatuses = [
     ['on_time', 'On time'], ['late', 'Late'], ['undertime', 'Undertime'],
     ['late_undertime', 'Late & undertime'], ['absent', 'Absent'], ['for_review', 'For review'],
-    ['checked_in', 'Checked in'], ['awaiting_in', 'Awaiting IN'], ['upcoming', 'Upcoming'],
-    ['not_required', 'Not required'], ['not_scheduled', 'Not scheduled'],
 ];
 
 export function AttendanceStatusFilter({ value = '', onChange }) {

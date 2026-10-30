@@ -51,9 +51,9 @@ class ScheduleOptions
         return $sections;
     }
 
-    public static function all(): array
+    public static function all(?string $selectedSemester = null): array
     {
-        $semester = SystemSetting::academicTerm()['semester'];
+        $semester = $selectedSemester ?? SystemSetting::academicTerm()['semester'];
         $names = [];
         foreach (self::CATALOG as $terms) {
             foreach ($terms as $subjects) {

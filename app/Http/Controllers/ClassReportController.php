@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicTerm;
 use App\Models\Employee;
 use App\Services\ClassReportService;
 use App\Services\CutoffService;
+use App\Services\SemesterScheduleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
@@ -32,8 +34,10 @@ class ClassReportController extends Controller
             $anchor = Carbon::parse($filters['start_date'], 'Asia/Manila');
             $cutoff = $anchor->copy()->day($anchor->day <= 15 ? 1 : 16)->toDateString();
         }
-        [$start, $end] = CutoffService::range($cutoff);
+        $termSelection = SemesterScheduleService::selection($request);
+        [$start, $end] = CutoffService::range($cutoff, $termSelection);
         $filters = [
+            'term_id' => $termSelection, 'semester_label' => $termSelection === 'legacy' ? 'Legacy / Unassigned' : (AcademicTerm::find((int) $termSelection)?->label ?? 'All semesters'),
             'cutoff_start' => $start->toDateString(),
             'start_date' => $start->toDateString(), 'end_date' => $end->toDateString(),
             'employee_id' => $filters['employee_id'] ?? '', 'subject' => $filters['subject'] ?? '',
@@ -58,7 +62,13 @@ class ClassReportController extends Controller
         return Inertia::render('Reports/Classes', [
             'report' => $filters['subject'] !== '' || $filters['section'] !== '' || $filters['class_mode'] !== ''
                 ? $service->build($filters) : [...$basis, 'filters' => $filters],
-            'employees' => Employee::orderBy('last_name')->get(),
+            'employees' => Employee::withoutGlobalScopes()->where(function ($query) use ($filters) {
+                $query->whereNull('archived_at');
+                // Preserve an explicitly opened historical faculty report only.
+                if ($filters['term_id'] !== '' && $filters['employee_id'] !== '') {
+                    $query->orWhere('id', $filters['employee_id']);
+                }
+            })->orderBy('last_name')->get(),
             'subjects' => $subjects,
             'sections' => $sections,
         ]);

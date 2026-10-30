@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AcademicTerm;
 use App\Models\AttendanceLog;
 use App\Models\CalendarEvent;
 use App\Models\Employee;
@@ -12,6 +13,7 @@ use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class AttendanceGenerationService
 {
@@ -27,12 +29,36 @@ class AttendanceGenerationService
         abort_unless(config('attendance_generator.enabled'), 404);
         abort_unless($actor->role === 'generator' && ! $actor->must_change_password, 403);
 
-        return DB::transaction(fn () => $this->run($filters, $seed, $actor, $guards), 3);
+        return DB::transaction(function () use ($filters, $seed, $actor, $guards) {
+            app(SemesterManagementService::class)->lock();
+
+            return $this->run($filters, $seed, $actor, $guards);
+        }, 3);
+    }
+
+    public static function periodRange(array $filters): array
+    {
+        if (($filters['period'] ?? 'cutoff') !== 'semester') {
+            return CutoffService::range($filters['cutoff_start'] ?? null);
+        }
+        app(SemesterLifecycleService::class)->synchronize();
+        $term = AcademicTerm::find((int) ($filters['term_id'] ?? 0));
+        if (! $term || ! in_array($term->status, ['active', 'ended'], true)
+            || $term->start_date->gt(Carbon::today('Asia/Manila')) || $term->start_date->diffInDays($term->end_date) > 366) {
+            throw ValidationException::withMessages(['term_id' => 'Choose an active or ended semester that is not closed.']);
+        }
+
+        if ((isset($filters['semester_start_date']) && $filters['semester_start_date'] !== $term->start_date->toDateString())
+            || (isset($filters['semester_end_date']) && $filters['semester_end_date'] !== $term->end_date->toDateString())) {
+            throw ValidationException::withMessages(['term_id' => 'Semester dates changed. Preview this semester again.']);
+        }
+
+        return [$term->start_date->copy(), $term->end_date->copy()->endOfDay()];
     }
 
     private function run(array $filters, string $seed, ?User $actor, ?array $guards = null): array
     {
-        [$start, $end] = CutoffService::range($filters['cutoff_start']);
+        [$start, $end] = self::periodRange($filters);
         $now = Carbon::now('Asia/Manila');
         $employees = Employee::where('status', 'active')->when($filters['employee_id'] ?? null, fn ($q, $id) => $q->whereKey($id))->orderBy('id')->get();
         $calendar = CalendarEvent::with('employees:id')->whereDate('start_date', '<=', $end)->whereDate('end_date', '>=', $start)->get();
@@ -60,6 +86,11 @@ class AttendanceGenerationService
                 for ($day = $start->copy(); $day->lte($end); $day->addDay()) {
                     if ($day->toDateString() > $now->toDateString()) {
                         $this->skip($part, 'Future date');
+
+                        continue;
+                    }
+                    if (SemesterScheduleService::termFor($day)?->status === 'closed') {
+                        $this->skip($part, 'Closed semester');
 
                         continue;
                     }
@@ -147,7 +178,7 @@ class AttendanceGenerationService
     {
         $existing = AttendanceLog::where('employee_id', $employee->id)->where('attendance_date', $day->toDateString())
             ->where('is_legacy', false)->where('schedule_type', 'class')->get();
-        $schedules = $employee->schedules->where('schedule_type', 'class')->where('day_of_week', $day->dayOfWeek);
+        $schedules = SemesterScheduleService::schedules($employee, $day)->where('schedule_type', 'class')->where('day_of_week', $day->dayOfWeek);
         $blocks = collect();
         foreach ($schedules as $schedule) {
             $record = $existing->firstWhere('faculty_schedule_id', $schedule->id);

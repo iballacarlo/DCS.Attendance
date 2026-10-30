@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\AcademicTerm;
 use App\Models\AttendanceLog;
 use App\Models\CalendarEvent;
 use App\Models\Employee;
 use App\Models\FacultySchedule;
+use App\Models\FacultyTermAssignment;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\PayrollPeriod;
@@ -14,6 +16,7 @@ use App\Models\User;
 use App\Services\ClassAttendanceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -59,7 +62,7 @@ class SelectiveBackupTest extends TestCase
         $this->assertSame(2, $backup['version']);
         $this->assertSame([$first->id], array_column($backup['tables']['employees'], 'id'));
         $this->assertSame([$block->id], array_column($backup['tables']['faculty_schedules'], 'id'));
-        $this->assertEqualsCanonicalizing(['employees', 'faculty_ranks', 'faculty_schedules', 'faculty_schedule_breaks'], array_keys($backup['tables']));
+        $this->assertEqualsCanonicalizing(['employees', 'faculty_ranks', 'faculty_schedules', 'faculty_schedule_breaks', 'academic_terms', 'faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events'], array_keys($backup['tables']));
         $this->assertArrayNotHasKey('users', $backup['tables']);
         $this->assertArrayNotHasKey('attendance_logs', $backup['tables']);
         $multiple = $this->download(['schedules'], [$first->id, $second->id]);
@@ -136,6 +139,62 @@ class SelectiveBackupTest extends TestCase
         $this->assertDatabaseHas('payroll_records', ['id' => $record->id, 'status' => 'released', 'other_earnings' => 99]);
         $this->post('/settings/backup/restore', ['backup_file' => $this->file($backup)])->assertSessionHasNoErrors();
         $this->assertDatabaseCount('faculty_schedules', 2);
+    }
+
+    public function test_older_schedules_can_be_linked_to_a_confirmed_semester_without_overwriting_originals(): void
+    {
+        $this->travelTo(Carbon::parse('2026-10-30 12:00', 'Asia/Manila'));
+        $employee = $this->faculty('OLDER');
+        $block = $this->schedule($employee);
+        $original = $block->fresh()->toArray();
+        $log = AttendanceLog::create(['employee_id' => $employee->id, ...ClassAttendanceService::snapshot($block), 'attendance_date' => '2026-10-05', 'time_in' => '08:00', 'time_out' => '10:00']);
+        $logBefore = $log->fresh()->toArray();
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
+        $backup = $this->download(['schedules'], [$employee->id]);
+        foreach (['academic_terms', 'faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events'] as $table) {
+            unset($backup['tables'][$table]);
+        }
+        $term = AcademicTerm::create(['school_year' => '2026-2027', 'semester' => 'First Semester', 'start_date' => '2026-08-10', 'end_date' => '2026-12-12', 'status' => 'active']);
+        $this->post('/settings/backup/restore', ['backup_file' => $this->file($backup)])->assertSessionHasNoErrors()
+            ->assertSessionHas('success', 'No new records added. The backup records already exist locally; existing records were kept.');
+        $this->assertDatabaseCount('faculty_schedule_versions', 0);
+        $this->post('/settings/backup/restore', ['backup_file' => $this->file($backup), 'schedule_term_id' => $term->id])
+            ->assertSessionHasNoErrors()->assertSessionHas('schedule_recovery_result', fn ($result) => $result['published'] === 1);
+        $this->assertDatabaseCount('faculty_schedule_versions', 1);
+        $this->assertSame($original, $block->fresh()->toArray());
+        $this->assertSame($logBefore, $log->fresh()->toArray());
+        $this->assertDatabaseHas('faculty_schedule_versions', ['academic_term_id' => $term->id, 'employee_id' => $employee->id, 'effective_from' => '2026-08-10']);
+        $this->post('/settings/backup/restore', ['backup_file' => $this->file($backup), 'schedule_term_id' => $term->id])->assertSessionHasNoErrors()
+            ->assertSessionHas('schedule_recovery_result', fn ($result) => $result['published'] === 0 && $result['already_assigned'] === 1);
+        $this->assertDatabaseCount('faculty_schedule_versions', 1);
+        $faculty = User::factory()->create(['role' => 'faculty', 'employee_id' => $employee->id]);
+        $this->actingAs($faculty)->get('/my-schedule')->assertInertia(fn (Assert $page) => $page
+            ->where('selectedSemester.id', $term->id)->has('employee.schedules', 1)->where('employee.schedules.0.subject', 'DCIT 26'));
+    }
+
+    public function test_schedule_recovery_reports_invalid_blocks_and_protects_drafts_and_closed_semesters(): void
+    {
+        $employee = $this->faculty('BAD-OLDER');
+        $block = $this->schedule($employee);
+        $block->update(['subject' => 'INVALID SUBJECT']);
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
+        $backup = $this->download(['schedules'], [$employee->id]);
+        $term = AcademicTerm::create(['school_year' => '2026-2027', 'semester' => 'First Semester', 'start_date' => '2026-08-10', 'end_date' => '2026-12-12', 'status' => 'active']);
+        $this->post('/settings/backup/restore', ['backup_file' => $this->file($backup), 'schedule_term_id' => $term->id])->assertSessionHasNoErrors()
+            ->assertSessionHas('schedule_recovery_result', fn ($result) => $result['published'] === 0 && count($result['failed']) === 1);
+        $this->assertDatabaseCount('faculty_schedule_versions', 0);
+        $this->assertDatabaseCount('faculty_term_assignments', 0);
+        $this->assertSame('INVALID SUBJECT', $block->fresh()->subject);
+        $backup['tables']['faculty_schedules'][0]['subject'] = 'DCIT 26';
+        $draft = FacultyTermAssignment::create(['academic_term_id' => $term->id, 'employee_id' => $employee->id,
+            'profile' => [], 'draft_blocks' => [['schedule_type' => 'consultation', 'day_of_week' => 2, 'start_time' => '12:00', 'end_time' => '13:00']]]);
+        $draftBefore = $draft->fresh()->toArray();
+        $this->post('/settings/backup/restore', ['backup_file' => $this->file($backup), 'schedule_term_id' => $term->id])->assertSessionHasNoErrors()
+            ->assertSessionHas('schedule_recovery_result', fn ($result) => $result['published'] === 0 && $result['already_assigned'] === 1);
+        $this->assertSame($draftBefore, $draft->fresh()->toArray());
+        $this->assertDatabaseCount('faculty_schedule_versions', 0);
+        $term->update(['status' => 'closed']);
+        $this->post('/settings/backup/restore', ['backup_file' => $this->file($backup), 'schedule_term_id' => $term->id])->assertSessionHasErrors('schedule_term_id');
     }
 
     public function test_custom_recovery_is_atomic_when_record_ids_belong_to_another_faculty(): void

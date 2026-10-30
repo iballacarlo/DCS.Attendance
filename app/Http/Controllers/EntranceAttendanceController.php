@@ -7,6 +7,7 @@ use App\Models\EntranceAttendance;
 use App\Services\AttendanceRecordService;
 use App\Services\CutoffService;
 use App\Services\EntranceAttendanceService;
+use App\Services\SemesterScheduleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
@@ -23,20 +24,22 @@ class EntranceAttendanceController extends Controller
             'status' => ['nullable', 'in:'.AttendanceRecordService::FILTERS],
         ]);
         $faculty = $request->user()->role === 'faculty';
+        $termSelection = SemesterScheduleService::selection($request);
         $cutoff = $data['cutoff_start'] ?? null;
         // Old daily links still select the period containing that date.
         if (! $cutoff && ! empty($data['date'])) {
             $anchor = Carbon::parse($data['date'], 'Asia/Manila');
             $cutoff = $anchor->copy()->day($anchor->day <= 15 ? 1 : 16)->toDateString();
         }
-        [$start, $end] = CutoffService::range($cutoff);
+        [$start, $end] = CutoffService::range($cutoff, $termSelection);
         $filters = ['per_page' => (int) ($data['per_page'] ?? 10), 'cutoff_start' => $start->toDateString(),
             'employee_id' => $faculty ? '' : ($data['employee_id'] ?? ''), 'status' => $data['status'] ?? ''];
-        $people = Employee::with(['schedules', 'scheduleBreaks'])
+        $filters['term_id'] = $termSelection;
+        $people = Employee::withoutGlobalScopes()->when($termSelection === '', fn ($q) => $q->whereNull('archived_at'))->with(['schedules', 'scheduleBreaks'])
             ->when($faculty, fn ($q) => $q->whereKey($request->user()->employee_id ?? 0))
             ->when(! $faculty && $filters['employee_id'], fn ($q) => $q->whereKey($filters['employee_id']))
             ->get()->keyBy('id');
-        $logs = EntranceAttendance::with('employee')->whereIn('employee_id', $people->keys())
+        $logs = EntranceAttendance::withoutGlobalScopes()->with('employee')->whereIn('employee_id', $people->keys())
             ->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()])->get();
         $rows = $records->schoolRows($logs, $people, $start, $end);
         $records = $records->paginate($rows, $request, $filters);

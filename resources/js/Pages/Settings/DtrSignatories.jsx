@@ -1,3 +1,4 @@
+import '../../../css/dtrSignatories.css';
 import { formatDate } from '../../lib/format';
 import DateInput from '../../components/DateInput';
 import { router, useForm } from '@inertiajs/react';
@@ -24,21 +25,34 @@ export default function DtrSignatories({ signatories }) {
         editing ? form.put(`/settings/dtr-signatories/${editing}`, options) : form.post('/settings/dtr-signatories', options);
     };
     const remove = async (item) => {
-        if (await ask({ title: 'Delete DTR signatory?', message: `Remove ${item.name} from the signatory history? Historical DTRs within this period will no longer show this signatory.`, confirmLabel: 'Delete Signatory', tone: 'danger' })) {
+        if (await ask({ title: 'Delete dean record?', message: `Remove ${item.name} from the dean history? Historical DTRs within this period will no longer show this signatory.`, confirmLabel: 'Delete dean', tone: 'danger' })) {
             router.delete(`/settings/dtr-signatories/${item.id}`, { preserveScroll: true });
         }
     };
 
-    return <AppLayout title="DTR Signatory" subtitle="Maintain the authorized in charge printed on DTR certifications.">
+    return <AppLayout title="Dean Management" subtitle="Manage the dean and their effective dates.">
         <SettingsTabs />
         <section className="signatory-settings-layout">
             <form className="panel calendar-signatory-form" onSubmit={submit}>
-                <div className="panel-heading"><div><span className="bento-eyebrow">Certification</span><h2>{editing ? 'Edit signatory period' : 'Add DTR signatory'}</h2></div><UserRoundCheck size={22} /></div>
-                <label>Name<input value={form.data.name} onChange={(e) => form.setData('name', e.target.value)} required />{form.errors.name && <small className="field-error">{form.errors.name}</small>}</label>
+                <div className="panel-heading"><div><span className="bento-eyebrow">Academic Administration</span><h2>{editing ? 'Edit dean' : 'Add dean'}</h2></div><UserRoundCheck size={22} /></div>
+                <label>Dean's name<input value={form.data.name} onChange={(e) => form.setData('name', e.target.value)} required />{form.errors.name && <small className="field-error">{form.errors.name}</small>}</label>
                 <div className="form-pair"><label>Effective from<DateInput value={form.data.effective_from} onChange={(e) => form.setData('effective_from', e.target.value)} required /></label><label>Effective to<DateInput min={form.data.effective_from || undefined} value={form.data.effective_to} onChange={(e) => form.setData('effective_to', e.target.value)} /></label></div>
-                <div className="form-actions">{editing && <button type="button" className="secondary ui-control ui-action ui-secondary" onClick={reset}>Cancel</button>}<button className="ui-control ui-action ui-primary" disabled={form.processing}><Save size={17} />Save Signatory</button></div>
+                <div className="form-actions">{editing && <button type="button" className="secondary ui-control ui-action ui-secondary" onClick={reset}>Cancel</button>}<button className="ui-control ui-action ui-primary" disabled={form.processing}><Save size={17} />Save dean</button></div>
             </form>
-            <section className="panel signatory-history"><div className="panel-heading"><h2>Signatory History</h2><span>{signatories.length} record(s)</span></div>{signatories.length ? signatories.map((item) => <article className="signatory-item" key={item.id}><div><strong>{item.name}</strong><span>In Charge</span><small>{formatDate(item.effective_from)} to {item.effective_to ? formatDate(item.effective_to) : 'present'}</small></div><div className="row-actions"><button className="ui-control ui-action ui-secondary" type="button" title="Edit" onClick={() => edit(item)}><Edit3 size={16} /></button><button className="ui-control ui-action ui-danger" type="button" title="Delete" onClick={() => remove(item)}><Trash2 size={16} /></button></div></article>) : <p className="empty-row">No DTR signatory has been configured.</p>}</section>
+            <section className="panel signatory-history">
+                <div className="panel-heading"><h2>Dean History</h2><span>{signatories.length} {signatories.length === 1 ? 'record' : 'records'}</span></div>
+                {signatories.length ? signatories.map((item) => <article className="signatory-item" key={item.id}>
+                    <div className="dtr-signatory-details">
+                        <h3>{item.name}</h3>
+                        <p className="dtr-signatory-role">Dean</p>
+                        <p className="dtr-signatory-period">{formatDate(item.effective_from)} to {item.effective_to ? formatDate(item.effective_to) : 'present'}</p>
+                    </div>
+                    <div className="row-actions dtr-signatory-actions">
+                        <button className="ui-control ui-action ui-secondary" type="button" aria-label={`Edit ${item.name}`} onClick={() => edit(item)}><Edit3 size={16} aria-hidden="true" /><span>Edit</span></button>
+                        <button className="ui-control ui-action ui-danger" type="button" aria-label={`Delete ${item.name}`} onClick={() => remove(item)}><Trash2 size={16} aria-hidden="true" /><span>Delete</span></button>
+                    </div>
+                </article>) : <p className="empty-row">No dean has been added yet.</p>}
+            </section>
         </section>
         {dialog}
     </AppLayout>;

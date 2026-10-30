@@ -195,3 +195,14 @@ test('Late and Undertime legend buttons directly invoke the local line-status se
     buttons.find((button) => button.props.title === 'Highlight Undertime').props.onClick();
     assert.equal(state.lineHighlight, '');
 });
+
+test('graph Reset button is disabled at default and enabled after changing the chart type', async () => {
+    const { AttendanceGraph } = await import(await componentModule(new URL('../../resources/js/components/ReportAnalytics.jsx', import.meta.url)));
+    const { initialGraphState } = await import('../../resources/js/lib/reportGraph.js');
+    for (const [state, disabled] of [[initialGraphState(), true], [{ ...initialGraphState(), chartType: 'bar' }, false]]) {
+        const html = renderToStaticMarkup(React.createElement(AttendanceGraph, { rows: [], state, dispatch() {} }));
+        const button = [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].find(([markup]) => markup.includes('Reset graph'))?.[0];
+        assert.ok(button);
+        assert.equal(/\bdisabled=/.test(button), disabled);
+    }
+});

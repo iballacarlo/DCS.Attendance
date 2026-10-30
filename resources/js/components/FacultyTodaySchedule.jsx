@@ -1,3 +1,4 @@
+import DateInput from './DateInput';
 import { AlertCircle, Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, Clock3, Coffee, GraduationCap, LogIn, LogOut, UsersRound } from 'lucide-react';
 import { formatDate, time12 } from '../lib/format';
 
@@ -39,7 +40,7 @@ export default function FacultyTodaySchedule({ sessions = [], summary = { finish
         </div>
         {onDateChange && <div className="faculty-schedule-navigation" role="group" aria-label="Schedule date">
             <button type="button" aria-label="Previous day" title="Previous day" disabled={loading || date <= '1900-01-01'} onClick={() => onDateChange(shiftScheduleDate(date, -1))}><ChevronLeft size={18} aria-hidden="true" /></button>
-            <label><span className="faculty-date-label">View date</span><input type="date" value={date} min="1900-01-01" max="2100-12-31" disabled={loading} onChange={(event) => { const value = event.target.value; if (/^\d{4}-\d{2}-\d{2}$/.test(value) && value >= '1900-01-01' && value <= '2100-12-31') onDateChange(value); }} /></label>
+            <label><span className="faculty-date-label">View date</span><DateInput value={date} min="1900-01-01" max="2100-12-31" disabled={loading} onChange={(event) => { const value = event.target.value; if (/^\d{4}-\d{2}-\d{2}$/.test(value) && value >= '1900-01-01' && value <= '2100-12-31') onDateChange(value); }} /></label>
             <button type="button" aria-label="Next day" title="Next day" disabled={loading || date >= '2100-12-31'} onClick={() => onDateChange(shiftScheduleDate(date, 1))}><ChevronRight size={18} aria-hidden="true" /></button>
             <button type="button" className="faculty-schedule-today" disabled={loading} onClick={() => onDateChange(null)}>Today</button>
         </div>}

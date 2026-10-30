@@ -6,6 +6,7 @@ use App\Models\AttendanceLog;
 use App\Models\Employee;
 use App\Services\AttendanceRecordService;
 use App\Services\CutoffService;
+use App\Services\SemesterScheduleService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -14,6 +15,7 @@ class AttendanceController extends Controller
     public function index(Request $request, AttendanceRecordService $records)
     {
         $faculty = $request->user()->role === 'faculty';
+        $termSelection = SemesterScheduleService::selection($request);
         $filters = $request->validate([
             'page' => ['nullable', 'integer', 'min:1'], 'per_page' => ['nullable', 'integer', 'in:10,25,50'],
             'search' => ['nullable', 'string', 'max:100'], 'cutoff_start' => ['nullable', 'date_format:Y-m-d'],
@@ -22,9 +24,10 @@ class AttendanceController extends Controller
         ]);
         unset($filters['page']);
         $filters['per_page'] = (int) ($filters['per_page'] ?? 10);
-        [$start, $end] = CutoffService::range($filters['cutoff_start'] ?? null);
+        [$start, $end] = CutoffService::range($filters['cutoff_start'] ?? null, $termSelection);
         $filters = array_merge(['search' => '', 'employee_id' => '', 'status' => '', 'method' => ''], $filters, ['cutoff_start' => $start->toDateString()]);
-        $people = Employee::with(['schedules', 'scheduleBreaks'])
+        $filters['term_id'] = $termSelection;
+        $people = Employee::withoutGlobalScopes()->when($termSelection === '', fn ($q) => $q->whereNull('archived_at'))->with(['schedules', 'scheduleBreaks'])
             ->when($faculty, fn ($q) => $q->whereKey($request->user()->employee_id ?? 0))
             ->when(! $faculty && $filters['employee_id'], fn ($q) => $q->whereKey($filters['employee_id']));
         if (! $faculty) {
@@ -37,7 +40,7 @@ class AttendanceController extends Controller
             }
         }
         $people = $people->get()->keyBy('id');
-        $query = AttendanceLog::with('employee')->whereIn('employee_id', $people->keys())
+        $query = AttendanceLog::withoutGlobalScopes()->with('employee')->whereIn('employee_id', $people->keys())
             ->where('is_legacy', false)->where('schedule_type', 'class')
             ->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()])
             ->when($filters['method'], fn ($q, $method) => $q->where(fn ($q) => $q->where('method_in', $method)->orWhere('method_out', $method)));

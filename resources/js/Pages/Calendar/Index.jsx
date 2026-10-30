@@ -1,3 +1,4 @@
+import YearFilterInput from '../../components/YearFilterInput';
 import SettingsTabs from '../../components/SettingsTabs';
 import { formatDate } from '../../lib/format';
 import { entryTypes, holidayEntries, holidayTypes } from '../../lib/holidayEntries';
@@ -48,7 +49,7 @@ export default function CalendarIndex({ year, events, canManage, regularHolidays
         <section className="panel holiday-register">
             <div className="panel-heading"><h2>Holidays &amp; Suspensions</h2>{canManage && <button type="button" className="ui-control ui-action ui-primary" onClick={() => openForm()}><Plus size={17} />Add Entry</button>}</div>
             <div className="holiday-register-filters">
-                <label>Year<select value={year} onChange={(event) => { reset(); setPage(1); router.get(basePath, { year: event.target.value }, { preserveState: true, preserveScroll: true }); }}>{Array.from({ length: Math.min(2100, year + 4) - Math.max(2000, year - 4) + 1 }, (_, index) => Math.max(2000, year - 4) + index).map((value) => <option key={value}>{value}</option>)}</select></label>
+                <label>Year<YearFilterInput value={year} onYearChange={(next) => { reset(); setPage(1); router.get(basePath, { year: next }, { preserveState: true, preserveScroll: true }); }} /></label>
                 <label>Type<select value={type} onChange={(event) => { setType(event.target.value); setPage(1); }}><option value="">All types</option>{Object.entries(typeOptions).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                 <label>Search<input type="search" placeholder="Search holidays or suspensions" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} /></label>
             </div>

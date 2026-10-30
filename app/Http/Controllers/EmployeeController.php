@@ -2,10 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicTerm;
 use App\Models\Employee;
 use App\Models\FacultyRank;
+use App\Models\FacultySchedule;
+use App\Models\FacultyScheduleVersion;
+use App\Models\FacultyTermAssignment;
 use App\Models\User;
 use App\Services\GoogleAppsScriptMailer;
+use App\Services\SemesterManagementService;
+use App\Services\SemesterScheduleService;
 use App\Support\ScheduleOptions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -55,6 +61,12 @@ class EmployeeController extends Controller
         } elseif ($sort === 'weekly_hours') {
             $scheduleHours = DB::table('faculty_schedules')
                 ->selectRaw('employee_id, SUM(TIMESTAMPDIFF(MINUTE, start_time, end_time)) as weekly_minutes')
+                ->when(SemesterScheduleService::managed(), function ($query) {
+                    $term = SemesterScheduleService::termFor(now('Asia/Manila'));
+                    $ids = FacultyScheduleVersion::where('academic_term_id', $term?->id ?? 0)
+                        ->whereDate('effective_from', '<=', now('Asia/Manila')->toDateString())->orderByDesc('effective_from')->orderByDesc('id')->get()->unique('employee_id')->pluck('id');
+                    $query->whereIn('schedule_version_id', $ids);
+                }, fn ($query) => $query->whereNull('academic_term_id'))
                 ->groupBy('employee_id');
 
             $employees->leftJoinSub($scheduleHours, 'schedule_totals', function ($join) {
@@ -73,6 +85,7 @@ class EmployeeController extends Controller
             ->withQueryString();
         $today = Carbon::today();
         $employees->getCollection()->each(function (Employee $employee) use ($today) {
+            $employee->setRelation('schedules', SemesterScheduleService::schedules($employee, $today));
             $daysRemaining = $employee->contract_end
                 ? $today->diffInDays(Carbon::parse($employee->contract_end), false)
                 : null;
@@ -167,30 +180,70 @@ class EmployeeController extends Controller
         return redirect()->route('employees.index')->with('success', 'Faculty record updated.');
     }
 
-    public function editSchedule(Employee $employee)
+    public function editSchedule(Request $request, $employee)
     {
-        $employee->load(['schedules', 'scheduleBreaks', 'facultyRank']);
-
-        return Inertia::render('Employees/Schedule', [
-            'employee' => $employee,
-            'scheduleOptions' => ScheduleOptions::all(),
-            'facultyOptions' => Employee::orderBy('last_name')->orderBy('first_name')->orderBy('id')
-                ->get(['id', 'employee_no', 'first_name', 'middle_name', 'last_name', 'suffix']),
-        ]);
+        return $this->schedulePage($request, Employee::withoutGlobalScopes()->findOrFail($employee), false);
     }
 
     public function mySchedule(Request $request)
     {
-        $employee = Employee::with(['schedules', 'scheduleBreaks', 'facultyRank'])->findOrFail($request->user()->employee_id);
-
-        return Inertia::render('Employees/Schedule', ['employee' => $employee, 'readOnly' => true, 'scheduleOptions' => ScheduleOptions::all()]);
+        return $this->schedulePage($request, Employee::findOrFail($request->user()->employee_id), true);
     }
 
-    public function updateSchedule(Request $request, Employee $employee)
+    private function schedulePage(Request $request, Employee $employee, bool $faculty)
     {
+        $data = $request->validate(['term_id' => ['nullable', 'integer', 'exists:academic_terms,id'], 'version_id' => ['nullable', 'integer', 'exists:faculty_schedule_versions,id']]);
+        $term = ! empty($data['term_id']) ? AcademicTerm::findOrFail($data['term_id']) : null;
+        if (! $request->has('term_id')) {
+            $available = AcademicTerm::where('status', '!=', 'draft');
+            if ($faculty) {
+                $available->whereIn('id', FacultyScheduleVersion::where('employee_id', $employee->id)->select('academic_term_id'));
+            }
+            $term = $available->orderByRaw("CASE WHEN status = 'active' THEN 0 ELSE 1 END")->inAcademicOrder()->first();
+        }
+        abort_if($faculty && $term?->status === 'draft', 404);
+        abort_if($employee->archived_at && ! $term, 404);
+        $employee->load(['schedules', 'scheduleBreaks', 'facultyRank']);
+        $versions = collect();
+        $assignment = null;
+        $version = null;
+        if ($term) {
+            $assignment = FacultyTermAssignment::where('academic_term_id', $term->id)->where('employee_id', $employee->id)->first();
+            $versions = FacultyScheduleVersion::where('academic_term_id', $term->id)->where('employee_id', $employee->id)->orderByDesc('effective_from')->orderByDesc('id')->get();
+            $version = ! empty($data['version_id']) ? $versions->firstWhere('id', (int) $data['version_id']) : $versions->first();
+            abort_if(! empty($data['version_id']) && ! $version, 404);
+            if ($faculty || ($term->status === 'closed' && ! $term->reopened) || ! empty($data['version_id'])) {
+                $blocks = $version ? $employee->schedules->where('schedule_version_id', $version->id)->concat($employee->scheduleBreaks->where('schedule_version_id', $version->id)) : collect();
+                if ($version) {
+                    $employee->forceFill($version->profile);
+                }
+            } else {
+                $blocks = collect($assignment?->draft_blocks ?? [])->map(fn ($block) => new FacultySchedule($block));
+            }
+            $employee->setRelation('schedules', $blocks->where('schedule_type', '!=', 'lunch_break')->values());
+            $employee->setRelation('scheduleBreaks', $blocks->where('schedule_type', 'lunch_break')->values());
+        } else {
+            $employee->setRelation('schedules', SemesterScheduleService::managed() ? collect() : $employee->schedules->whereNull('academic_term_id')->values());
+            $employee->setRelation('scheduleBreaks', SemesterScheduleService::managed() ? collect() : $employee->scheduleBreaks->whereNull('academic_term_id')->values());
+        }
+
+        return Inertia::render('Employees/Schedule', [
+            'employee' => $employee, 'readOnly' => $faculty || ($term ? ($term->status === 'closed' && ! $term->reopened) || ! empty($data['version_id']) : SemesterScheduleService::managed()),
+            'scheduleOptions' => ScheduleOptions::all($term?->semester),
+            'facultyView' => $faculty,
+            ...($faculty ? [] : ['facultyOptions' => Employee::orderBy('last_name')->get(['id', 'employee_no', 'first_name', 'middle_name', 'last_name', 'suffix'])]),
+            'selectedSemester' => $term, 'scheduleVersions' => $versions, 'selectedVersion' => $data['version_id'] ?? '',
+            'hasUnpublishedSchedule' => ! $faculty && $term && $assignment && app(SemesterManagementService::class)->publicationPending($term, $employee, $assignment->draft_blocks ?? [], $assignment->profile),
+            'assignmentProfile' => ($faculty ? $version?->profile : $assignment?->profile) ?? app(SemesterManagementService::class)->profile($employee),
+        ]);
+    }
+
+    public function updateSchedule(Request $request, $employee)
+    {
+        $employee = Employee::withoutGlobalScopes()->findOrFail($employee);
         $this->saveSchedules($request, $employee);
 
-        return redirect()->route('employees.schedule.edit', $employee)->with('success', 'Faculty schedule updated.');
+        return redirect()->route('employees.schedule.edit', ['employee' => $employee->id, 'term_id' => $request->input('term_id')])->with('success', 'Faculty schedule updated.');
     }
 
     public function destroy(Employee $employee)
@@ -324,6 +377,18 @@ class EmployeeController extends Controller
 
     private function saveSchedules(Request $request, Employee $employee): void
     {
+        if ($request->filled('term_id')) {
+            $data = $request->validate(['term_id' => ['required', 'integer', 'exists:academic_terms,id'],
+                'blocks' => ['present', 'array'], 'intent' => ['required', 'in:draft,publish'],
+                'effective_from' => ['nullable', 'date_format:Y-m-d'], 'reason' => ['nullable', 'string', 'max:1000'], 'assignment_profile' => ['nullable', 'array']]);
+            app(SemesterManagementService::class)->save(AcademicTerm::findOrFail($data['term_id']), $employee,
+                $data['blocks'], $data['assignment_profile'] ?? [], $data['intent'], $data['effective_from'] ?? null, $data['reason'] ?? '', $request->user());
+
+            return;
+        }
+        if (SemesterScheduleService::managed() && $request->has('blocks')) {
+            throw ValidationException::withMessages(['semester' => 'Select a semester before changing schedules.']);
+        }
         if (! $request->has('blocks')) {
             return;
         }

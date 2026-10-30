@@ -1,0 +1,34 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { transform } from 'esbuild';
+const { code } = await transform(await readFile(new URL('../../resources/js/components/YearFilterInput.jsx', import.meta.url), 'utf8'), { loader: 'jsx', jsx: 'automatic', format: 'esm' });
+const url = `data:text/javascript;base64,${Buffer.from(code.replaceAll('from "react/jsx-runtime"', `from ${JSON.stringify(import.meta.resolve('react/jsx-runtime'))}`)).toString('base64')}`;
+const { default: Input } = await import(url);
+test('typed year waits for four digits, rejects years outside the selected semester and restores invalid input', () => {
+    const changes = [];
+    const input = Input({ value: '2026', allowedYears: ['2026', '2027'], onYearChange: (year) => changes.push(year) });
+    const field = { value: '202', dataset: {} };
+    input.props.onChange({ currentTarget: field });
+    assert.deepEqual(changes, []);
+    field.value = '2027'; input.props.onChange({ currentTarget: field });
+    assert.deepEqual(changes, ['2027']);
+    input.props.onBlur({ currentTarget: field });
+    assert.deepEqual(changes, ['2027']);
+    field.value = '2028'; input.props.onChange({ currentTarget: field });
+    input.props.onBlur({ currentTarget: field });
+    assert.equal(field.value, '2027');
+    assert.deepEqual(changes, ['2027']);
+});
+test('academic year accepts a full range or starting year on Enter, and clear is applied only after editing', () => {
+    const changes = [];
+    const input = Input({ value: '2026-2027', academic: true, allowEmpty: true, onYearChange: (year) => changes.push(year) });
+    const field = { value: '2027', dataset: {} };
+    input.props.onChange({ currentTarget: field }); assert.deepEqual(changes, []);
+    let prevented = false;
+    input.props.onKeyDown({ key: 'Enter', currentTarget: field, preventDefault() { prevented = true; } });
+    assert.equal(prevented, true); assert.deepEqual(changes, ['2027-2028']);
+    field.value = ''; input.props.onChange({ currentTarget: field }); assert.equal(changes.length, 1);
+    input.props.onBlur({ currentTarget: field }); assert.equal(changes.at(-1), '');
+    field.value = '2027-2029'; input.props.onBlur({ currentTarget: field }); assert.equal(field.value, '');
+});

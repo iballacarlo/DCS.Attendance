@@ -36,3 +36,11 @@ test('direct generation sends the current scope without a preview token and expl
     assert.deepEqual(generationPayload(filters), generationPayload(filters));
     assert.equal(Object.hasOwn(generationPayload(filters), 'preview_token'), false);
 });
+
+test('semester payload and preview key depend on semester rather than a leftover cutoff', () => {
+    const filters = { mode: 'school', period: 'semester', term_id: 3, employee_id: '', cutoff_start: '2026-10-01', overwrite: true };
+    assert.deepEqual(generationPayload(filters), { mode: 'school', period: 'semester', term_id: 3, employee_id: null, overwrite: true, confirm_overwrite: true });
+    assert.equal(generationKey(filters), generationKey({ ...filters, term_id: '3', cutoff_start: '2026-09-16' }));
+    assert.notEqual(generationKey(filters), generationKey({ ...filters, term_id: 4 }));
+    assert.notEqual(generationKey(filters), generationKey({ ...filters, period: 'cutoff' }));
+});

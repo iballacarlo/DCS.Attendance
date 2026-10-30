@@ -2,7 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicTerm;
+use App\Services\ScheduleRecoveryService;
 use App\Services\SelectiveBackupService;
+use App\Services\SemesterBackupValidator;
+use App\Services\SemesterScheduleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -16,16 +20,17 @@ class BackupController extends Controller
 {
     private const TABLES = [
         'faculty_ranks', 'employees', 'users', 'rfid_cards', 'fingerprint_templates', 'employment_histories',
+        'academic_terms', 'faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events',
         'faculty_schedules', 'faculty_schedule_breaks', 'attendance_logs', 'hardware_attendance_events', 'entrance_attendances',
         'calendar_events', 'calendar_event_employee', 'dtr_signatories',
         'leave_types', 'leave_requests',
         'payroll_periods', 'payroll_records', 'audit_trails', 'system_settings',
     ];
 
-    public function index()
+    public function index(Request $request)
     {
         return Inertia::render('Settings/Backup', ['backupGroups' => collect(SelectiveBackupService::GROUPS)->except('payroll')
-            ->map(fn ($group, $key) => ['value' => $key, 'label' => $group['label'], 'description' => $group['description']])->values()]);
+            ->map(fn ($group, $key) => ['value' => $key, 'label' => $group['label'], 'description' => $group['description']])->values(), 'recoveryResult' => $request->session()->get('schedule_recovery_result')]);
     }
 
     public function download(Request $request, SelectiveBackupService $service)
@@ -65,21 +70,34 @@ class BackupController extends Controller
         }, $filename, ['Content-Type' => 'application/json']);
     }
 
-    public function restore(Request $request, SelectiveBackupService $service)
+    public function restore(Request $request, SelectiveBackupService $service, ScheduleRecoveryService $recovery)
     {
-        $request->validate(['backup_file' => ['required', 'file', 'max:20480']]);
+        $request->validate(['backup_file' => ['required', 'file', 'max:20480'],
+            'schedule_term_id' => ['nullable', 'integer', Rule::exists('academic_terms', 'id')->where('status', 'active')]]);
         $backup = json_decode($request->file('backup_file')->get(), true);
 
         if (! is_array($backup) || ! in_array($backup['application'] ?? null, ['CvSU Payroll System', 'DCS Attendance & DTR'], true) || ! in_array($backup['version'] ?? null, [1, 2], true)) {
             throw ValidationException::withMessages(['backup_file' => 'The selected file is not a valid attendance system backup.']);
         }
         if ($backup['version'] === 2) {
-            $count = $service->restore($backup, self::TABLES);
+            [$count, $result] = DB::transaction(function () use ($request, $backup, $service, $recovery) {
+                $count = $service->restore($backup, self::TABLES);
+                $result = $request->filled('schedule_term_id')
+                    ? $recovery->recover($backup, AcademicTerm::findOrFail($request->integer('schedule_term_id')), $request->user()) : null;
 
-            return redirect()->route('settings.backup.index')->with('success', "Custom backup recovered: {$count} missing records added. Existing records were kept.");
+                return [$count, $result];
+            });
+            $message = $count ? "Custom backup recovered: {$count} missing records added. Existing records were kept."
+                : 'No new records added. The backup records already exist locally; existing records were kept.';
+            if ($result) {
+                $message .= " {$result['published']} faculty schedules linked to {$result['term']}.";
+            }
+
+            return redirect()->route('settings.backup.index')->with('success', $message)->with('schedule_recovery_result', $result);
         }
 
         foreach (array_diff(self::TABLES, [
+            'academic_terms', 'faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events',
             'entrance_attendances', 'employment_histories', 'system_settings', 'hardware_attendance_events',
             'calendar_events', 'calendar_event_employee', 'dtr_signatories',
             'leave_types', 'leave_requests',
@@ -109,6 +127,8 @@ class BackupController extends Controller
                         }
                     }
                 }
+                SemesterBackupValidator::check();
+                SemesterScheduleService::reset();
                 // A full restore must never make a previously revoked session valid again.
                 $version = max($previousVersion, (int) DB::table('users')->max('security_version')) + 1;
                 foreach (DB::table('users')->pluck('id') as $id) {

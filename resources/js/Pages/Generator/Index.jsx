@@ -1,3 +1,4 @@
+import SemesterPicker from '../../components/SemesterPicker';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useRef, useState } from 'react';
 import axios from 'axios';
@@ -7,7 +8,7 @@ import { formatDate, fullName, time12 } from '../../lib/format';
 import { generationError, generationKey, generationPayload } from '../../lib/attendanceGenerator';
 import '../../../css/attendanceGenerator.css';
 
-export default function GeneratorIndex({ filters, employees }) {
+export default function GeneratorIndex({ filters, employees, semesters = [] }) {
     const { auth, flash } = usePage().props;
     const [selection, setSelection] = useState(filters);
     const [preview, setPreview] = useState(null);
@@ -16,12 +17,13 @@ export default function GeneratorIndex({ filters, employees }) {
     const [error, setError] = useState('');
     const requestBusy = useRef(false);
     const key = generationKey(selection);
+    const missingSemester = selection.period === 'semester' && !selection.term_id;
     const change = (field, value) => {
         if (requestBusy.current) return;
         setSelection((old) => ({ ...old, [field]: value })); setPreview(null); setResult(null); setError('');
     };
     const run = async (action) => {
-        if (requestBusy.current) return;
+        if (requestBusy.current || missingSemester) return;
         requestBusy.current = true; setBusy(action); setError(''); setResult(null);
         try {
             const { data } = await axios.post(`/tools/attendance-generator/${action}`, action === 'preview' ? selection : generationPayload(selection));
@@ -45,12 +47,16 @@ export default function GeneratorIndex({ filters, employees }) {
                 <form onSubmit={(event) => { event.preventDefault(); run('generate'); }}>
                     <div className="generator-filters">
                         <label>Attendance<select value={selection.mode} disabled={!!busy} onChange={(event) => change('mode', event.target.value)}><option value="class">Class attendance</option><option value="school">School IN/OUT</option></select></label>
-                        <CutoffPicker value={selection.cutoff_start} disabled={!!busy} onChange={(period) => change('cutoff_start', period.start)} />
+                        <label>Generate by<select value={selection.period || 'cutoff'} disabled={!!busy} onChange={(event) => change('period', event.target.value)}><option value="cutoff">Cutoff</option><option value="semester">Whole semester</option></select></label>
+                        {selection.period === 'semester' ? semesters.length
+                            ? <SemesterPicker value={selection.term_id} options={semesters} legacyOnly disabled={!!busy} onChange={(term_id) => change('term_id', term_id)} />
+                            : <p className="generator-period">No open semester is available.</p>
+                            : <CutoffPicker value={selection.cutoff_start} disabled={!!busy} onChange={(period) => change('cutoff_start', period.start)} /> }
                         <label>Faculty<select value={selection.employee_id} disabled={!!busy} onChange={(event) => change('employee_id', event.target.value)}><option value="">All active faculty</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{fullName(employee)}</option>)}</select></label>
                     </div>
                     <label className="generator-overwrite-option"><input type="checkbox" checked={!!selection.overwrite} disabled={!!busy} onChange={(event) => change('overwrite', event.target.checked)} /><span>Overwrite existing logs <small>Replace existing IN/OUT times in the selected period.</small></span></label>
-                    <div className="generator-actions"><button type="button" onClick={() => run('preview')} disabled={!!busy}><ScanLine size={17} aria-hidden="true" />{busy === 'preview' ? 'Checking records…' : 'Preview'}</button>
-                        <button type="submit" className="generator-generate" disabled={!!busy}>{busy === 'generate' ? 'Generating…' : selection.overwrite ? 'Generate / overwrite records' : 'Generate missing records'}</button></div>
+                    <div className="generator-actions"><button type="button" onClick={() => run('preview')} disabled={!!busy || missingSemester}><ScanLine size={17} aria-hidden="true" />{busy === 'preview' ? 'Checking records…' : 'Preview'}</button>
+                        <button type="submit" className="generator-generate" disabled={!!busy || missingSemester}>{busy === 'generate' ? 'Generating…' : selection.overwrite ? 'Generate / overwrite records' : 'Generate missing records'}</button></div>
                 </form>
                 {error && <p className="generator-error" role="alert">{error}</p>}
                 {flash?.success && !summary && <p className="generator-success" role="status">{flash.success}</p>}

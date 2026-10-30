@@ -1,6 +1,6 @@
 import { useEffect, useReducer } from 'react';
 import { ArrowLeft, RotateCcw } from 'lucide-react';
-import { graphChoices, graphReducer, graphView, initialGraphState, reportMeasures } from '../lib/reportGraph';
+import { graphChoices, graphReducer, graphView, graphHasChanges, initialGraphState, reportMeasures } from '../lib/reportGraph';
 import ReportChart from './ReportChart';
 
 const viewLabels = { overall: 'Overall', faculty: 'By Faculty', subject: 'By Subject', daily: 'Daily Trend' };
@@ -30,7 +30,7 @@ export function AttendanceGraph({ rows, state, dispatch }) {
     return <section className="panel report-graph" aria-label="Interactive attendance graph">
         <div className="report-graph-heading"><div><h2>{graphType.title}</h2><p>{graphType.purpose}</p></div>
             <div className="report-graph-actions"><button type="button" className="ui-control ui-action ui-secondary report-action-back" disabled={!state.history.length} onClick={() => dispatch({ type: 'back' })}><ArrowLeft size={15} />Back</button>
-                <button type="button" className="ui-control ui-action ui-secondary report-action-reset" onClick={() => dispatch({ type: 'reset' })}><RotateCcw size={15} />Reset graph</button></div>
+                <button type="button" className="ui-control ui-action ui-secondary report-action-reset" disabled={!graphHasChanges(state)} onClick={() => dispatch({ type: 'reset' })}><RotateCcw size={15} />Reset graph</button></div>
         </div>
         <div className="report-graph-controls">
             <label>Graph type<select value={state.chartType} onChange={(event) => dispatch({ type: 'chart', chartType: event.target.value })}>{Object.entries(graphTypes).map(([value, type]) => <option value={value} key={value}>{type.label}</option>)}</select></label>

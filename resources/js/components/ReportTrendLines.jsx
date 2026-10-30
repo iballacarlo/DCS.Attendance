@@ -26,7 +26,7 @@ export default function ReportTrendLines({ bars, series = [], selectedDay, highl
                         </g>;
                     })}
                 </g>)}
-                {axis.points.map((point) => <text key={point.value} className="report-line-date" x={point.x} y={axis.bottom + 27} textAnchor="middle" aria-hidden="true">{point.label}</text>)}
+                {axis.ticks.map((point, index) => <text key={point.value} className="report-line-date" x={point.x} y={axis.bottom + 27} textAnchor={axis.ticks.length === 1 ? 'middle' : index === 0 ? 'start' : index === axis.ticks.length - 1 ? 'end' : 'middle'} aria-hidden="true">{point.label}</text>)}
             </svg>
         </div>
     </div>;

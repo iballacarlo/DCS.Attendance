@@ -1,0 +1,73 @@
+#workspace .semester-panel { margin-bottom: 24px; }
+#workspace .semester-fields { display: flex; align-items: end; flex-wrap: wrap; gap: 14px; margin: 18px 0; }
+#workspace .semester-fields > label { flex: 1 1 150px; min-width: 0; }
+#workspace .semester-fields > .semester-reason { flex-grow: 3; }
+#workspace .semester-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+#workspace .semester-choices a { display: grid; gap: 8px; padding: 16px; border: 1px solid var(--ui-line); border-radius: 10px; color: var(--ui-ink); }
+#workspace .semester-choices a.is-selected { border-color: var(--ui-green); background: var(--ui-soft-green); }
+#workspace .semester-choices span, #workspace .semester-choices small { color: var(--ui-muted); font-size: 13px; }
+#workspace .semester-row-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+#workspace .semester-schedule-tools { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; padding: 18px 0; }
+#workspace .semester-schedule-tools > label { flex: 1 1 160px; min-width: 0; }
+#workspace .semester-schedule-tools p { width: 100%; margin: 0; color: var(--ui-muted); }
+
+#workspace .semester-detail-heading > div:first-child { display: grid; gap: 6px; min-width: 0; }
+#workspace .semester-detail-heading > div > span { color: var(--ui-muted); font-size: 13px; }
+#workspace .semester-detail-heading > button { margin-left: auto; flex: 0 0 auto; }
+#workspace .semester-schedule-tools > button { flex: 0 0 auto; white-space: nowrap; }
+#workspace .semester-readonly-status { color: var(--ui-muted); font-size: 13px; }
+@media (min-width: 1200px) {
+    #workspace .semester-schedule-tools { flex-wrap: nowrap; }
+    #workspace .semester-schedule-tools > label { flex: 1 1 0; }
+    #workspace .semester-schedule-tools > label:first-child { flex-grow: 1.5; }
+    #workspace .semester-fields { flex-wrap: nowrap; }
+    #workspace .semester-fields > label { flex-basis: 0; }
+    #workspace .semester-fields > button { flex: 0 0 auto; white-space: nowrap; }
+}
+@media (max-width: 600px) {
+    #workspace .semester-schedule-tools > label { flex-basis: 100%; }
+    #workspace .semester-schedule-tools > button { width: 100%; }
+}
+
+#workspace .semester-activation { margin: 18px 0; }
+
+#workspace .semester-publish-result { padding: 16px; margin: 16px 0; border: 1px solid var(--ui-line); border-radius: 10px; background: var(--ui-surface); }
+#workspace .semester-publish-result p { margin: 0; }
+#workspace .semester-publish-result [role="alert"] { margin-top: 12px; }
+#workspace .semester-publish-result ul { padding-left: 20px; margin-bottom: 0; }
+#workspace .semester-publish-result li + li { margin-top: 8px; }
+#workspace .semester-publish-result a { text-decoration: underline; font-weight: 600; }
+
+#workspace .semester-draft-context { display: grid; gap: 6px; flex: 1.5 1 0; min-width: 0; }
+#workspace .semester-draft-context a { width: fit-content; color: var(--ui-green); font-size: 13px; text-decoration: underline; }
+
+#workspace .semester-schedule-tools > .semester-picker-compact { flex: 0 1 360px; width: 360px; max-width: 100%; }
+@media (max-width: 600px) {
+    #workspace .semester-schedule-tools > .semester-picker-compact { flex: 1 1 100%; width: 100%; }
+}
+
+#workspace .semester-selected-details { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--ui-line); }
+#workspace .semester-detail-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-left: auto; }
+#workspace .semester-detail-actions > button { white-space: nowrap; }
+#workspace .semester-detail-actions .semester-delete { color: #9b3030; background: #fbeaea; border-color: #e8bcbc; }
+#workspace .semester-detail-actions .semester-delete:hover:not(:disabled) { background: #f5d7d7; }
+html[data-theme='dark'] #workspace .semester-detail-actions .semester-delete { color: #ffbcbc; background: #482828; border-color: #875050; }
+@media (max-width: 600px) {
+    #workspace .semester-detail-actions { width: 100%; justify-content: flex-start; margin-left: 0; }
+}
+
+#workspace .semester-view-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0; }
+#workspace .semester-view-tabs a { padding: 12px 18px; border: 1px solid var(--ui-line); border-radius: 8px; color: var(--ui-ink); background: var(--ui-surface); font-weight: 600; }
+#workspace .semester-view-tabs a.is-selected { color: #fff; border-color: var(--ui-green); background: var(--ui-green); }
+#workspace .semester-history-year { display: grid; gap: 8px; width: 260px; max-width: 100%; margin-bottom: 20px; }
+#workspace .semester-catalog-pages { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 16px; margin-top: 20px; }
+#workspace .semester-catalog-pages a, #workspace .semester-catalog-pages [aria-disabled] { padding: 10px 14px; border: 1px solid var(--ui-line); border-radius: 8px; }
+#workspace .semester-catalog-pages [aria-disabled] { color: var(--ui-muted); opacity: .55; }
+
+#workspace .semester-picker-fields { display: grid; grid-template-columns: minmax(125px, 1fr) minmax(135px, 1fr); gap: 12px; min-width: 0; }
+#workspace .semester-picker-fields > label { display: grid; gap: 8px; min-width: 0; }
+#workspace .semester-picker-fields input, #workspace .semester-picker-fields select { width: 100%; min-width: 0; }
+
+@media (max-width: 480px) {
+    #workspace .semester-picker-fields { grid-template-columns: minmax(0, 1fr); }
+}

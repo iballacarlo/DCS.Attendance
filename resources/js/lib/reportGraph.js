@@ -10,6 +10,10 @@ const unspecified = '__unspecified_subject__';
 const subjectKey = (row) => row.subject || unspecified;
 // Keep the internal "donut" key compatible with saved graph state; the UI now renders a pie.
 export const initialGraphState = () => ({ view: 'overall', chartType: 'donut', highlight: '', lineHighlight: '', barSelection: '', measure: 'late', faculty: '', subject: '', day: '', page: 1, history: [] });
+export function graphHasChanges(state) {
+    return Object.entries(initialGraphState()).some(([key, value]) => Array.isArray(value)
+        ? (state[key]?.length || 0) > 0 : (state[key] ?? value) !== value);
+}
 const chartForView = (view) => view === 'daily' ? 'line' : 'bar';
 const chartAllowed = (chartType, view) => ['bar', 'line', 'donut'].includes(chartType)
     && (chartType !== 'bar' || view !== 'daily')
@@ -39,7 +43,7 @@ function validSelection(state, rows) {
 }
 
 export function graphReducer(state, action) {
-    if (action.type === 'reset') return initialGraphState();
+    if (action.type === 'reset') return graphHasChanges(state) ? initialGraphState() : state;
     if (action.type === 'refresh') {
         const next = validSelection(state, action.rows);
         next.history = state.history.map((previous) => validSelection(previous, action.rows));
@@ -133,7 +137,14 @@ export function lineGraphModel(bars) {
         x: round(span ? bounds.left + (timestamps[index] - timestamps[0]) / span * (bounds.right - bounds.left) : (bounds.left + bounds.right) / 2),
         y: round(bounds.bottom - bar.percentage / 100 * (bounds.bottom - bounds.top)),
     }));
-    return { ...bounds, points, path: points.length > 1 ? points.map((point, index) => `${index ? 'L' : 'M'}${point.x},${point.y}`).join(' ') : '' };
+    // Full MM/DD/YYYY labels need their own space; keep every observation
+    // interactive while only labeling a readable subset of actual dates.
+    const ticks = points.filter((point, index) => index === 0 || index === points.length - 1);
+    for (const point of points.slice(1, -1)) {
+        if (ticks.every((tick) => Math.abs(tick.x - point.x) >= 100)) ticks.push(point);
+    }
+    ticks.sort((a, b) => a.x - b.x);
+    return { ...bounds, points, ticks, path: points.length > 1 ? points.map((point, index) => `${index ? 'L' : 'M'}${point.x},${point.y}`).join(' ') : '' };
 }
 
 export function donutGraphModel(bars, measure = 'late') {

@@ -67,7 +67,8 @@ class FacultyArchiveTest extends TestCase
         $this->assertDatabaseHas('attendance_logs', ['id' => $log->id, 'total_hours' => 2]);
         $this->assertDatabaseHas('hardware_enrollments', ['id' => $enrollment->id, 'status' => 'cancelled']);
         $this->get('/employees?sort=name')->assertOk()->assertInertia(fn (Assert $page) => $page->has('employees.data', 1)->where('employees.data.0.id', $visible->id));
-        $this->get('/attendance?cutoff_start=2026-10-01')->assertInertia(fn (Assert $page) => $page->has('logs.data', 1)->where('logs.data.0.id', $visibleLog->id));
+        $this->get('/attendance?cutoff_start=2026-10-01')->assertInertia(fn (Assert $page) => $page->where('logs.data', fn ($rows) => collect($rows)->where('has_record', true)->pluck('id')->all() === [$visibleLog->id]
+            && collect($rows)->every(fn ($row) => $row['employee_id'] === $visible->id)));
         $this->get('/payroll?cutoff_start=2026-10-01')->assertNotFound();
         $this->get('/leave')->assertInertia(fn (Assert $page) => $page->has('requests.data', 0));
         $this->get('/')->assertInertia(fn (Assert $page) => $page->where('employeeCount', 1)->missing('latestPayrolls')->where('classAnalytics.summary.expected', 1));

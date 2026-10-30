@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\EntranceAttendance;
 use App\Services\ClassReportService;
+use App\Services\SemesterScheduleService;
 use App\Services\TodayScheduleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -25,9 +26,9 @@ class DashboardController extends Controller
         $now = Carbon::now('Asia/Manila');
         $today = $now->copy()->startOfDay();
         $faculty = $request->user()->role === 'faculty';
-        $selectedDate = $faculty ? ($request->validate([
+        $selectedDate = ($request->validate([
             'schedule_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:1900-01-01', 'before_or_equal:2100-12-31'],
-        ])['schedule_date'] ?? null) : null;
+        ])['schedule_date'] ?? null);
         $employeeId = $faculty ? ($request->user()->employee_id ?? 0) : null;
         $employee = $faculty ? Employee::with(['schedules', 'scheduleBreaks'])->find($employeeId) : null;
         $schedule = $todaySchedules->build($employee, $now);
@@ -49,8 +50,9 @@ class DashboardController extends Controller
             'scheduleView' => $scheduleView,
             'scheduleAsOf' => $now->toIso8601String(),
             'scheduleDate' => $today->toDateString(),
-            'contractWarnings' => Employee::where('status', 'active')->when($faculty, fn ($q) => $q->whereKey($employeeId))
-                ->whereBetween('contract_end', [$today->toDateString(), $today->copy()->addDays(7)->toDateString()])->get()
+            'contractWarnings' => Employee::where('status', 'active')->when($faculty, fn ($q) => $q->whereKey($employeeId))->get()
+                ->map(fn ($e) => SemesterScheduleService::profile($e, $today))
+                ->filter(fn ($e) => $e->contract_end && Carbon::parse($e->contract_end)->betweenIncluded($today, $today->copy()->addDays(7)))->values()
                 ->each(fn ($e) => $e->setAttribute('days_remaining', (int) $today->diffInDays(Carbon::parse($e->contract_end), false))),
         ]);
     }

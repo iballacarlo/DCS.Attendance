@@ -20,7 +20,9 @@ use App\Http\Controllers\GeneralSettingsController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SemesterController;
 use App\Http\Controllers\UserController;
+use App\Http\Middleware\SemesterWriteLock;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
@@ -40,7 +42,7 @@ Route::get('email/verify/{user}/{hash}', [EmailVerificationController::class, 'v
     ->middleware('signed')
     ->name('verification.verify');
 
-Route::middleware(['auth', 'auth.session'])->group(function () {
+Route::middleware(['auth', 'auth.session', SemesterWriteLock::class])->group(function () {
     Route::get('account/password', [AccountPasswordController::class, 'edit'])->name('account.password.edit');
     Route::put('account/password', [AccountPasswordController::class, 'update'])->middleware('throttle:5,1')->name('account.password.update');
     Route::post('logout', [AuthController::class, 'logout'])->name('logout');
@@ -69,7 +71,14 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::get('employees/{employee}/schedule', [EmployeeController::class, 'editSchedule'])->name('employees.schedule.edit')->middleware('role:admin');
     Route::put('employees/{employee}/schedule', [EmployeeController::class, 'updateSchedule'])->name('employees.schedule.update')->middleware('role:admin');
     Route::get('faculty-ranks', [FacultyRankController::class, 'index'])->name('ranks.index')->middleware('role:admin');
-    Route::redirect('settings', '/settings/accounts')->middleware('role:admin');
+    Route::redirect('settings', '/settings/semesters')->middleware('role:admin');
+    Route::get('settings/semesters', [SemesterController::class, 'index'])->middleware('role:admin')->name('settings.semesters.index');
+    Route::post('settings/semesters', [SemesterController::class, 'store'])->middleware('role:admin');
+    Route::put('settings/semesters/{term}', [SemesterController::class, 'update'])->middleware('role:admin');
+    Route::delete('settings/semesters/{term}', [SemesterController::class, 'destroy'])->middleware('role:admin');
+    Route::post('settings/semesters/{term}/transition', [SemesterController::class, 'transition'])->middleware('role:admin');
+    Route::post('settings/semesters/{term}/publish-all', [SemesterController::class, 'publishAll'])->middleware('role:admin');
+    Route::post('settings/semesters/{term}/faculty/{employeeId}/copy', [SemesterController::class, 'copy'])->middleware('role:admin');
     Route::get('settings/general', [GeneralSettingsController::class, 'edit'])->name('settings.general.edit')->middleware('role:admin');
     Route::get('settings/holidays-suspensions', [CalendarController::class, 'index'])->name('settings.holidays.index')->middleware('role:admin');
     Route::put('settings/general', [GeneralSettingsController::class, 'update'])->name('settings.general.update')->middleware('role:admin');

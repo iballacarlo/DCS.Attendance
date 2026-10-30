@@ -1,0 +1,19 @@
+#workspace .signatory-settings-layout { gap: 24px; }
+#workspace .signatory-history .panel-heading { align-items: center; gap: 12px; margin-bottom: 20px; }
+#workspace .signatory-history .panel-heading > span { flex-shrink: 0; color: var(--ui-muted); font-size: 13px; }
+#workspace .signatory-history .signatory-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 24px; padding: 24px; border: 1px solid var(--ui-line); border-radius: 12px; }
+#workspace .signatory-history .signatory-item + .signatory-item { margin-top: 16px; }
+#workspace .signatory-history .dtr-signatory-details { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; line-height: 1.5; }
+#workspace .signatory-history .dtr-signatory-details h3 { display: block; margin: 0; font-size: 16px; font-weight: 700; line-height: 1.5; overflow-wrap: anywhere; }
+#workspace .signatory-history .dtr-signatory-details p { display: block; margin: 0; color: var(--ui-muted); line-height: 1.5; }
+#workspace .signatory-history .dtr-signatory-period { font-size: 13px; }
+#workspace .signatory-history .dtr-signatory-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+#workspace .signatory-history .dtr-signatory-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: auto; min-width: 44px; min-height: 44px; padding: 10px 12px; }
+#workspace .signatory-history .dtr-signatory-actions button span { color: inherit; line-height: 1; }
+@media (max-width: 650px) {
+    #workspace .signatory-history .signatory-item { grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 20px; }
+    #workspace .signatory-history .dtr-signatory-actions { justify-content: flex-start; }
+}
+@media (max-width: 480px) {
+    #workspace .calendar-signatory-form .form-pair { grid-template-columns: minmax(0, 1fr); }
+}

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { graphChoices, graphReducer, graphView, initialGraphState, lineGraphModel, donutGraphModel } from '../../resources/js/lib/reportGraph.js';
+import { graphChoices, graphReducer, graphView, initialGraphState, graphHasChanges, lineGraphModel, donutGraphModel } from '../../resources/js/lib/reportGraph.js';
 import { classReportView, sessionPage } from '../../resources/js/lib/classAnalytics.js';
 
 const session = (id, overrides = {}) => ({ key: String(id), employee_id: id % 2 + 1, faculty: `Faculty ${id % 2 + 1}`,
@@ -184,6 +184,19 @@ test('empty and single-point line graphs never invent a zero or connecting line'
     assert.equal(plot.points[0].count, 1);
 });
 
+
+test('line date ticks stay readable without removing daily observations', () => {
+    const bars = Array.from({ length: 16 }, (_, index) => ({ value: `2026-10-${index + 16}`, label: `10/${index + 16}/2026`, total: 12, count: 1, percentage: 100 / 12 }));
+    const plot = lineGraphModel(bars);
+    assert.equal(plot.points.length, 16);
+    assert.ok(plot.ticks.length < plot.points.length);
+    assert.equal(plot.ticks[0].value, bars[0].value);
+    assert.equal(plot.ticks.at(-1).value, bars.at(-1).value);
+    for (let index = 1; index < plot.ticks.length; index++) assert.ok(plot.ticks[index].x - plot.ticks[index - 1].x >= 100);
+    const single = lineGraphModel(bars.slice(0, 1));
+    assert.equal(single.ticks.length, 1);
+});
+
 test('donut uses only the selected status with all eligible finished classes as denominator', () => {
     const bars = graphView(fixture(), initialGraphState()).bars;
     const late = donutGraphModel(bars, 'late');
@@ -301,4 +314,15 @@ test('line graph filters scope all series together and re-entering Line displays
     const line = graphReducer(bar, { type: 'chart', chartType: 'line' });
     assert.equal(line.lineHighlight, '');
     assert.equal(line.faculty, '2');
+});
+
+test('graph Reset is available only when a filter, view, selection or Back history can actually be reset', () => {
+    const initial = initialGraphState();
+    assert.equal(graphHasChanges(initial), false);
+    assert.equal(graphReducer(initial, { type: 'reset' }), initial);
+    for (const patch of [{ chartType: 'bar' }, { faculty: '1' }, { subject: 'DCIT 24' }, { highlight: 'late' }, { day: '2026-10-01' }, { page: 2 }, { lineHighlight: 'undertime' }, { barSelection: 'late' }, { history: [initial] }]) {
+        const changed = { ...initial, ...patch };
+        assert.equal(graphHasChanges(changed), true);
+        assert.deepEqual(graphReducer(changed, { type: 'reset' }), initial);
+    }
 });

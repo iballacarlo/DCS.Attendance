@@ -7,15 +7,17 @@ import FacultyCombobox from '../../components/FacultyCombobox';
 import { fullName } from '../../lib/format';
 import useConfirmDialog from '../../hooks/useConfirmDialog';
 
-export default function Backup({ backupGroups }) {
-    const { facultyChoices } = usePage().props;
+export default function Backup({ backupGroups, recoveryResult = null }) {
+    const { facultyChoices, semesterOptions = [] } = usePage().props;
+    const activeSemesters = semesterOptions.filter((term) => term.status === 'active');
+    const [hasOlderSchedules, setHasOlderSchedules] = useState(false);
     const [mode, setMode] = useState('full');
     const [groups, setGroups] = useState(['faculty', 'schedules', 'attendance']);
     const [scope, setScope] = useState('all');
     const [selected, setSelected] = useState([]);
     const [recoveryKind, setRecoveryKind] = useState(null);
     const fileRequest = useRef(0);
-    const form = useForm({ backup_file: null });
+    const form = useForm({ backup_file: null, schedule_term_id: '' });
     const { ask, dialog } = useConfirmDialog();
     const canDownload = mode === 'full' || (groups.length > 0 && (scope === 'all' || selected.length > 0));
     const download = () => {
@@ -30,7 +32,8 @@ export default function Backup({ backupGroups }) {
     };
     const selectFile = async (file) => {
         const request = ++fileRequest.current;
-        form.setData('backup_file', null);
+        form.setData({ backup_file: null, schedule_term_id: '' });
+        setHasOlderSchedules(false);
         setRecoveryKind(null);
         form.clearErrors();
         if (!file) return;
@@ -39,6 +42,7 @@ export default function Backup({ backupGroups }) {
             if (request !== fileRequest.current) return;
             if (!['CvSU Payroll System', 'DCS Attendance & DTR'].includes(data.application) || ![1, 2].includes(data.version)) throw new Error();
             setRecoveryKind(data.version === 2 ? 'custom' : 'full');
+            setHasOlderSchedules(data.version === 2 && [...(data.tables?.faculty_schedules || []), ...(data.tables?.faculty_schedule_breaks || [])].some((row) => !row.academic_term_id && !row.schedule_version_id));
             form.setData('backup_file', file);
         } catch {
             if (request !== fileRequest.current) return;
@@ -48,7 +52,7 @@ export default function Backup({ backupGroups }) {
     const restore = async (event) => {
         event.preventDefault();
         const custom = recoveryKind === 'custom';
-        if (!form.data.backup_file || !await ask({ title: custom ? 'Recover custom backup?' : 'Restore system backup?', message: custom ? 'Add missing records from this custom backup. Existing records will be kept, and other faculty data will remain unchanged.' : 'Current system records will be replaced by the selected full backup. This action cannot be undone.', confirmLabel: custom ? 'Recover Missing Records' : 'Restore Backup', tone: custom ? 'warning' : 'danger' })) return;
+        if (!form.data.backup_file || !await ask({ title: custom ? 'Recover custom backup?' : 'Restore system backup?', message: custom ? (form.data.schedule_term_id ? `Recover missing records and link older schedules to ${activeSemesters.find((term) => String(term.id) === String(form.data.schedule_term_id))?.label}. Confirm that these schedules belong to this semester. Existing semester schedules will be kept.` : 'Add missing records from this custom backup. Existing records will be kept, and other faculty data will remain unchanged.') : 'Current system records will be replaced by the selected full backup. This action cannot be undone.', confirmLabel: custom ? 'Recover Missing Records' : 'Restore Backup', tone: custom ? 'warning' : 'danger' })) return;
         form.post('/settings/backup/restore', { forceFormData: true });
     };
 
@@ -84,9 +88,17 @@ export default function Backup({ backupGroups }) {
                             <span className="backup-file-name">{form.data.backup_file?.name || 'No file selected'}</span>
                         </span>
                     </label>
+                    {hasOlderSchedules && activeSemesters.length > 0 && <label>Semester for older schedules<select value={form.data.schedule_term_id} onChange={(event) => form.setData('schedule_term_id', event.target.value)}>
+                        <option value="">Keep current assignments</option>{activeSemesters.map((term) => <option key={term.id} value={term.id}>{term.label}</option>)}
+                    </select></label>}
+                    {form.errors.schedule_term_id && <p className="field-error">{form.errors.schedule_term_id}</p>}
+                    {hasOlderSchedules && <p className="backup-note">This backup contains schedules saved before semester management. Choose their semester to make them available in My Schedule and attendance.</p>}
                     {form.errors.backup_file && <div className="form-note">{form.errors.backup_file}</div>}
-                    {recoveryKind && <p className="backup-note">{recoveryKind === 'custom' ? 'Custom backup: recover missing records only. Existing records will be kept.' : 'Full system backup: replaces existing system records.'}</p>}
-                    <button className={`ui-control ui-action ${recoveryKind === 'custom' ? 'ui-primary' : 'ui-danger'}`} type="submit" disabled={form.processing || !form.data.backup_file}><RotateCcw size={17} />{form.processing ? 'Restoring...' : recoveryKind === 'custom' ? 'Recover missing records' : 'Restore backup'}</button>
+                    {recoveryKind && <p className="backup-note">{recoveryKind === 'custom' ? 'Custom backup: existing records and semester schedules will be kept.' : 'Full system backup: replaces existing system records.'}</p>}
+                    {recoveryResult && <div className="backup-note" role="status"><strong>{recoveryResult.published} schedules linked.</strong> {recoveryResult.already_assigned} already assigned; {recoveryResult.inactive} inactive or archived.
+                        {recoveryResult.failed.length > 0 && <ul>{recoveryResult.failed.map((item) => <li key={item.employee_id}>{item.faculty}: {item.messages.join(' ')}</li>)}</ul>}
+                    </div>}
+                    <button className={`ui-control ui-action ${recoveryKind === 'custom' ? 'ui-primary' : 'ui-danger'}`} type="submit" disabled={form.processing || !form.data.backup_file}><RotateCcw size={17} />{form.processing ? 'Restoring...' : recoveryKind === 'custom' ? 'Recover backup' : 'Restore backup'}</button>
                 </form>
             </article>
         </section>

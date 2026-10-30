@@ -1,3 +1,5 @@
+import DateInput from '../../components/DateInput';
+import { formatDate } from '../../lib/format';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
@@ -87,7 +89,7 @@ export default function EntranceKiosk() {
             <div className="kiosk-station">
             <aside className="kiosk-welcome">
                 <div className="kiosk-station-label"><span /> ENTRANCE STATION</div>
-                <div className="kiosk-welcome-body"><div className="kiosk-rfid-mark" role="img" aria-label="Contactless RFID"><Nfc size={48} strokeWidth={1.3} /></div><h1>School<br />attendance.</h1><section className="guard-kiosk-clock" aria-label="Current Philippine time"><strong>{new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(clock)}</strong><span>{new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'full' }).format(clock)}</span></section></div>
+                <div className="kiosk-welcome-body"><div className="kiosk-rfid-mark" role="img" aria-label="Contactless RFID"><Nfc size={48} strokeWidth={1.3} /></div><h1>School<br />attendance.</h1><section className="guard-kiosk-clock" aria-label="Current Philippine time"><strong>{new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(clock)}</strong><span>{formatDate(clock)}</span></section></div>
                 <div className="kiosk-guard"><span className="kiosk-guard-icon"><ShieldCheck size={19} /></span><div><small>ON DUTY</small><strong>{auth.user.name}</strong></div></div>
             </aside>
             <section className="guard-kiosk-card" aria-labelledby="kiosk-record-title">
@@ -98,7 +100,7 @@ export default function EntranceKiosk() {
                     <label>RFID UID<span className="kiosk-uid-field"><ScanLine size={20} strokeWidth={1.6} /><input ref={input} autoFocus autoComplete="off" value={form.data.identifier} onChange={(e) => { setScanMessage(''); change('identifier', e.target.value.toUpperCase()); }} placeholder="Type or scan RFID UID" required maxLength={100} disabled={scanning || form.processing} /></span></label>
                     <div className={`guard-kiosk-preview${previewError ? ' has-error' : ''}${current ? ' has-faculty' : ''}`} role="status"><UserRound size={19} /><span>{checking ? 'Checking RFID...' : previewError || (current ? `${current.employee}${!current.next_action ? ' · Attendance complete' : ''}` : 'Waiting for RFID')}</span>{current && !current.next_action && <CheckCircle2 size={18} />}</div>
                     <div className="guard-kiosk-actions" aria-label="Automatic attendance direction">{['IN', 'OUT'].map((action) => <span key={action} className={`guard-kiosk-direction is-${action.toLowerCase()}${next === action ? ' active' : ''}`} aria-current={next === action ? 'step' : undefined}>{action === 'IN' ? <ArrowDownLeft size={23} /> : <ArrowUpRight size={23} />}<span><small>{action === 'IN' ? 'ARRIVAL' : 'DEPARTURE'}</small><strong>School {action}</strong></span>{next === action && <span className="kiosk-active-dot" />}</span>)}</div>
-                    <div className="guard-kiosk-test"><label>Test date/time (optional)<input type="datetime-local" max={`${day}T23:59`} value={form.data.occurred_at} onChange={(e) => change('occurred_at', e.target.value)} /></label>{form.data.occurred_at && <button type="button" onClick={() => change('occurred_at', '')}>Use current time</button>}</div>
+                    <div className="guard-kiosk-test"><label>Test date/time (optional)<DateInput type="datetime-local" max={`${day}T23:59`} value={form.data.occurred_at} onChange={(e) => change('occurred_at', e.target.value)} /></label>{form.data.occurred_at && <button type="button" onClick={() => change('occurred_at', '')}>Use current time</button>}</div>
                     {Object.keys(form.errors).length > 0 && <div className="guard-kiosk-error" role="alert">{Object.values(form.errors).map((error, i) => <p key={i}>{error}</p>)}</div>}
                     <button className={`guard-kiosk-submit${next === 'OUT' ? ' is-out' : ''}`} type="submit" disabled={form.processing || checking || !current?.next_action}><span>{form.processing ? 'Recording...' : current && !current.next_action ? 'Attendance complete' : `Record School ${next || 'Attendance'}`}</span>{current && !current.next_action ? <CheckCircle2 size={19} /> : <ArrowUpRight size={19} />}</button>
                 </form>

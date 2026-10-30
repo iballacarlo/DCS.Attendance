@@ -1,3 +1,5 @@
+import SemesterPicker from '../../components/SemesterPicker';
+import '../../../css/semesters.css';
 import FacultyCombobox from '../../components/FacultyCombobox';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
 import { ArrowLeft, CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, Edit3, GraduationCap, MousePointer2, Plus, Save, Trash2, X } from 'lucide-react';
@@ -22,12 +24,12 @@ const hoursLabel = (blocks) => {
     return `${Number(hours.toFixed(2))} ${hours === 1 ? 'hour' : 'hours'}`;
 };
 
-export default function EmployeeSchedule({ employee, readOnly = false, scheduleOptions, facultyOptions = [] }) {
+export default function EmployeeSchedule({ hasUnpublishedSchedule = false, employee, readOnly = false, scheduleOptions, facultyOptions = [], selectedSemester = null, scheduleVersions = [], facultyView = false }) {
     const { url } = usePage();
     const [view, setView] = useState(() => new URLSearchParams(url.split('?')[1]).get('view') === 'daily' ? 'daily' : 'weekly');
     const { subjectsBySection, subjectNames, sections, classModes, lectureOnlySubjects } = scheduleOptions;
     const blockTypeLabel = (block) => block.schedule_type === 'class' ? (classModes[block.class_mode] || 'Class · Not specified') : types[block.schedule_type];
-    const form = useForm({ blocks: scheduleBlocks(employee) });
+    const form = useForm({ blocks: scheduleBlocks(employee), term_id: selectedSemester?.id || '', reason: '' });
     const [day, setDay] = useState(() => {
         const requested = Number(new URLSearchParams(url.split('?')[1]).get('day'));
         return Number.isInteger(requested) && requested >= 1 && requested <= 6 ? requested : Number(form.data.blocks.slice().sort((a, b) => a.day_of_week - b.day_of_week)[0]?.day_of_week) || 1;
@@ -54,7 +56,7 @@ export default function EmployeeSchedule({ employee, readOnly = false, scheduleO
         if (readOnly || switchingFaculty || !id || Number(id) === employee.id) return;
         if ((form.isDirty || draftChanged) && !await ask({ title: 'Leave unsaved schedule?', message: 'Your schedule changes have not been saved. Switching faculty will discard these changes.', confirmLabel: 'Discard and Switch', cancelLabel: 'Stay Here', tone: 'warning' })) return;
         setSwitchingFaculty(true);
-        router.get(`/employees/${id}/schedule`, { view, day }, { preserveState: false, preserveScroll: true, onFinish: () => setSwitchingFaculty(false) });
+        router.get(`/employees/${id}/schedule`, { view, day, term_id: selectedSemester?.id || '' }, { preserveState: false, preserveScroll: true, onFinish: () => setSwitchingFaculty(false) });
     };
     const dayBlocks = form.data.blocks.map((block, index) => ({ ...block, index })).filter((block) => Number(block.day_of_week) === day).sort((a, b) => a.start_time.localeCompare(b.start_time));
     const firstMinute = 7 * 60;
@@ -134,9 +136,12 @@ export default function EmployeeSchedule({ employee, readOnly = false, scheduleO
     const save = (event) => {
         event.preventDefault();
         if (draftChanged) { setError(`Select “${editing === null ? 'Add Block' : 'Apply Changes'}” first, or cancel the block edits before saving.`); focusEditor(); return; }
+        const intent = event.nativeEvent?.submitter?.value || 'draft';
+        if (readOnly || form.processing || (intent === 'draft' && !form.isDirty) || (intent === 'publish' && !form.isDirty && !hasUnpublishedSchedule)) return;
+        form.transform((data) => ({ ...data, intent }));
         form.put(`/employees/${employee.id}/schedule`, { preserveScroll: true, onSuccess: (page) => {
             const blocks = scheduleBlocks(page.props.employee);
-            form.setDefaults({ blocks }); form.setData({ blocks }); reset();
+            form.setDefaults({ ...form.data, blocks }); form.setData({ ...form.data, blocks }); reset();
         } });
     };
 
@@ -147,6 +152,15 @@ export default function EmployeeSchedule({ employee, readOnly = false, scheduleO
                 {!readOnly && <Link className="sd-back" href="/employees"><ArrowLeft size={16} />Back to Faculty</Link>}
             </header>
             
+            <div className="semester-schedule-tools">
+                {selectedSemester?.status === 'draft' ? <div className="semester-draft-context"><strong>{selectedSemester.label}</strong><Link href={`/settings/semesters?term_id=${selectedSemester.id}`}>Back to semesters</Link></div> : <SemesterPicker value={selectedSemester?.id || ''} legacyOnly compact onChange={(term_id) => router.get(facultyView ? '/my-schedule' : '/employees/' + employee.id + '/schedule', { term_id }, { preserveState: false })} />}
+                {selectedSemester?.status === 'closed' && <span className="semester-readonly-status">{selectedSemester.reopened ? 'Reopened for correction' : 'Read only'}</span>}
+            {selectedSemester && !readOnly && <>
+                {selectedSemester.reopened && <label>Reason for historical correction<input value={form.data.reason} onChange={(event) => form.setData('reason', event.target.value)} minLength={5} maxLength={1000} required /></label>}
+                <button className="sd-control sd-button sd-primary" type="submit" value="publish" disabled={form.processing || draftChanged || (!form.isDirty && !hasUnpublishedSchedule)}>{!form.isDirty && !hasUnpublishedSchedule ? 'Published' : 'Publish schedule'}</button>
+            </>}
+            </div>
+            {facultyView && !scheduleVersions.length && <p>No published schedule is available for this semester yet.</p>}
             <div className="sd-overview"><span><GraduationCap size={18} /><strong>{form.data.blocks.filter((block) => block.schedule_type === 'class').length}</strong> classes / week</span><span><Clock3 size={18} /><strong>{Number(weeklyPlotting(form.data.blocks).payableHours.toFixed(2))}</strong> contact hours / week</span><span><CalendarDays size={18} /><strong>{new Set(form.data.blocks.map((block) => Number(block.day_of_week))).size}</strong> scheduled days</span><span>Consultation: <strong>{Number(weeklyPlotting(form.data.blocks).consultationHours.toFixed(2))} hours / week</strong></span></div>
             <div className="sd-view-toolbar"><nav className="sd-view-tabs" aria-label="Schedule view"><button type="button" className={`sd-control sd-button ${view === 'weekly' ? 'sd-primary' : 'sd-secondary'}`} aria-pressed={view === 'weekly'} onClick={() => setView('weekly')}>Weekly Plotting</button><button type="button" className={`sd-control sd-button ${view === 'daily' ? 'sd-primary' : 'sd-secondary'}`} aria-pressed={view === 'daily'} onClick={() => setView('daily')}>{readOnly ? 'Daily View' : 'Manage by Day'}</button></nav><div className="wp-legend" aria-label="Schedule block colors"><span className="wp-lecture">Lecture</span><span className="wp-laboratory">Laboratory</span><span className="wp-consultation">Consultation</span><span className="wp-lunch_break">Break</span></div>{!readOnly && <div className="sd-faculty-switcher"><FacultyCombobox employees={facultyOptions} selectedId={employee.id} disabled={switchingFaculty || form.processing} label={null} onSelect={switchFaculty} /><div className="sd-faculty-arrows"><button type="button" className="sd-control sd-icon-button" aria-label="Previous faculty" disabled={facultyIndex <= 0 || switchingFaculty || form.processing} onClick={() => switchFaculty(facultyOptions[facultyIndex - 1]?.id)}><ChevronLeft size={18} /></button><button type="button" className="sd-control sd-icon-button" aria-label="Next faculty" disabled={facultyIndex < 0 || facultyIndex >= facultyOptions.length - 1 || switchingFaculty || form.processing} onClick={() => switchFaculty(facultyOptions[facultyIndex + 1]?.id)}><ChevronRight size={18} /></button></div></div>}</div>
             {view === 'weekly' ? <WeeklyPlotting blocks={form.data.blocks} subjectNames={subjectNames} /> : <div className="sd-daily-view">
@@ -185,7 +199,7 @@ export default function EmployeeSchedule({ employee, readOnly = false, scheduleO
             </section>
             </div>}
             {Object.entries(form.errors).map(([key, message]) => <p className="sd-error" role="alert" key={key}>{message}</p>)}
-            {!readOnly && <footer className="sd-save-bar"><div className={form.isDirty || draftChanged ? 'has-changes' : ''} role="status" aria-live="polite"><span className="sd-save-indicator" /><strong>{draftChanged ? 'Block edits waiting to be applied' : form.isDirty ? 'Unsaved schedule changes' : 'Schedule is up to date'}</strong><small>{draftChanged ? 'Add or apply the block details first, then save the schedule.' : form.isDirty ? 'Save to apply your added, edited, or removed blocks.' : 'Changes will appear in the faculty’s schedule after saving.'}</small></div><button className="sd-control sd-button sd-primary" type="submit" disabled={form.processing || (!form.isDirty && !draftChanged)}><Save size={17} />{form.processing ? 'Saving…' : 'Save Schedule'}</button></footer>}
+            {!readOnly && <footer className="sd-save-bar"><div className={form.isDirty || draftChanged ? 'has-changes' : ''} role="status" aria-live="polite"><span className="sd-save-indicator" /><strong>{draftChanged ? 'Block edits waiting to be applied' : form.isDirty ? 'Unsaved schedule changes' : 'Schedule is up to date'}</strong><small>{draftChanged ? 'Add or apply the block details first, then save the schedule.' : form.isDirty ? 'Save to apply your added, edited, or removed blocks.' : 'Changes will appear in the faculty’s schedule after saving.'}</small></div><button className="sd-control sd-button sd-primary" type="submit" value="draft" disabled={form.processing || !form.isDirty || draftChanged}><Save size={17} />{form.processing ? 'Saving…' : selectedSemester ? 'Save Draft' : 'Save Schedule'}</button></footer>}
         </form>
         {dialog}
     </AppLayout>;

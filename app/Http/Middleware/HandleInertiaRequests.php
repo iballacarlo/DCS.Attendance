@@ -2,8 +2,11 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\AcademicTerm;
 use App\Models\Employee;
+use App\Models\FacultyScheduleVersion;
 use App\Models\SystemSetting;
+use App\Services\SemesterScheduleService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -51,6 +54,18 @@ class HandleInertiaRequests extends Middleware
                     'employee' => $request->user()->employee,
                 ] : null,
             ],
+            'semesterOptions' => function () use ($request) {
+                $query = AcademicTerm::inAcademicOrder();
+                if ($request->user()?->role !== 'admin' || ! $request->routeIs('settings.semesters.index')) {
+                    $query->where('status', '!=', 'draft');
+                }
+                if ($request->user()?->role === 'faculty') {
+                    $query->whereIn('id', FacultyScheduleVersion::where('employee_id', $request->user()->employee_id ?? 0)->select('academic_term_id'));
+                }
+
+                return $query->get(['id', 'school_year', 'semester', 'start_date', 'end_date', 'status', 'reopened']);
+            },
+            'semesterManaged' => fn () => SemesterScheduleService::managed(),
             'academicTerm' => fn () => SystemSetting::academicTerm(),
             'facultyChoices' => fn () => $request->user() && in_array($request->user()->role, ['admin'], true)
                 ? Employee::orderBy('last_name')->orderBy('first_name')->get(['id', 'first_name', 'middle_name', 'last_name', 'suffix']) : [],

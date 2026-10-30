@@ -11,7 +11,7 @@ class SelectiveBackupService
 {
     public const GROUPS = [
         'faculty' => ['label' => 'Faculty profiles', 'description' => 'Profiles, ranks, and employment history.', 'tables' => ['employees', 'faculty_ranks', 'employment_histories']],
-        'schedules' => ['label' => 'Schedules', 'description' => 'Weekly class, consultation, and break blocks.', 'tables' => ['faculty_schedules', 'faculty_schedule_breaks']],
+        'schedules' => ['label' => 'Schedules', 'description' => 'Weekly class, consultation, and break blocks.', 'tables' => ['academic_terms', 'faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events', 'faculty_schedules', 'faculty_schedule_breaks']],
         'attendance' => ['label' => 'Attendance logs', 'description' => 'School entrance records, class snapshots, and hardware events.', 'tables' => ['attendance_logs', 'hardware_attendance_events', 'entrance_attendances']],
         'payroll' => ['label' => 'Payroll records', 'description' => 'Payslips, adjustments, and their payroll periods.', 'tables' => ['payroll_records', 'payroll_periods']],
         'credentials' => ['label' => 'Attendance credentials', 'description' => 'RFID cards and fingerprint registrations.', 'tables' => ['rfid_cards', 'fingerprint_templates']],
@@ -44,7 +44,11 @@ class SelectiveBackupService
             $tables = [];
             foreach (array_intersect($order, $this->tables($groups)) as $table) {
                 $query = DB::table($table);
-                if ($table === 'employees') {
+                if ($table === 'academic_terms') {
+                    // Semester definitions are shared; faculty-bound contents remain scoped.
+                } elseif ($table === 'semester_events') {
+                    $query->when($scope === 'selected', fn ($q) => $q->whereIn('employee_id', $employeeIds));
+                } elseif ($table === 'employees') {
                     $query->whereIn('id', $employeeIds);
                 } elseif ($table === 'faculty_ranks') {
                     $query->when($scope === 'selected', fn ($q) => $q->whereIn('id', $employees->pluck('faculty_rank_id')->filter()));
@@ -65,7 +69,7 @@ class SelectiveBackupService
             $userIds = array_column($tables['users'] ?? [], 'id');
             foreach ($tables as &$rows) {
                 foreach ($rows as &$row) {
-                    foreach (['created_by', 'reviewed_by', 'archived_by', 'recorded_by', 'out_recorded_by'] as $field) {
+                    foreach (['created_by', 'reviewed_by', 'archived_by', 'recorded_by', 'out_recorded_by', 'published_by', 'actor_id'] as $field) {
                         if (isset($row[$field]) && ! in_array($row[$field], $userIds)) {
                             $row[$field] = null;
                         }
@@ -98,6 +102,11 @@ class SelectiveBackupService
             $backup['tables']['entrance_attendances'] = [];
         }
         $required = $this->tables($groups);
+        foreach (['academic_terms', 'faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events'] as $optional) {
+            if (in_array($optional, $required, true) && ! array_key_exists($optional, $backup['tables'])) {
+                $backup['tables'][$optional] = [];
+            }
+        }
         if (array_diff($required, array_keys($backup['tables'])) || array_diff(array_keys($backup['tables']), $required)) {
             $this->invalid('The custom backup tables do not match its selected data.');
         }
@@ -120,7 +129,7 @@ class SelectiveBackupService
         foreach ($backup['tables'] as $table => $rows) {
             foreach ($rows as $row) {
                 if (array_key_exists('employee_id', $row) && ! in_array($row['employee_id'], $ids, true)
-                    && ! ($table === 'users' && $scope === 'all' && $row['employee_id'] === null)) {
+                    && ! (in_array($table, ['users', 'semester_events'], true) && $scope === 'all' && $row['employee_id'] === null)) {
                     $this->invalid('The backup contains records outside its faculty selection.');
                 }
             }
@@ -132,13 +141,13 @@ class SelectiveBackupService
                     foreach ($backup['tables'][$table] as $row) {
                         $existing = DB::table($table)->where('id', $row['id'])->first();
                         if ($existing) {
-                            foreach (['employee_id', 'employee_no', 'email', 'payroll_period_id', 'calendar_event_id', 'event_id'] as $field) {
+                            foreach (['employee_id', 'employee_no', 'email', 'payroll_period_id', 'calendar_event_id', 'event_id', 'academic_term_id', 'schedule_version_id', 'date'] as $field) {
                                 if (array_key_exists($field, $row) && (string) $row[$field] !== (string) ($existing->$field ?? null)) {
                                     $this->invalid('A record ID in '.$table.' belongs to different data. No records were restored.');
                                 }
                             }
-                            if (in_array($table, ['payroll_periods', 'faculty_ranks', 'leave_types', 'system_settings'], true)) {
-                                foreach (['start_date', 'end_date', 'name', 'code', 'key'] as $field) {
+                            if (in_array($table, ['payroll_periods', 'faculty_ranks', 'leave_types', 'system_settings', 'academic_terms'], true)) {
+                                foreach (['start_date', 'end_date', 'name', 'code', 'key', 'school_year', 'semester'] as $field) {
                                     if (array_key_exists($field, $row) && (string) $row[$field] !== (string) ($existing->$field ?? null)) {
                                         $this->invalid('Reference data in '.$table.' conflicts with the local database. No records were restored.');
                                     }
@@ -158,6 +167,9 @@ class SelectiveBackupService
                         $inserted++;
                     }
                 }
+
+                SemesterBackupValidator::check();
+                SemesterScheduleService::reset();
 
                 return $inserted;
             });

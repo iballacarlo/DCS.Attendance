@@ -13,7 +13,7 @@ class DtrService
     {
         $start = Carbon::parse($startDate, 'Asia/Manila')->startOfDay();
         $end = Carbon::parse($endDate, 'Asia/Manila')->startOfDay();
-        $logs = EntranceAttendance::where('employee_id', $employee->id)
+        $logs = EntranceAttendance::withoutGlobalScopes()->where('employee_id', $employee->id)
             ->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()])->get()->keyBy('attendance_date');
         $rows = collect();
         for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
@@ -37,7 +37,10 @@ class DtrService
             $leave = $scheduled > 0 ? LeaveService::approvedLeaveFor($employee, $date) : null;
             $event = $scheduled > 0 ? SchoolCalendarService::eventFor($employee, $date) : null;
             $label = $intervals ? Carbon::today()->startOfDay()->addSeconds($intervals[0][0])->format('g:i A').'-'.Carbon::today()->startOfDay()->addSeconds($intervals[count($intervals) - 1][1])->format('g:i A') : null;
+            $frozen = SemesterScheduleService::frozen($employee, $date);
+            $term = SemesterScheduleService::termFor($date);
             $rows->push([
+                'academic_term_id' => $term?->id, 'term_label' => $term?->label ?? 'Legacy / Unassigned',
                 'day' => $date->day, 'date' => $date->toDateString(), 'weekday' => $date->format('D'),
                 'has_schedule' => $scheduled > 0, 'scheduled_seconds' => $scheduled, 'scheduled_hours' => round($scheduled / 3600, 4), 'schedule_label' => $label,
                 'time_in' => $log?->time_in, 'time_out' => $log?->time_out, 'source' => $log?->source,
@@ -48,7 +51,7 @@ class DtrService
                 'undertime_minutes' => $shortfall > 0 ? $shortfall % 60 : null,
                 'margin_hours' => $computed && $shortfall === 0 ? round($seconds / 3600, 4) : null,
                 'status' => $log ? ($complete ? 'present' : 'incomplete') : ($leave ? 'on_leave' : ($event ? 'calendar_event' : ($scheduled > 0 ? ($date->lt(Carbon::today('Asia/Manila')) ? 'absent' : 'pending') : 'not_scheduled'))),
-                'event' => $event ? ['title' => $event->title, 'type' => $event->type, 'label' => strtoupper(str_replace('_', ' ', $event->type))] : ($leave ? ['title' => $leave->leaveType->name, 'type' => 'leave', 'label' => strtoupper($leave->leaveType->code).' - LEAVE'] : null),
+                'event' => $frozen !== null ? $frozen['event'] : ($event ? ['title' => $event->title, 'type' => $event->type, 'label' => strtoupper(str_replace('_', ' ', $event->type))] : ($leave ? ['title' => $leave->leaveType->name, 'type' => 'leave', 'label' => strtoupper($leave->leaveType->code).' - LEAVE'] : null)),
                 'sessions' => [],
             ]);
         }
@@ -62,10 +65,14 @@ class DtrService
         $signatory = DtrSignatory::whereDate('effective_from', '<=', $end->toDateString())
             ->where(fn ($q) => $q->whereNull('effective_to')->orWhereDate('effective_to', '>=', $end->toDateString()))->orderByDesc('effective_from')->first();
 
+        $frozenEnd = SemesterScheduleService::frozen($employee, $end);
+
         return [
-            'employee' => $employee, 'rows' => $rows, 'form_rows' => $formRows,
+            'employee' => SemesterScheduleService::profile($employee, $end),
+            'term_labels' => $rows->pluck('term_label')->unique()->values(),
+            'semester_signatories' => $rows->map(fn ($row) => ['date' => $row['date'], 'signatory' => SemesterScheduleService::frozen($employee, $row['date'])['signatory'] ?? null]), 'rows' => $rows, 'form_rows' => $formRows,
             'cutoff' => ['start_date' => $start->toDateString(), 'end_date' => $end->toDateString(), 'label' => $start->format('F j').'-'.$end->format('j, Y')],
-            'signatory' => $signatory ? ['name' => strtoupper($signatory->name), 'designation' => 'In Charge'] : null,
+            'signatory' => $frozenEnd !== null ? $frozenEnd['signatory'] : ($signatory ? ['name' => strtoupper($signatory->name), 'designation' => 'In Charge'] : null),
             'summary' => ['scheduled_days' => $rows->where('has_schedule', true)->count(), 'days_present' => $rows->whereNotNull('time_in')->count(),
                 'absent_days' => $rows->where('status', 'absent')->count(), 'incomplete_days' => $rows->where('status', 'incomplete')->count(),
                 'worked_seconds' => $rows->sum('worked_seconds'), 'total_hours' => round($rows->sum('worked_seconds') / 3600, 4),

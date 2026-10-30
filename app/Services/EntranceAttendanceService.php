@@ -14,6 +14,7 @@ class EntranceAttendanceService
     public function preview(string $uid, Carbon $at): array
     {
         $this->validateRecordingDate($at);
+        SemesterScheduleService::assertRecordable($at);
         $card = RfidCard::whereRaw('UPPER(rfid_uid) = ?', [strtoupper(trim($uid))])->where('status', 'active')->first();
         $employee = $card?->employee;
         if (! $employee || $employee->status !== 'active') {
@@ -32,8 +33,11 @@ class EntranceAttendanceService
     public function record(string $uid, ?string $action, Carbon $at, int $actorId, ?string $expectedAction = null): EntranceAttendance
     {
         $this->validateRecordingDate($at);
+        SemesterScheduleService::assertRecordable($at);
 
         return DB::transaction(function () use ($uid, $action, $at, $actorId, $expectedAction) {
+            app(SemesterManagementService::class)->lock();
+            SemesterScheduleService::assertRecordable($at);
             $card = RfidCard::whereRaw('UPPER(rfid_uid) = ?', [strtoupper(trim($uid))])->where('status', 'active')->first();
             $employee = $card ? Employee::whereKey($card->employee_id)->lockForUpdate()->first() : null;
             if (! $employee || $employee->status !== 'active') {

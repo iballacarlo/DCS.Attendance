@@ -54,8 +54,7 @@ class FacultyDtrTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Attendance/Index')
                 ->has('employees', 0)
-                ->has('logs.data', 1)
-                ->where('logs.data.0.employee_id', $employee->id)
+                ->where('logs.data', fn ($rows) => collect($rows)->where('has_record', true)->count() === 1 && collect($rows)->every(fn ($row) => $row['employee_id'] === $employee->id))
                 ->missing('dtr')
             );
 

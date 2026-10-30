@@ -41,7 +41,7 @@ class TodayScheduleService
         });
 
         $employee->loadMissing(['schedules', 'scheduleBreaks']);
-        $auxiliary = $employee->schedules->where('schedule_type', '!=', 'class')->concat($employee->scheduleBreaks)
+        $auxiliary = SemesterScheduleService::schedules($employee, $day)->where('schedule_type', '!=', 'class')->concat(SemesterScheduleService::breaks($employee, $day))
             ->where('day_of_week', $day->dayOfWeek)->map(fn ($schedule) => [
                 'key' => 'schedule-'.$schedule->schedule_type.'-'.$schedule->id,
                 'schedule_type' => $schedule->schedule_type, 'subject' => null, 'section' => null, 'class_mode' => null,

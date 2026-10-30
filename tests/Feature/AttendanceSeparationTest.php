@@ -170,7 +170,7 @@ class AttendanceSeparationTest extends TestCase
         $assertBlank(); // A later schedule must not reinterpret the empty snapshot.
         $this->assertDatabaseHas('entrance_attendances', ['employee_id' => $employee->id, 'attendance_date' => '2026-10-28', 'time_in' => '13:36:08', 'time_out' => '16:04:00']);
         $this->admin();
-        $this->get('/entrance?date=2026-10-28')->assertInertia(fn (Assert $p) => $p->has('logs.data', 1)->where('logs.data.0.time_in', '13:36:08'));
+        $this->get('/entrance?date=2026-10-28')->assertInertia(fn (Assert $p) => $p->where('logs.data', fn ($rows) => collect($rows)->where('has_record', true)->count() === 1 && collect($rows)->where('has_record', true)->first()['time_in'] === '13:36:08'));
     }
 
     public function test_consultation_only_day_still_appears_in_dtr_without_class_hardware_taps(): void

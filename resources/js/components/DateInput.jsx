@@ -1,22 +1,32 @@
 import { useEffect, useRef, useState } from 'react';
-import { formatDate } from '../lib/format';
+import { CalendarDays } from 'lucide-react';
+import { displayInputDate, inputDateError, parseInputDate } from '../lib/dateInputValue.js';
+import '../../css/dateInput.css';
 
-// Keep API/form values as ISO while displaying an explicit, locale-independent date.
-export default function DateInput({ value = '', onChange, min, max, ...props }) {
-    const [text, setText] = useState(value ? formatDate(value) : '');
+// ISO values remain unchanged for requests; visible dates never depend on browser locale.
+export default function DateInput({ value = '', onChange, min, max, type = 'date', ...props }) {
+    const withTime = type === 'datetime-local';
+    const [text, setText] = useState(displayInputDate(value, withTime));
     const input = useRef(null);
-    useEffect(() => { setText(value ? formatDate(value) : ''); input.current?.setCustomValidity(''); }, [value]);
+    const picker = useRef(null);
+    useEffect(() => { setText(displayInputDate(value, withTime)); }, [value, withTime]);
+    useEffect(() => { input.current?.setCustomValidity(inputDateError(text, min, max, withTime)); }, [text, min, max, withTime]);
     const update = (event) => {
-        const text = event.target.value;
-        setText(text);
-        if (!text) { event.target.setCustomValidity(''); onChange?.({ target: { value: '' } }); return; }
-        const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(text);
-        const iso = match ? `${match[3]}-${match[1]}-${match[2]}` : '';
-        const date = iso ? new Date(`${iso}T12:00:00`) : null;
-        const valid = date && !Number.isNaN(date.getTime()) && date.getFullYear() === Number(match[3]) && date.getMonth() + 1 === Number(match[1]) && date.getDate() === Number(match[2]);
-        const inRange = valid && (!min || iso >= min) && (!max || iso <= max);
-        event.target.setCustomValidity(inRange ? '' : `Enter a valid date in MM/DD/YYYY format${min ? ` on or after ${formatDate(min)}` : ''}${max ? ` on or before ${formatDate(max)}` : ''}.`);
-        if (inRange) onChange?.({ target: { value: iso } });
+        const next = event.target.value;
+        setText(next);
+        const error = inputDateError(next, min, max, withTime);
+        event.target.setCustomValidity(error);
+        if (!error) onChange?.({ target: { value: parseInputDate(next, withTime) } });
     };
-    return <input {...props} ref={input} type="text" inputMode="numeric" placeholder="MM/DD/YYYY" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" maxLength={10} value={text} onChange={update} />;
+    return <span className="date-input">
+        <input {...props} ref={input} type="text" inputMode={withTime ? 'text' : 'numeric'}
+            placeholder={withTime ? 'MM/DD/YYYY HH:mm' : 'MM/DD/YYYY'}
+            pattern={withTime ? '[0-9]{2}/[0-9]{2}/[0-9]{4} [0-9]{2}:[0-9]{2}' : '[0-9]{2}/[0-9]{2}/[0-9]{4}'}
+            maxLength={withTime ? 16 : 10} value={text} onChange={update} />
+        <button type="button" className="date-input-open" aria-label={withTime ? 'Choose date and time' : 'Choose date'} disabled={props.disabled || props.readOnly}
+            onClick={() => { try { picker.current.showPicker(); } catch { picker.current?.focus(); } }}><CalendarDays size={18} aria-hidden="true" /></button>
+        <input ref={picker} className="date-input-native" type={withTime ? 'datetime-local' : 'date'} tabIndex={-1} aria-hidden="true"
+            min={min} max={max} value={value || ''} disabled={props.disabled || props.readOnly}
+            onChange={(event) => { const next = event.target.value; setText(displayInputDate(next, withTime)); input.current?.setCustomValidity(''); onChange?.({ target: { value: next } }); }} />
+    </span>;
 }

@@ -1,15 +1,17 @@
+import { formatDate } from './format.js';
 export const attendanceStatuses = [
     { key: 'complete', label: 'Complete records', short: 'Complete', description: 'Both IN and OUT recorded', tone: 'complete' },
     { key: 'incomplete', label: 'For review', short: 'For review', description: 'Attendance needs review after the class has ended', tone: 'incomplete' },
     { key: 'missed', label: 'Absent', short: 'Absent', description: 'No attendance record for a finished class', tone: 'missed' },
 ];
 
-export const sessionStatusLabels = { on_time: 'On time & full class', late: 'Late', undertime: 'Undertime', missed: 'Absent', incomplete: 'For review', complete: 'Complete IN/OUT', upcoming: 'Not started', in_progress: 'Class in progress', excluded: 'Not required' };
+export const sessionStatusLabels = { on_time: 'On time & full class', late: 'Late', undertime: 'Undertime', late_undertime: 'Late & undertime', missed: 'Absent', incomplete: 'For review', complete: 'Complete IN/OUT', upcoming: 'Not started', in_progress: 'Class in progress', excluded: 'Not required' };
 
 export function matchesSessionStatus(row, status) {
     if (!status) return true;
-    if (['late', 'undertime', 'on_time'].includes(status)) {
+    if (['late', 'undertime', 'on_time', 'late_undertime'].includes(status)) {
         if (!row.ended || row.status !== 'complete') return false;
+        if (status === 'late_undertime') return Number(row.late_minutes) > 0 && Number(row.early_departure_minutes) > 0;
         if (status === 'late') return Number(row.late_minutes) > 0;
         if (status === 'undertime') return Number(row.early_departure_minutes) > 0;
         return row.status === 'complete' && row.late_minutes === 0 && row.early_departure_minutes === 0;
@@ -57,7 +59,7 @@ export function classReportView(report, status = '') {
 }
 
 const dateFormat = (date, options) => new Intl.DateTimeFormat('en-PH', { timeZone: 'UTC', ...options }).format(date);
-export const shortChartDate = (iso) => dateFormat(new Date(`${iso}T00:00:00Z`), { month: 'short', day: 'numeric' });
+export const shortChartDate = (iso) => formatDate(iso);
 
 // Long date ranges use calendar buckets so the trend remains readable.
 // Combine counts before computing percentages; never average daily rates.

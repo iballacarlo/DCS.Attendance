@@ -1,22 +1,36 @@
-import { useEffect, useId, useState } from 'react';
-import { currentCutoff, cutoffMonths, cutoffPeriod } from '../lib/cutoff';
+import YearFilterInput from './YearFilterInput';
+import { usePage } from '@inertiajs/react';
+import { constrainCutoff, cutoffMonths, cutoffPeriod, semesterCutoffs } from '../lib/cutoff.js';
 
-export default function CutoffPicker({ value, onChange, disabled = false }) {
-    const fallback = currentCutoff().start;
-    const [year, month, day] = (value || fallback).split('-');
-    const [yearDraft, setYearDraft] = useState(year);
-    const [error, setError] = useState('');
-    const id = useId();
-    useEffect(() => { setYearDraft(year); setError(''); }, [year]);
-    const commit = (nextYear = yearDraft, nextMonth = month, nextDay = day) => {
-        const period = cutoffPeriod(`${nextYear}-${nextMonth}-${nextDay}`);
-        if (!period) { setError('Enter a year from 2000 to 2100.'); return; }
-        setError(''); onChange(period);
+export default function CutoffPicker({ value, onChange, disabled = false, termId }) {
+    const page = usePage();
+    const selectedTerm = termId ?? new URLSearchParams(page.url.split('?')[1]).get('term_id') ?? '';
+    const term = (page.props.semesterOptions || []).find((item) => String(item.id) === String(selectedTerm));
+    const choices = semesterCutoffs(term);
+    const period = constrainCutoff(value, term);
+    const [year, month, day] = period.start.split('-');
+    const years = choices.length ? [...new Set(choices.map((item) => item.start.slice(0, 4)))]
+        : undefined;
+    const months = choices.length ? [...new Set(choices.filter((item) => item.start.startsWith(`${year}-`)).map((item) => item.start.slice(5, 7)))]
+        : cutoffMonths.map((_, index) => String(index + 1).padStart(2, '0'));
+    const days = choices.length ? choices.filter((item) => item.start.startsWith(`${year}-${month}-`)).map((item) => item.start.slice(8)) : ['01', '16'];
+    const commit = (nextYear = year, nextMonth = month, nextDay = day) => {
+        if (!choices.length) {
+            const next = cutoffPeriod(`${nextYear}-${nextMonth}-${nextDay}`);
+            if (next) onChange(next);
+            return;
+        }
+        const inYear = choices.filter((item) => item.start.startsWith(`${nextYear}-`));
+        const inMonth = inYear.filter((item) => item.start.slice(5, 7) === nextMonth);
+        const candidates = inMonth.length ? inMonth : inYear;
+        const next = candidates.find((item) => item.start.slice(8) === nextDay) || candidates[0];
+        if (next) onChange(next);
     };
     return <div className="cutoff-picker" role="group" aria-label="Cutoff period">
-        <div className="cutoff-picker-fields"><label>Month<select disabled={disabled} value={month} onChange={(event) => commit(undefined, event.target.value)}>{cutoffMonths.map((name, index) => <option value={String(index + 1).padStart(2, '0')} key={name}>{name}</option>)}</select></label>
-            <label className="cutoff-picker-year">Year<input type="number" min="2000" max="2100" step="1" disabled={disabled} value={yearDraft} aria-invalid={!!error} aria-describedby={error ? id : undefined} onChange={(event) => setYearDraft(event.target.value)} onBlur={() => { if (yearDraft !== year) commit(); }} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } }} /></label>
-            <label>Cutoff<select disabled={disabled} value={day} onChange={(event) => commit(undefined, month, event.target.value)}><option value="01">1–15</option><option value="16">16–month end</option></select></label></div>
-        {error && <p id={id} className="cutoff-picker-error" role="alert">{error}</p>}
+        <div className="cutoff-picker-fields">
+            <label>Month<select disabled={disabled} value={month} onChange={(event) => commit(year, event.target.value)}>{months.map((number) => <option value={number} key={number}>{cutoffMonths[Number(number) - 1]}</option>)}</select></label>
+            <label className="cutoff-picker-year">Year<YearFilterInput disabled={disabled} value={year} allowedYears={years} onYearChange={(next) => commit(next)} /></label>
+            <label>Cutoff<select disabled={disabled} value={day} onChange={(event) => commit(year, month, event.target.value)}>{days.map((number) => <option key={number} value={number}>{number === '01' ? '1–15' : '16–month end'}</option>)}</select></label>
+        </div>
     </div>;
 }
