@@ -103,17 +103,29 @@ class ProfileTest extends TestCase
         $this->assertSame('active', $employee->status);
     }
 
-    public function test_signed_verification_link_marks_email_as_verified(): void
+    public function test_signed_verification_link_requires_the_account_password_and_sends_confirmation(): void
     {
-        $user = User::factory()->unverified()->create();
+        config([
+            'services.google_mail.webhook_url' => 'https://script.google.com/test/exec',
+            'services.google_mail.webhook_secret' => 'test-secret',
+        ]);
+        Http::fake(['https://script.google.com/*' => Http::response(['ok' => true])]);
+        $user = User::factory()->unverified()->create(['password' => 'private-password']);
         $url = URL::temporarySignedRoute('verification.verify', now()->addHour(), [
             'user' => $user->id,
             'hash' => sha1($user->email),
         ]);
 
-        $this->get($url)->assertRedirect(route('login'));
+        $this->get($url)->assertOk()->assertInertia(fn ($page) => $page
+            ->component('Auth/VerifyEmail')
+            ->where('verificationEmail', $user->email));
+        $this->post($url, ['password' => 'wrong-password'])->assertSessionHasErrors('password');
+        $this->assertNull($user->fresh()->email_verified_at);
+        $this->post($url, ['password' => 'private-password'])->assertRedirect(route('login'));
 
         $this->assertNotNull($user->fresh()->email_verified_at);
+        Http::assertSent(fn ($request) => str_contains($request['subject'], 'email is verified')
+            && str_contains($request['message'], 'successfully verified'));
     }
 
     public function test_verification_email_is_sent_through_google_apps_script(): void

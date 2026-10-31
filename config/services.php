@@ -42,6 +42,8 @@ return [
     'google_mail' => [
         'webhook_url' => env('GOOGLE_MAIL_WEBHOOK_URL'),
         'webhook_secret' => env('GOOGLE_MAIL_WEBHOOK_SECRET'),
+        'logo_url' => env('GOOGLE_MAIL_LOGO_URL'),
+        'dcs_logo_url' => env('GOOGLE_MAIL_DCS_LOGO_URL'),
     ],
 
 ];

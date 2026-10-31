@@ -136,19 +136,12 @@ class EmployeeController extends Controller
             return ['employee' => $employee, 'email' => $employee->email, 'password' => $temporaryPassword];
         });
 
-        $verificationSent = $mailer->sendVerification(
-            $credentials['employee']->user,
-            $credentials['password']
-        );
+        $passwordSent = $mailer->sendTemporaryPassword($credentials['employee']->user, $credentials['password']);
 
         return redirect(route('employees.edit', $credentials['employee']).'#attendance-identifiers')
-            ->with('success', $verificationSent
-                ? 'Faculty account created. A verification link was sent to the email address.'
-                : 'Faculty account created, but the verification email was not sent. Check the Google mail configuration.')
-            ->with('temporary_credentials', [
-                'email' => $credentials['email'],
-                'password' => $credentials['password'],
-            ]);
+            ->with($passwordSent ? 'success' : 'error', $passwordSent
+                ? 'Faculty account created. The temporary password was sent directly to the faculty email.'
+                : 'Faculty account created, but the temporary password email was not sent. Check the Google mail configuration.');
     }
 
     public function edit(Employee $employee)
@@ -166,18 +159,36 @@ class EmployeeController extends Controller
     {
         DB::transaction(function () use ($request, $employee) {
             $employee->update($this->validated($request, $employee->id));
-            if ($employee->user) {
-                $employee->user->update([
-                    'name' => implode(' ', array_filter([$employee->first_name, $employee->middle_name, $employee->last_name, $employee->suffix])),
-                    'email' => $employee->email,
-                ]);
-            }
             $this->saveDevices($request, $employee);
             $this->saveSchedules($request, $employee);
-            $this->saveEmploymentHistory($request, $employee);
         });
 
         return redirect()->route('employees.index')->with('success', 'Faculty record updated.');
+    }
+
+    public function createAccount(Employee $employee, GoogleAppsScriptMailer $mailer)
+    {
+        if ($employee->user) {
+            return back()->with('error', 'This faculty already has a linked account.');
+        }
+        if (User::withoutGlobalScopes()->where('email', $employee->email)->exists()) {
+            return back()->with('error', 'The faculty email is already used by another account.');
+        }
+
+        $temporaryPassword = Str::random(20);
+        $user = User::create([
+            'employee_id' => $employee->id,
+            'name' => implode(' ', array_filter([$employee->first_name, $employee->middle_name, $employee->last_name, $employee->suffix])),
+            'email' => strtolower($employee->email),
+            'password' => $temporaryPassword,
+            'role' => 'faculty',
+            'must_change_password' => true,
+        ]);
+        $sent = $mailer->sendTemporaryPassword($user, $temporaryPassword);
+
+        return back()->with($sent ? 'success' : 'error', $sent
+            ? 'Faculty account created and the temporary password was sent to the faculty email.'
+            : 'Faculty account created, but the temporary password email could not be sent. The faculty can use Forgot Password.');
     }
 
     public function editSchedule(Request $request, $employee)
@@ -258,34 +269,10 @@ class EmployeeController extends Controller
 
     private function validated(Request $request, ?int $employeeId = null, bool $isCreating = false): array
     {
-        $linkedUserId = $employeeId ? User::where('employee_id', $employeeId)->value('id') : null;
-        $data = $request->validate([
+        $rules = [
             'employee_no' => $isCreating
                 ? ['nullable']
                 : ['required', 'max:30', 'unique:employees,employee_no,'.$employeeId.',id'],
-            'first_name' => ['required', 'max:100'],
-            'middle_name' => ['nullable', 'max:100'],
-            'last_name' => ['required', 'max:100'],
-            'suffix' => ['nullable', 'string', 'max:20'],
-            'email' => [
-                'required',
-                'email:rfc',
-                'ends_with:@cvsu.edu.ph',
-                'max:100',
-                Rule::unique('employees', 'email')->ignore($employeeId),
-                Rule::unique('users', 'email')->ignore($linkedUserId),
-            ],
-            'contact_no' => ['nullable', 'regex:/^\+639\d{9}$/'],
-            'highest_educational_attainment' => ['required', Rule::in([
-                "Bachelor's Degree",
-                'Post-Baccalaureate Certificate or Diploma',
-                "Master's Degree Units",
-                "Master's Degree",
-                'Doctorate Degree Units',
-                'Doctorate Degree',
-                'Postdoctoral Studies',
-            ])],
-            'service_start_date' => ['required', 'date', 'before_or_equal:today'],
             'faculty_rank_id' => [
                 'required',
                 Rule::exists('faculty_ranks', 'id')->where(fn ($query) => $query->where('is_active', true)),
@@ -293,7 +280,19 @@ class EmployeeController extends Controller
             'contract_start' => ['nullable', 'required_with:contract_end', 'date'],
             'contract_end' => ['nullable', 'required_with:contract_start', 'date', 'after_or_equal:contract_start'],
             'status' => ['required', 'in:active,inactive'],
-        ]);
+        ];
+
+        if ($isCreating) {
+            $rules += [
+                'first_name' => ['required', 'max:100'],
+                'middle_name' => ['nullable', 'max:100'],
+                'last_name' => ['required', 'max:100'],
+                'suffix' => ['nullable', 'string', 'max:20'],
+                'email' => ['required', 'email:rfc', 'ends_with:@cvsu.edu.ph', 'max:100', Rule::unique('employees', 'email'), Rule::unique('users', 'email')],
+            ];
+        }
+
+        $data = $request->validate($rules);
 
         // Retained legacy columns are initialized only for new profiles.
         if ($isCreating) {
@@ -305,27 +304,6 @@ class EmployeeController extends Controller
         $data['employment_type'] = 'Contract of Service';
 
         return $data;
-    }
-
-    private function saveEmploymentHistory(Request $request, Employee $employee): void
-    {
-        $data = $request->validate([
-            'employment_history' => ['nullable', 'array', 'max:20'],
-            'employment_history.*.employer' => ['required', 'string', 'max:150'],
-            'employment_history.*.position' => ['required', 'string', 'max:150'],
-            'employment_history.*.started_on' => ['required', 'date'],
-            'employment_history.*.ended_on' => ['nullable', 'date'],
-        ]);
-
-        $employee->employmentHistories()->delete();
-        foreach ($data['employment_history'] ?? [] as $history) {
-            if ($history['ended_on'] && $history['ended_on'] < $history['started_on']) {
-                throw ValidationException::withMessages([
-                    'employment_history' => 'Employment end month must be after its start month.',
-                ]);
-            }
-            $employee->employmentHistories()->create($history);
-        }
     }
 
     private function saveDevices(Request $request, Employee $employee): void

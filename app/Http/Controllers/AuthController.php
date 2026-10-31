@@ -30,9 +30,13 @@ class AuthController extends Controller
 
             $request->session()->forget('url.intended');
 
+            if (Auth::user()->must_change_password) {
+                return redirect()->route('account.password.edit');
+            }
+
             return redirect()->route(match (Auth::user()->role) {
                 'guard' => 'entrance.kiosk',
-                'generator' => Auth::user()->must_change_password ? 'account.password.edit' : 'generator.index',
+                'generator' => 'generator.index',
                 default => 'dashboard',
             });
         }

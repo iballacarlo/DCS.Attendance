@@ -101,6 +101,23 @@ class FacultyArchiveTest extends TestCase
         $this->assertDatabaseHas('audit_trails', ['record_id' => $employee->id, 'action' => 'faculty.restored']);
     }
 
+    public function test_admin_can_permanently_delete_an_archived_faculty_and_all_linked_records(): void
+    {
+        [$employee, $faculty, $schedule, $log] = $this->faculty();
+        $admin = User::factory()->create(['role' => 'admin']);
+        DB::table('faculty_term_assignments')->insert(['academic_term_id' => 1, 'employee_id' => $employee->id, 'profile' => '{}', 'created_at' => now(), 'updated_at' => now()]);
+
+        $this->actingAs($admin)->post('/employees/archive', ['employee_ids' => [$employee->id]])->assertSessionHasNoErrors();
+        $this->from('/archived-faculty')->delete('/archived-faculty/'.$employee->id)->assertRedirect('/archived-faculty')->assertSessionHasNoErrors();
+
+        $this->assertDatabaseMissing('employees', ['id' => $employee->id]);
+        $this->assertDatabaseMissing('users', ['id' => $faculty->id]);
+        $this->assertDatabaseMissing('faculty_schedules', ['id' => $schedule->id]);
+        $this->assertDatabaseMissing('attendance_logs', ['id' => $log->id]);
+        $this->assertDatabaseMissing('faculty_term_assignments', ['employee_id' => $employee->id]);
+        $this->assertDatabaseHas('audit_trails', ['record_id' => $employee->id, 'action' => 'faculty.deleted']);
+    }
+
     public function test_archive_operations_are_admin_only(): void
     {
         [$employee, $faculty] = $this->faculty();
@@ -174,7 +191,7 @@ class FacultyArchiveTest extends TestCase
         $this->actingAs($admin)->post('/employees/archive', ['employee_ids' => [$employee->id]])->assertSessionHasNoErrors();
         $this->get('/school-calendar?month=2026-10')->assertInertia(fn (Assert $page) => $page->has('events', 0)->has('employees', 0));
         $this->get('/settings/accounts')->assertInertia(fn (Assert $page) => $page->has('users.data', 1)->where('users.data.0.id', $admin->id));
-        $this->post('/settings/accounts', ['name' => 'Invalid Link', 'email' => 'invalid@example.test', 'role' => 'faculty', 'employee_id' => $employee->id, 'password' => 'password123'])->assertSessionHasErrors('employee_id');
+        $this->post('/employees/'.$employee->id.'/account')->assertNotFound();
         $this->post('/archived-faculty/'.$employee->id.'/restore')->assertSessionHasNoErrors();
         $this->assertNotNull(CalendarEvent::find($event->id));
     }

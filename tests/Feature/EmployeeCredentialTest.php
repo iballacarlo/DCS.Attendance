@@ -8,7 +8,6 @@ use App\Models\HardwareEnrollment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -213,7 +212,7 @@ class EmployeeCredentialTest extends TestCase
         $this->assertDatabaseHas('fingerprint_templates', ['employee_id' => $owner->id, 'fingerprint_code' => 'FP-1']);
     }
 
-    public function test_faculty_email_and_phone_use_institutional_formats(): void
+    public function test_admin_cannot_change_faculty_owned_email_and_phone(): void
     {
         $employee = $this->employee();
         $admin = User::factory()->create(['role' => 'admin']);
@@ -223,23 +222,23 @@ class EmployeeCredentialTest extends TestCase
                 'email' => 'not-an-email@gmail.com',
                 'contact_no' => '09171234567',
             ]))
-            ->assertSessionHasErrors(['email', 'contact_no']);
+            ->assertSessionHasNoErrors();
 
         $this->actingAs($admin)
             ->put(route('employees.update', $employee), $this->employeePayload($employee, [
-                'email' => 'test.faculty@cvsu.edu.ph',
+                'email' => 'another.faculty@cvsu.edu.ph',
                 'contact_no' => '+639171234567',
             ]))
             ->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('employees', [
             'id' => $employee->id,
-            'email' => 'test.faculty@cvsu.edu.ph',
-            'contact_no' => '+639171234567',
+            'email' => $employee->email,
+            'contact_no' => $employee->contact_no,
         ]);
     }
 
-    public function test_admin_can_save_structured_employment_history(): void
+    public function test_admin_cannot_replace_faculty_owned_employment_history(): void
     {
         $employee = $this->employee();
 
@@ -254,13 +253,7 @@ class EmployeeCredentialTest extends TestCase
             ]))
             ->assertSessionHasNoErrors();
 
-        $this->assertDatabaseHas('employment_histories', [
-            'employee_id' => $employee->id,
-            'employer' => 'Previous State University',
-            'position' => 'Instructor',
-            'started_on' => '2018-06-01 00:00:00',
-            'ended_on' => '2020-05-01 00:00:00',
-        ]);
+        $this->assertDatabaseMissing('employment_histories', ['employee_id' => $employee->id]);
     }
 
     public function test_admin_creating_faculty_also_creates_a_temporary_login(): void
@@ -280,8 +273,6 @@ class EmployeeCredentialTest extends TestCase
             'middle_name' => 'Faculty',
             'last_name' => 'Member',
             'email' => 'new.faculty@cvsu.edu.ph',
-            'highest_educational_attainment' => "Master's Degree",
-            'service_start_date' => '2020-06-01',
             'faculty_rank_id' => $rank->id,
             'rate_amount' => $rank->rate_amount,
             'status' => 'active',
@@ -289,25 +280,21 @@ class EmployeeCredentialTest extends TestCase
         ]);
 
         $employee = Employee::where('email', 'new.faculty@cvsu.edu.ph')->firstOrFail();
-        $this->assertSame("Master's Degree", $employee->highest_educational_attainment);
-        $this->assertSame('2020-06-01', Carbon::parse($employee->service_start_date)->format('Y-m-d'));
         $response->assertRedirect(route('employees.edit', $employee).'#attendance-identifiers')
-            ->assertSessionHas('temporary_credentials');
+            ->assertSessionMissing('temporary_credentials');
 
         $user = User::where('email', 'new.faculty@cvsu.edu.ph')->firstOrFail();
-        $credentials = session('temporary_credentials');
         $this->assertSame('faculty', $user->role);
         $this->assertTrue($user->must_change_password);
         $this->assertNotNull($user->employee_id);
-        $this->assertSame(16, strlen($credentials['password']));
-        $this->assertTrue(Hash::check($credentials['password'], $user->password));
         Http::assertSent(fn ($request) => $request['recipient'] === $user->email
-            && str_contains($request['subject'], 'account is ready')
-            && str_contains($request['message'], $credentials['password'])
-            && str_contains($request['html'], e($credentials['password'])));
+            && str_contains($request['subject'], 'temporary password')
+            && str_contains($request['message'], 'Temporary password:')
+            && ! str_contains($request['message'], 'email/verify')
+            && ! str_contains($request['html'], 'Verify email'));
     }
 
-    public function test_creating_faculty_requires_attainment_and_service_start_before_registration(): void
+    public function test_creating_faculty_does_not_require_faculty_owned_profile_fields(): void
     {
         $rank = FacultyRank::where('is_active', true)->firstOrFail();
         $this->actingAs(User::factory()->create(['role' => 'admin']))
@@ -318,10 +305,10 @@ class EmployeeCredentialTest extends TestCase
                 'faculty_rank_id' => $rank->id,
                 'status' => 'active',
             ])
-            ->assertSessionHasErrors(['highest_educational_attainment', 'service_start_date']);
+            ->assertSessionHasNoErrors();
 
-        $this->assertDatabaseMissing('employees', ['email' => 'incomplete.faculty@cvsu.edu.ph']);
-        $this->assertDatabaseMissing('users', ['email' => 'incomplete.faculty@cvsu.edu.ph']);
+        $this->assertDatabaseHas('employees', ['email' => 'incomplete.faculty@cvsu.edu.ph']);
+        $this->assertDatabaseHas('users', ['email' => 'incomplete.faculty@cvsu.edu.ph']);
     }
 
     public function test_rank_changes_and_submitted_salary_do_not_change_retained_historical_rates(): void

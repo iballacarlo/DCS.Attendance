@@ -79,10 +79,32 @@ class FacultyArchiveController extends Controller
         return back()->with('success', 'Faculty restored with their original status, schedule, and history.');
     }
 
+    public function destroy(Request $request, int $archivedId)
+    {
+        DB::transaction(function () use ($request, $archivedId) {
+            $employee = Employee::withoutGlobalScope('not_archived')->whereNotNull('archived_at')->lockForUpdate()->findOrFail($archivedId);
+            $accountIds = User::withoutGlobalScopes()->where('employee_id', $employee->id)->pluck('id');
+            DB::table('sessions')->whereIn('user_id', $accountIds)->delete();
+            User::withoutGlobalScopes()->whereIn('id', $accountIds)->delete();
+            foreach (['faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events'] as $table) {
+                DB::table($table)->where('employee_id', $employee->id)->delete();
+            }
+            $this->audit($employee->id, 'faculty.deleted', $request->user()->id);
+            $employee->delete();
+        });
+        Inertia::clearHistory();
+
+        return back()->with('success', 'Archived faculty and all linked records were permanently deleted.');
+    }
+
     private function audit(int $employeeId, string $action, int $actorId): void
     {
         DB::table('audit_trails')->insert(['action' => $action, 'table_name' => 'employees', 'record_id' => $employeeId,
-            'description' => ($action === 'faculty.archived' ? 'Archived' : 'Restored')." faculty #{$employeeId} by administrator #{$actorId}.",
+            'description' => match ($action) {
+                'faculty.archived' => "Archived faculty #{$employeeId} by administrator #{$actorId}.",
+                'faculty.restored' => "Restored faculty #{$employeeId} by administrator #{$actorId}.",
+                default => "Permanently deleted archived faculty #{$employeeId} by administrator #{$actorId}.",
+            },
             'created_at' => now(), 'updated_at' => now()]);
     }
 }

@@ -1,5 +1,5 @@
 import DateInput from '../../components/DateInput';
-import { Link, useForm, usePage } from '@inertiajs/react';
+import { Link, useForm } from '@inertiajs/react';
 import axios from 'axios';
 import { BriefcaseBusiness, Check, CircleCheck, CircleHelp, Copy, Fingerprint, KeyRound, Link2Off, LoaderCircle, Nfc, Plus, Radio, RefreshCw, Trash2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -52,7 +52,6 @@ function serviceDuration(startMonth) {
 }
 
 export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
-    const { flash } = usePage().props;
     const isNew = !employee.id;
     const emailEdited = useRef(Boolean(employee.email));
     const rfidInput = useRef(null);
@@ -64,7 +63,6 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
     const nfcScanner = useRef(null);
     const nfcBusy = nfcPhase !== 'idle';
     useEffect(() => () => nfcScanner.current?.abort(), []);
-    const [credentialsCopied, setCredentialsCopied] = useState(false);
     const { ask, dialog } = useConfirmDialog();
     const form = useForm({
         employee_no: employee.employee_no || nextEmployeeNumber || '', first_name: employee.first_name || '', middle_name: employee.middle_name || '', last_name: employee.last_name || '', suffix: employee.suffix || '', email: employee.email || '', contact_no: localPhoneNumber(employee.contact_no), highest_educational_attainment: employee.highest_educational_attainment || '', service_start_date: employee.service_start_date?.slice(0, 7) || '', faculty_rank_id: employee.faculty_rank_id || '', status: employee.status || 'active', contract_start: employee.contract_start || '', contract_end: employee.contract_end || '', employment_history: (employee.employment_histories || []).map((history) => ({ ...history, started_on: history.started_on?.slice(0, 7) || '', ended_on: history.ended_on?.slice(0, 7) || '' })), rfid_uid: employee.rfid_cards?.[0]?.rfid_uid || '', fingerprint_code: employee.fingerprint_templates?.[0]?.fingerprint_code || '', finger_label: employee.fingerprint_templates?.[0]?.finger_label || '', rfid_reregister: false, fingerprint_reregister: false,
@@ -223,7 +221,7 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
     const removeEmploymentHistory = (index) => form.setData('employment_history', form.data.employment_history.filter((_, historyIndex) => historyIndex !== index));
     return <AppLayout title={employee.id ? 'Edit Faculty' : 'Add Faculty'} subtitle={isNew ? 'Set up the faculty employment record and initial login.' : 'Manage employment settings and attendance identifiers.'}>
         <form className="panel form-grid" onSubmit={submit}>
-            <div className="form-section-title"><span>01</span><div><strong>Personal information</strong><small>Faculty identity and contact details</small></div></div>
+            {isNew && <><div className="form-section-title"><span>01</span><div><strong>Personal information</strong><small>Initial faculty identity and institutional email</small></div></div>
             <div className="name-fields">
                 <label><FieldLabel required note="Faculty member's legal first name.">First Name</FieldLabel><input value={form.data.first_name} autoComplete="given-name" onChange={(e) => updateName('first_name', e.target.value)} required /></label>
                 <label><FieldLabel note="Include the full middle name when available.">Middle Name</FieldLabel><input value={form.data.middle_name} autoComplete="additional-name" onChange={(e) => form.setData('middle_name', e.target.value)} /></label>
@@ -233,17 +231,16 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
             <div className="personal-contact-fields">
                 <label><FieldLabel note="Generated system identifier for this faculty record.">Employee Number</FieldLabel><input value={form.data.employee_no} readOnly aria-readonly="true" /></label>
                 <label><FieldLabel required note="Use an active institutional address ending in @cvsu.edu.ph.">Email Address</FieldLabel><input type="email" value={form.data.email} autoComplete="email" placeholder="name@cvsu.edu.ph" pattern="[^@\s]+@cvsu\.edu\.ph" onChange={(e) => { emailEdited.current = true; form.setData('email', e.target.value); }} required />{form.errors.email && <small className="field-error">{form.errors.email}</small>}</label>
-                {!isNew && <label><FieldLabel note="Enter the 10-digit Philippine mobile number after +63.">Phone Number</FieldLabel><div className="phone-input"><span>+63</span><input type="tel" inputMode="numeric" autoComplete="tel-national" value={form.data.contact_no} maxLength="10" pattern="9[0-9]{9}" placeholder="9XX XXX XXXX" onChange={(e) => form.setData('contact_no', e.target.value.replace(/\D/g, '').slice(0, 10))} /></div>{form.errors.contact_no && <small className="field-error">{form.errors.contact_no}</small>}</label>}
             </div>
-            <div className="form-section-title"><span>02</span><div><strong>Employment details</strong><small>Academic profile, rank, and contract</small></div></div>
+            </>}
+            <div className="form-section-title"><span>{isNew ? '02' : '01'}</span><div><strong>Official employment details</strong><small>Rank, status, and contract managed by the administrator</small></div></div>
             <div className="employment-fields">
-                <label><FieldLabel required note="Options are arranged from the lowest to highest completed attainment.">Highest Educational Attainment</FieldLabel><select value={form.data.highest_educational_attainment} onChange={(e) => form.setData('highest_educational_attainment', e.target.value)} required><option value="">Select attainment</option>{attainmentOptions.map((option) => <option key={option}>{option}</option>)}</select>{form.errors.highest_educational_attainment && <small className="field-error">{form.errors.highest_educational_attainment}</small>}</label>
-                <label><FieldLabel required note={`Select the first month of CvSU service. Current duration: ${serviceDuration(form.data.service_start_date)}.`}>Service Start Month</FieldLabel><input type="month" placeholder="MM / YYYY" max={new Date().toISOString().slice(0, 7)} value={form.data.service_start_date} onChange={(e) => form.setData('service_start_date', e.target.value)} required />{form.errors.service_start_date && <small className="field-error">{form.errors.service_start_date}</small>}</label>
+                {!isNew && <label><FieldLabel note="Generated system identifier for this faculty record.">Employee Number</FieldLabel><input value={form.data.employee_no} readOnly aria-readonly="true" /></label>}
                 <label><FieldLabel required note="Faculty academic rank.">Rank</FieldLabel><select value={form.data.faculty_rank_id} onChange={(e) => selectRank(e.target.value)} required><option value="">Select rank</option>{ranks.map((rank) => <option key={rank.id} value={rank.id}>{rank.name}</option>)}</select></label>
                 <label><FieldLabel note="Inactive faculty keep their schedules and records, but cannot record attendance. You can reactivate them later.">Status</FieldLabel><select value={form.data.status} onChange={(e) => form.setData('status', e.target.value)}><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
             </div>
             <fieldset className="contract-period"><legend>Contract Period</legend><label><FieldLabel note="First calendar day covered by the contract.">Start Date</FieldLabel><DateInput placeholder="MM / DD / YYYY" value={form.data.contract_start || ''} onChange={(e) => form.setData('contract_start', e.target.value)} /></label><span>to</span><label><FieldLabel note="Last calendar day covered by the contract.">End Date</FieldLabel><DateInput placeholder="MM / DD / YYYY" min={form.data.contract_start || undefined} value={form.data.contract_end || ''} onChange={(e) => form.setData('contract_end', e.target.value)} /></label></fieldset>
-            {!isNew && <><div className="form-section-title"><span>03</span><div><strong>Employment history</strong><small>Previous teaching and professional experience</small></div></div>
+            {false && !isNew && <><div className="form-section-title"><span>03</span><div><strong>Employment history</strong><small>Previous teaching and professional experience</small></div></div>
             <div className="employment-history-list">
                 {form.data.employment_history.map((history, index) => <div className="employment-history-row" key={index}>
                     <span className="history-icon"><BriefcaseBusiness size={18} /></span>
@@ -256,12 +253,8 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
                 <button className="add-history-button ui-control ui-action ui-primary" type="button" title="Add another previous employment record" onClick={addEmploymentHistory}><Plus size={16} />Add Employment</button>
                 {form.errors.employment_history && <small className="field-error">{form.errors.employment_history}</small>}
             </div></>}
-            <div className="form-section-title" id="attendance-identifiers"><span>04</span><div><strong>Attendance identifiers</strong><small>RFID and fingerprint registration</small></div></div>
-            {flash?.temporaryCredentials && <section className="faculty-temporary-credentials" role="status">
-                <KeyRound size={21} />
-                <div><strong>Temporary faculty login</strong><span>Email: <b>{flash.temporaryCredentials.email}</b></span><span>Temporary password: <code>{flash.temporaryCredentials.password}</code></span><small>This password is shown only once. Give it securely to the faculty member.</small></div>
-                <button className="ui-control ui-action ui-secondary" type="button" onClick={async () => { await navigator.clipboard.writeText(`Email: ${flash.temporaryCredentials.email}\nTemporary password: ${flash.temporaryCredentials.password}`); setCredentialsCopied(true); }}>{credentialsCopied ? <Check size={17} /> : <Copy size={17} />}{credentialsCopied ? 'Copied' : 'Copy login'}</button>
-            </section>}
+            {!isNew && <p className="form-ownership-note">Personal information, academic profile, and employment history are maintained by the faculty in My Profile.</p>}
+            <div className="form-section-title" id="attendance-identifiers"><span>{isNew ? '03' : '02'}</span><div><strong>Attendance identifiers</strong><small>RFID and fingerprint registration</small></div></div>
             {enrollment && <div className={`credential-enrollment-status is-${enrollment.status}`}>
                 {['starting', 'pending', 'processing'].includes(enrollment.status) ? <LoaderCircle className="spin" size={18} /> : <CircleCheck size={18} />}
                 <span><strong>{enrollment.status === 'completed' ? (enrollment.operation === 'unlink' ? 'Credential unlinked' : 'Registration complete') : enrollment.status === 'failed' ? (enrollment.operation === 'unlink' ? 'Unlink failed' : 'Registration failed') : enrollment.status === 'expired' ? 'Registration expired' : enrollment.status === 'cancelled' ? 'Registration cancelled' : enrollment.operation === 'unlink' ? 'Waiting for fingerprint sensor' : 'Waiting for attendance device'}</strong><small>{enrollment.message || (enrollment.operation === 'unlink' ? 'The fingerprint will be removed from the sensor before it is unlinked.' : enrollment.method === 'rfid' ? 'Tap the RFID card on the RC522.' : 'Follow the fingerprint scanner prompts.')}</small></span>

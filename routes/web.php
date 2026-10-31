@@ -38,9 +38,12 @@ Route::middleware('guest')->group(function () {
     Route::post('reset-password', [PasswordResetController::class, 'update'])->name('password.update');
 });
 
-Route::get('email/verify/{user}/{hash}', [EmailVerificationController::class, 'verify'])
+Route::get('email/verify/{user}/{hash}', [EmailVerificationController::class, 'show'])
     ->middleware('signed')
     ->name('verification.verify');
+Route::post('email/verify/{user}/{hash}', [EmailVerificationController::class, 'verify'])
+    ->middleware(['signed', 'throttle:5,1'])
+    ->name('verification.confirm');
 
 Route::middleware(['auth', 'auth.session', SemesterWriteLock::class])->group(function () {
     Route::get('account/password', [AccountPasswordController::class, 'edit'])->name('account.password.edit');
@@ -61,7 +64,9 @@ Route::middleware(['auth', 'auth.session', SemesterWriteLock::class])->group(fun
     Route::get('archived-faculty', [FacultyArchiveController::class, 'index'])->name('faculty.archive.index')->middleware('role:admin');
     Route::post('employees/archive', [FacultyArchiveController::class, 'store'])->name('faculty.archive.store')->middleware('role:admin');
     Route::post('archived-faculty/{archivedId}/restore', [FacultyArchiveController::class, 'restore'])->whereNumber('archivedId')->name('faculty.archive.restore')->middleware('role:admin');
+    Route::delete('archived-faculty/{archivedId}', [FacultyArchiveController::class, 'destroy'])->whereNumber('archivedId')->name('faculty.archive.destroy')->middleware('role:admin');
     Route::resource('employees', EmployeeController::class)->except(['show'])->middleware('role:admin');
+    Route::post('employees/{employee}/account', [EmployeeController::class, 'createAccount'])->name('employees.account.store')->middleware(['role:admin', 'throttle:5,1']);
     Route::post('employees/{employee}/credentials/enrollments', [EmployeeCredentialController::class, 'store'])->name('employees.credentials.enrollments.store')->middleware('role:admin');
     Route::post('employees/{employee}/credentials/rfid/nfc', [EmployeeCredentialController::class, 'registerNfc'])->name('employees.credentials.rfid.nfc')->middleware(['role:admin', 'throttle:20,1']);
     Route::post('employees/{employee}/credentials/{method}/unlink', [EmployeeCredentialController::class, 'unlink'])->name('employees.credentials.unlink')->middleware('role:admin');

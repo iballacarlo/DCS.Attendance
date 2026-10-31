@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Models\Employee;
 use App\Models\User;
 use App\Services\AccountSecurityService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Password;
 use Tests\TestCase;
 
@@ -17,8 +19,15 @@ class AccountSecurityTest extends TestCase
 
     public function test_temporary_guard_password_blocks_recording_until_changed_then_opens_kiosk(): void
     {
-        $guard = User::factory()->create(['role' => 'guard', 'password' => 'temporary-password', 'must_change_password' => true]);
-        $this->post('/login', ['email' => $guard->email, 'password' => 'temporary-password'])->assertRedirect('/entrance-kiosk');
+        config([
+            'services.google_mail.webhook_url' => 'https://mail.test/send',
+            'services.google_mail.webhook_secret' => 'test-secret',
+            'services.google_mail.logo_url' => 'https://assets.test/cvsu-logo.png',
+            'services.google_mail.dcs_logo_url' => 'https://assets.test/dcs-logo.png',
+        ]);
+        Http::fake(['https://mail.test/*' => Http::response(['ok' => true])]);
+        $guard = User::factory()->create(['role' => 'guard', 'password' => 'temporary-password', 'must_change_password' => true, 'email_verified_at' => null]);
+        $this->post('/login', ['email' => $guard->email, 'password' => 'temporary-password'])->assertRedirect('/account/password');
         $this->get('/')->assertRedirect('/entrance-kiosk');
         $this->get('/account/password')->assertOk();
         $this->get('/entrance-kiosk')->assertRedirect('/account/password');
@@ -33,6 +42,8 @@ class AccountSecurityTest extends TestCase
 
         $this->assertFalse($guard->fresh()->must_change_password);
         $this->assertTrue(Hash::check('a-new-private-passphrase', $guard->fresh()->password));
+        Http::assertSent(fn ($request) => str_contains($request['subject'], 'Verify your DCS Attendance System email address')
+            && ! str_contains($request['message'], 'Temporary password:'));
         $this->get('/entrance-kiosk')->assertOk();
         $this->get('/settings/accounts')->assertForbidden();
     }
@@ -57,7 +68,7 @@ class AccountSecurityTest extends TestCase
     public function test_admin_access_changes_revoke_the_targets_existing_sessions(): void
     {
         $admin = User::factory()->create();
-        $target = User::factory()->create(['role' => 'guard']);
+        $target = User::factory()->create(['role' => 'guard', 'must_change_password' => true]);
         $oldToken = $target->remember_token;
         $this->actingAs($admin)->put('/settings/accounts/'.$target->id, [
             'name' => $target->name, 'email' => $target->email, 'role' => 'admin',
@@ -70,15 +81,161 @@ class AccountSecurityTest extends TestCase
 
     public function test_admin_password_reset_requires_change_and_new_accounts_reject_short_passwords(): void
     {
+        config(['services.google_mail.webhook_url' => 'https://mail.test/send', 'services.google_mail.webhook_secret' => 'test-secret']);
+        Http::fake(['https://mail.test/*' => Http::response(['ok' => true])]);
         $admin = User::factory()->create();
-        $target = User::factory()->create(['role' => 'guard']);
-        $data = ['name' => $target->name, 'email' => $target->email, 'role' => 'guard', 'password' => 'new-temporary-password'];
+        $target = User::factory()->create(['role' => 'guard', 'must_change_password' => true]);
+        $data = ['name' => $target->name, 'email' => $target->email, 'role' => 'guard'];
+        $oldPassword = $target->password;
+        $data['reset_password'] = true;
         $this->actingAs($admin)->put('/settings/accounts/'.$target->id, $data)->assertSessionHasNoErrors();
         $this->assertTrue($target->fresh()->must_change_password);
         $this->assertSame(1, $target->fresh()->security_version);
-        $this->post('/settings/accounts', [...$data, 'email' => 'short@example.test', 'password' => 'short'])->assertSessionHasErrors('password');
-        $this->post('/settings/accounts', [...$data, 'email' => 'new@example.test'])->assertSessionHasNoErrors();
-        $this->assertTrue(User::where('email', 'new@example.test')->firstOrFail()->must_change_password);
+        $this->assertNotSame($oldPassword, $target->fresh()->password);
+        $this->post('/settings/accounts', [...$data, 'email' => 'manual@example.test', 'password' => 'known-by-admin'])->assertSessionHasErrors('password');
+        $response = $this->post('/settings/accounts', ['name' => 'New Guard', 'email' => 'new@example.test', 'role' => 'guard']);
+        $response->assertSessionHasNoErrors()->assertSessionMissing('temporary_credentials')->assertRedirect('/settings/accounts');
+        $created = User::where('email', 'new@example.test')->firstOrFail();
+        $this->assertTrue($created->must_change_password);
+        Http::assertSentCount(2);
+        Http::assertSent(fn ($request) => $request['to'] === 'new@example.test'
+            && str_contains($request['message'], 'Temporary password:'));
+    }
+
+    public function test_admin_cannot_issue_another_temporary_password_after_faculty_sets_a_private_password(): void
+    {
+        config(['services.google_mail.webhook_url' => 'https://mail.test/send', 'services.google_mail.webhook_secret' => 'test-secret']);
+        Http::fake(['https://mail.test/*' => Http::response(['ok' => true])]);
+        $employee = Employee::create(['employee_no' => 'COS-RESET-001', 'first_name' => 'Reset', 'last_name' => 'Faculty', 'email' => 'reset.faculty@cvsu.edu.ph', 'rate_amount' => 0, 'status' => 'active']);
+        $faculty = User::factory()->create(['role' => 'faculty', 'employee_id' => $employee->id, 'email' => $employee->email, 'password' => 'faculty-created-password', 'must_change_password' => false]);
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $originalPassword = $faculty->password;
+        $this->actingAs($admin)->put('/settings/accounts/'.$faculty->id, [
+            'role' => 'faculty', 'employee_id' => $employee->id, 'reset_password' => true,
+        ])->assertSessionHasErrors('reset_password');
+
+        $this->assertSame($originalPassword, $faculty->fresh()->password);
+        $this->assertFalse($faculty->fresh()->must_change_password);
+        Http::assertNothingSent();
+    }
+
+    public function test_generic_account_form_cannot_create_faculty_accounts(): void
+    {
+        config(['services.google_mail.webhook_url' => 'https://mail.test/send', 'services.google_mail.webhook_secret' => 'test-secret']);
+        Http::fake(['https://mail.test/*' => Http::response(['ok' => true])]);
+        $employee = Employee::create([
+            'employee_no' => 'COS-NAME-001',
+            'first_name' => 'Maria',
+            'middle_name' => 'Santos',
+            'last_name' => 'Reyes',
+            'suffix' => 'Jr.',
+            'email' => 'maria.reyes@cvsu.edu.ph',
+            'rate_amount' => 0,
+            'status' => 'active',
+        ]);
+
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->post('/settings/accounts', [
+                'name' => 'Different Typed Name',
+                'role' => 'faculty',
+                'employee_id' => $employee->id,
+            ])->assertSessionHasErrors('role');
+
+        $this->assertDatabaseMissing('users', ['employee_id' => $employee->id]);
+        Http::assertNothingSent();
+    }
+
+    public function test_admin_can_create_a_missing_faculty_account_from_the_faculty_list(): void
+    {
+        config([
+            'services.google_mail.webhook_url' => 'https://mail.test/send',
+            'services.google_mail.webhook_secret' => 'test-secret',
+            'services.google_mail.logo_url' => 'https://assets.test/cvsu-logo.png',
+            'services.google_mail.dcs_logo_url' => 'https://assets.test/dcs-logo.png',
+        ]);
+        Http::fake(['https://mail.test/*' => Http::response(['ok' => true])]);
+        $employee = Employee::create([
+            'employee_no' => 'COS-RECOVER-001',
+            'first_name' => 'Maria',
+            'middle_name' => 'Santos',
+            'last_name' => 'Reyes',
+            'suffix' => 'Jr.',
+            'email' => 'maria.reyes@cvsu.edu.ph',
+            'rate_amount' => 0,
+            'status' => 'active',
+        ]);
+
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->post('/employees/'.$employee->id.'/account')
+            ->assertSessionHasNoErrors();
+
+        $account = User::where('employee_id', $employee->id)->firstOrFail();
+        $this->assertSame('Maria Santos Reyes Jr.', $account->name);
+        $this->assertSame('maria.reyes@cvsu.edu.ph', $account->email);
+        $this->assertTrue($account->must_change_password);
+        Http::assertSent(fn ($request) => $request['to'] === 'maria.reyes@cvsu.edu.ph'
+            && str_contains($request['message'], 'Temporary password:')
+            && str_contains($request['html'], 'https://assets.test/cvsu-logo.png')
+            && str_contains($request['html'], 'https://assets.test/dcs-logo.png')
+            && str_contains($request['html'], 'alt="DCS logo"'));
+    }
+
+    public function test_admin_can_unlink_a_faculty_account_and_its_existing_session_is_revoked(): void
+    {
+        $employee = Employee::create([
+            'employee_no' => 'COS-UNLINK-001',
+            'first_name' => 'Linked',
+            'last_name' => 'Faculty',
+            'email' => 'linked.faculty@cvsu.edu.ph',
+            'rate_amount' => 0,
+            'status' => 'active',
+        ]);
+        $faculty = User::factory()->create([
+            'role' => 'faculty',
+            'employee_id' => $employee->id,
+            'name' => 'Linked Faculty',
+            'email' => 'linked.account@cvsu.edu.ph',
+        ]);
+
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->put('/settings/accounts/'.$faculty->id, [
+                'name' => $faculty->name,
+                'email' => $faculty->email,
+                'role' => 'faculty',
+                'employee_id' => null,
+            ])->assertSessionHasNoErrors();
+
+        $faculty->refresh();
+        $this->assertNull($faculty->employee_id);
+        $this->assertSame(1, $faculty->security_version);
+    }
+
+    public function test_one_faculty_record_cannot_be_linked_to_two_accounts(): void
+    {
+        $employee = Employee::create([
+            'employee_no' => 'COS-UNIQUE-001',
+            'first_name' => 'One',
+            'last_name' => 'Faculty',
+            'email' => 'one.faculty@cvsu.edu.ph',
+            'rate_amount' => 0,
+            'status' => 'active',
+        ]);
+        $linked = User::factory()->create([
+            'role' => 'faculty',
+            'employee_id' => $employee->id,
+            'email' => 'first.account@cvsu.edu.ph',
+        ]);
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)->post('/employees/'.$employee->id.'/account')
+            ->assertSessionHas('error', 'This faculty already has a linked account.');
+
+        $this->get('/settings/accounts/create')->assertInertia(fn ($page) => $page
+            ->where('employees', fn ($employees) => collect($employees)->doesntContain('id', $employee->id)));
+        $this->get('/settings/accounts/'.$linked->id.'/edit')->assertInertia(fn ($page) => $page
+            ->where('employees', fn ($employees) => collect($employees)->contains('id', $employee->id)));
+        $this->assertSame(1, User::where('employee_id', $employee->id)->count());
     }
 
     public function test_password_recovery_revokes_sessions_and_stale_session_cannot_resume(): void

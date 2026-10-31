@@ -77,6 +77,7 @@ class ProfileController extends Controller
 
         $data = $request->validate($rules);
         $emailChanged = strtolower($data['email']) !== strtolower($user->email);
+        $wasTemporaryPassword = $user->must_change_password;
 
         DB::transaction(function () use ($data, $user, $employee, $emailChanged) {
             if ($employee) {
@@ -130,10 +131,16 @@ class ProfileController extends Controller
             $security->revokeSessions($user, $request);
         }
 
-        $verificationSent = $emailChanged ? $mailer->sendVerification($user) : null;
+        $shouldSendVerification = $user->role !== 'generator'
+            && ! $user->hasVerifiedEmail()
+            && ($emailChanged || ($wasTemporaryPassword && ! empty($data['password'])));
+        $verificationSent = $shouldSendVerification ? $mailer->sendVerification($user) : null;
 
-        return redirect()->route('profile.edit')->with('success', $emailChanged
-            ? ($verificationSent ? 'Profile updated. Verify your new email using the link we sent.' : 'Profile updated, but the verification email could not be sent.')
-            : 'Your profile has been updated.');
+        return redirect()->route('profile.edit')->with(
+            $verificationSent === false ? 'error' : 'success',
+            $verificationSent === true
+                ? 'Profile updated. A separate email verification link was sent to your email address.'
+                : ($verificationSent === false ? 'Profile updated, but the verification email could not be sent.' : 'Your profile has been updated.')
+        );
     }
 }

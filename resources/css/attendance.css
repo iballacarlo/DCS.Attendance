@@ -151,10 +151,25 @@
 .holiday-source-links a { text-decoration: underline; }
 #workspace .account-form-page .settings-tabs { margin-bottom: 16px; padding: 12px; }
 #workspace .account-form-page .form-grid { gap: 16px 20px; padding: 22px; margin-bottom: 0; }
+#workspace .account-form-page .linked-faculty-account-field { align-self: start; }
+#workspace .account-form-page .linked-faculty-control-row { align-items: end; display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr) auto; }
+#workspace .account-form-page .linked-faculty-control-row > :first-child { min-width: 0; }
+#workspace .account-form-page .linked-faculty-control-row .account-unlink-faculty { height: 42px; min-height: 42px; }
+#workspace .account-form-page .account-security-actions { display: grid; gap: 12px; }
+#workspace .account-form-page .account-security-actions.is-faculty { align-items: stretch; grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr) auto; }
+#workspace .account-form-page .account-reset-password { min-height: 0; }
+#workspace .account-form-page .account-unlink-faculty { align-self: end; }
 #workspace .account-form-page .form-actions { margin-top: 4px; padding-top: 16px; }
 @media (max-height: 680px) and (min-width: 700px) {
     #workspace .account-form-page .settings-tabs { padding: 8px; margin-bottom: 12px; }
     #workspace .account-form-page .form-grid { padding: 18px; gap: 12px 16px; }
+}
+@media (max-width: 680px) {
+    #workspace .account-form-page .account-security-actions.is-faculty { grid-template-columns: 1fr; }
+    #workspace .account-form-page .account-unlink-faculty { justify-self: start; min-height: 46px; }
+    #workspace .account-form-page .linked-faculty-control-row { grid-template-columns: minmax(0, 1fr) auto; }
+    #workspace .account-form-page .linked-faculty-control-row .account-unlink-faculty { height: 42px; min-height: 42px; padding-inline: 13px; }
+    #workspace .account-form-page .linked-faculty-control-row .account-unlink-faculty span { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .ca-column-bar, .ca-segment { transition: none; } }
 html[data-theme='dark'] .class-analytics { --ca-complete: #55b57c; --ca-incomplete: #ddb34d; --ca-missed: #e18990; }

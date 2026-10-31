@@ -105,7 +105,7 @@ class GuardKioskTest extends TestCase
 
     public function test_admin_can_create_a_guard_without_a_faculty_profile(): void
     {
-        $this->actingAs(User::factory()->create(['role' => 'admin']))->post('/settings/accounts', ['name' => 'Entrance Guard', 'email' => 'guard@example.test', 'password' => 'guard-password', 'role' => 'guard'])->assertSessionHasNoErrors()->assertRedirect('/settings/accounts');
+        $this->actingAs(User::factory()->create(['role' => 'admin']))->post('/settings/accounts', ['name' => 'Entrance Guard', 'email' => 'guard@example.test', 'role' => 'guard'])->assertSessionHasNoErrors()->assertRedirect('/settings/accounts');
         $this->assertDatabaseHas('users', ['email' => 'guard@example.test', 'role' => 'guard', 'employee_id' => null]);
         $this->get('/settings/accounts?role=guard')->assertOk()->assertInertia(fn (Assert $p) => $p->has('users.data', 1)->where('users.data.0.role', 'guard'));
     }
