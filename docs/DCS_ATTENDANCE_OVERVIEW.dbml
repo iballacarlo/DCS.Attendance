@@ -1,0 +1,238 @@
+Project DCS_Attendance_System {
+  database_type: 'MySQL'
+  Note: 'RFID-Based Class Attendance Monitoring with Daily Time Record Generation for COS Faculty of the Department of Computer Studies'
+}
+
+Table faculty_ranks {
+  id bigint [pk, increment]
+  name varchar(100) [not null, unique]
+  is_active boolean [not null]
+}
+
+Table employees {
+  id bigint [pk, increment]
+  employee_no varchar(30) [not null, unique]
+  first_name varchar(255) [not null]
+  middle_name varchar(255)
+  last_name varchar(255) [not null]
+  suffix varchar(20)
+  email varchar(255) [not null, unique]
+  faculty_rank_id bigint
+  status varchar(20) [not null, note: 'active | inactive']
+  contract_start date
+  contract_end date
+  archived_at timestamp
+}
+
+Table users {
+  id bigint [pk, increment]
+  employee_id bigint [note: 'Linked faculty account only']
+  name varchar(255) [not null]
+  email varchar(255) [not null, unique]
+  password varchar(255) [not null]
+  role varchar(30) [not null, note: 'Admin | Faculty | Guard']
+  email_verified_at timestamp
+  must_change_password boolean [not null]
+}
+
+Table academic_terms {
+  id bigint [pk, increment]
+  school_year varchar(9) [not null]
+  semester varchar(30) [not null, note: 'First Semester | Second Semester | Midyear Term']
+  start_date date [not null]
+  end_date date [not null]
+  status varchar(15) [not null, note: 'draft | active | closed']
+
+  indexes {
+    (school_year, semester) [unique]
+  }
+}
+
+Table faculty_schedule_versions {
+  id bigint [pk, increment]
+  academic_term_id bigint [not null]
+  employee_id bigint [not null]
+  effective_from date [not null]
+  published_by bigint
+  profile json [note: 'Saved faculty schedule basis']
+}
+
+Table faculty_schedules {
+  id bigint [pk, increment]
+  employee_id bigint [not null]
+  academic_term_id bigint
+  schedule_version_id bigint
+  day_of_week int [not null]
+  schedule_type varchar(24) [not null, note: 'class | consultation']
+  subject varchar(255)
+  section varchar(100)
+  class_mode varchar(20) [note: 'lecture | laboratory']
+  start_time time [not null]
+  end_time time [not null]
+}
+
+Table faculty_schedule_breaks {
+  id bigint [pk, increment]
+  employee_id bigint [not null]
+  academic_term_id bigint
+  schedule_version_id bigint
+  day_of_week int [not null]
+  schedule_type varchar(24) [not null, note: 'break | lunch']
+  start_time time [not null]
+  end_time time [not null]
+}
+
+Table rfid_cards {
+  id bigint [pk, increment]
+  employee_id bigint [not null]
+  rfid_uid varchar(255) [not null, unique]
+  status varchar(20) [not null, note: 'active | lost | inactive']
+  registered_at timestamp
+}
+
+Table hardware_enrollments {
+  id bigint [pk, increment]
+  employee_id bigint [not null]
+  requested_by bigint
+  method varchar(20) [not null, note: 'RFID | fingerprint']
+  operation varchar(20) [not null, note: 'replace | unlink']
+  status varchar(20) [not null]
+  expires_at timestamp [not null]
+}
+
+Table hardware_attendance_events {
+  id bigint [pk, increment]
+  event_id varchar(64) [not null, unique]
+  employee_id bigint [not null]
+  method varchar(20) [not null, note: 'RFID | fingerprint']
+  occurred_at datetime [not null]
+}
+
+Table entrance_attendances {
+  id bigint [pk, increment]
+  employee_id bigint [not null]
+  academic_term_id bigint
+  attendance_date date [not null]
+  time_in time [not null]
+  time_out time
+  source varchar(30) [not null, note: 'School entrance RFID / NFC']
+  recorded_by bigint
+  out_recorded_by bigint
+  schedule_snapshot json [note: 'Preserved DTR schedule basis']
+
+  indexes {
+    (employee_id, attendance_date) [unique]
+  }
+}
+
+Table attendance_logs {
+  id bigint [pk, increment]
+  employee_id bigint [not null]
+  academic_term_id bigint
+  faculty_schedule_id bigint [note: 'Class session reference']
+  attendance_date date [not null]
+  time_in time
+  time_out time
+  subject varchar(255)
+  section varchar(100)
+  class_mode varchar(20)
+  scheduled_start time
+  scheduled_end time
+  late_minutes int [not null]
+  undertime_minutes int [not null]
+  worked_seconds int [not null]
+  status varchar(20) [not null, note: 'On time | Late | Undertime | Absent | For review']
+
+  indexes {
+    (employee_id, attendance_date, faculty_schedule_id) [unique]
+  }
+}
+
+Table leave_types {
+  id bigint [pk, increment]
+  name varchar(100) [not null]
+  code varchar(30) [not null, unique]
+  is_active boolean [not null]
+}
+
+Table leave_requests {
+  id bigint [pk, increment]
+  employee_id bigint [not null]
+  leave_type_id bigint [not null]
+  start_date date [not null]
+  end_date date [not null]
+  status varchar(20) [not null, note: 'pending | approved | rejected | cancelled']
+  reviewed_by bigint
+}
+
+Table calendar_events {
+  id bigint [pk, increment]
+  title varchar(150) [not null]
+  type varchar(40) [not null, note: 'regular holiday | special holiday | suspension']
+  start_date date [not null]
+  end_date date [not null]
+  scope_type varchar(20) [not null]
+  created_by bigint
+}
+
+Table calendar_event_employee {
+  id bigint [pk, increment]
+  calendar_event_id bigint [not null]
+  employee_id bigint [not null]
+
+  indexes {
+    (calendar_event_id, employee_id) [unique]
+  }
+}
+
+Table dtr_signatories {
+  id bigint [pk, increment]
+  name varchar(150) [not null]
+  designation varchar(100) [not null]
+  effective_from date [not null]
+  effective_to date
+  created_by bigint
+}
+
+// SYSTEM RELATIONSHIPS
+
+Ref: employees.faculty_rank_id > faculty_ranks.id
+Ref: users.employee_id > employees.id
+
+Ref: faculty_schedule_versions.academic_term_id > academic_terms.id
+Ref: faculty_schedule_versions.employee_id > employees.id
+Ref: faculty_schedule_versions.published_by > users.id
+
+Ref: faculty_schedules.employee_id > employees.id
+Ref: faculty_schedules.academic_term_id > academic_terms.id
+Ref: faculty_schedules.schedule_version_id > faculty_schedule_versions.id
+
+Ref: faculty_schedule_breaks.employee_id > employees.id
+Ref: faculty_schedule_breaks.academic_term_id > academic_terms.id
+Ref: faculty_schedule_breaks.schedule_version_id > faculty_schedule_versions.id
+
+Ref: rfid_cards.employee_id > employees.id
+Ref: hardware_enrollments.employee_id > employees.id
+Ref: hardware_enrollments.requested_by > users.id
+Ref: hardware_attendance_events.employee_id > employees.id
+
+// School IN/OUT -> Daily Time Record
+Ref: entrance_attendances.employee_id > employees.id
+Ref: entrance_attendances.academic_term_id > academic_terms.id
+Ref: entrance_attendances.recorded_by > users.id
+Ref: entrance_attendances.out_recorded_by > users.id
+
+// Class attendance -> Reports and Analytics
+Ref: attendance_logs.employee_id > employees.id
+Ref: attendance_logs.academic_term_id > academic_terms.id
+Ref: attendance_logs.faculty_schedule_id > faculty_schedules.id
+
+// Expected-session exclusions
+Ref: leave_requests.employee_id > employees.id
+Ref: leave_requests.leave_type_id > leave_types.id
+Ref: leave_requests.reviewed_by > users.id
+Ref: calendar_events.created_by > users.id
+Ref: calendar_event_employee.calendar_event_id > calendar_events.id
+Ref: calendar_event_employee.employee_id > employees.id
+
+Ref: dtr_signatories.created_by > users.id

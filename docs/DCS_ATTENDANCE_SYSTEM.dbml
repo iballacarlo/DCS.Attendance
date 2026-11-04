@@ -1,0 +1,341 @@
+// DCS Attendance System — active database design
+// Paste this file into https://dbdiagram.io
+// DTR is a computed output from entrance_attendances and schedule snapshots.
+
+Table users {
+  id bigint [pk, increment]
+  employee_id bigint [ref: - employees.id, null, note: 'Linked faculty account only']
+  name varchar
+  email varchar [unique]
+  email_verified_at timestamp [null]
+  password varchar
+  role varchar [note: 'admin | faculty | guard']
+  must_change_password boolean
+  security_version int
+  remember_token varchar [null]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table employees {
+  id bigint [pk, increment]
+  faculty_rank_id bigint [ref: > faculty_ranks.id, null]
+  employee_no varchar [unique]
+  first_name varchar
+  middle_name varchar [null]
+  last_name varchar
+  suffix varchar [null]
+  email varchar [unique]
+  contact_no varchar [null]
+  status varchar [note: 'active | inactive']
+  contract_start date [null]
+  contract_end date [null]
+  archived_at timestamp [null]
+  archived_by bigint [null]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table faculty_ranks {
+  id bigint [pk, increment]
+  name varchar [unique]
+  rate_type varchar
+  rate_amount decimal
+  is_active boolean
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table rfid_cards {
+  id bigint [pk, increment]
+  employee_id bigint [ref: > employees.id]
+  rfid_uid varchar [unique]
+  status varchar [note: 'active | lost | inactive']
+  registered_at timestamp [null]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table fingerprint_templates {
+  id bigint [pk, increment]
+  employee_id bigint [ref: > employees.id]
+  fingerprint_code varchar [unique]
+  finger_label varchar [null]
+  status varchar [note: 'active | inactive']
+  registered_at timestamp [null]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table hardware_enrollments {
+  id bigint [pk, increment]
+  employee_id bigint [ref: > employees.id]
+  requested_by bigint [ref: > users.id, null]
+  method varchar [note: 'rfid | fingerprint']
+  operation varchar [note: 'replace | unlink']
+  current_identifier varchar [null]
+  identifier varchar [null]
+  status varchar
+  message varchar [null]
+  expires_at timestamp
+  completed_at timestamp [null]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table hardware_attendance_events {
+  id bigint [pk, increment]
+  event_id varchar [unique]
+  employee_id bigint [ref: > employees.id]
+  identifier varchar
+  method varchar [note: 'rfid | fingerprint']
+  occurred_at datetime
+  response_payload json
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table academic_terms {
+  id bigint [pk, increment]
+  school_year varchar
+  semester varchar [note: 'First Semester | Second Semester | Midyear Term']
+  start_date date
+  end_date date
+  status varchar [note: 'draft | active | closed']
+  reopened boolean
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (school_year, semester) [unique]
+    (start_date, end_date)
+  }
+}
+
+Table faculty_term_assignments {
+  id bigint [pk, increment]
+  academic_term_id bigint [ref: > academic_terms.id]
+  employee_id bigint [ref: > employees.id]
+  profile json
+  draft_blocks json [null]
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (academic_term_id, employee_id) [unique]
+  }
+}
+
+Table faculty_schedule_versions {
+  id bigint [pk, increment]
+  academic_term_id bigint [ref: > academic_terms.id]
+  employee_id bigint [ref: > employees.id]
+  published_by bigint [ref: > users.id, null]
+  effective_from date
+  profile json
+  reason text [null]
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (academic_term_id, employee_id, effective_from)
+  }
+}
+
+Table faculty_schedules {
+  id bigint [pk, increment]
+  employee_id bigint [ref: > employees.id]
+  academic_term_id bigint [ref: > academic_terms.id, null, note: 'Null only for retained legacy schedule data']
+  schedule_version_id bigint [ref: > faculty_schedule_versions.id, null]
+  day_of_week int
+  start_time time
+  end_time time
+  subject varchar [null]
+  section varchar [null]
+  class_mode varchar [null, note: 'lecture | laboratory']
+  schedule_type varchar [note: 'class | consultation']
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table faculty_schedule_breaks {
+  id bigint [pk, increment]
+  employee_id bigint [ref: > employees.id]
+  academic_term_id bigint [ref: > academic_terms.id, null]
+  schedule_version_id bigint [ref: > faculty_schedule_versions.id, null]
+  day_of_week int
+  start_time time
+  end_time time
+  schedule_type varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table semester_day_snapshots {
+  id bigint [pk, increment]
+  academic_term_id bigint [ref: > academic_terms.id]
+  employee_id bigint [ref: > employees.id]
+  date date
+  payload json
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (academic_term_id, employee_id, date) [unique]
+  }
+}
+
+Table semester_events {
+  id bigint [pk, increment]
+  academic_term_id bigint [ref: > academic_terms.id]
+  employee_id bigint [ref: > employees.id, null]
+  actor_id bigint [ref: > users.id, null]
+  action varchar
+  reason text
+  before json [null]
+  after json [null]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table entrance_attendances {
+  id bigint [pk, increment]
+  employee_id bigint [ref: > employees.id]
+  academic_term_id bigint [ref: > academic_terms.id, null]
+  attendance_date date
+  time_in time
+  time_out time [null]
+  source varchar [note: 'RFID / entrance source']
+  recorded_by bigint [ref: > users.id, null]
+  out_recorded_by bigint [ref: > users.id, null]
+  schedule_snapshot json
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (employee_id, attendance_date) [unique]
+  }
+}
+
+Table attendance_logs {
+  id bigint [pk, increment]
+  employee_id bigint [ref: > employees.id]
+  academic_term_id bigint [ref: > academic_terms.id, null]
+  faculty_schedule_id bigint [ref: > faculty_schedules.id, null]
+  attendance_date date
+  time_in time [null]
+  time_out time [null]
+  method_in varchar [null]
+  method_out varchar [null]
+  subject varchar [null]
+  section varchar [null]
+  class_mode varchar [null]
+  schedule_type varchar [note: 'class | consultation historical data']
+  scheduled_start time [null]
+  scheduled_end time [null]
+  late_minutes int
+  undertime_minutes int
+  worked_seconds int
+  status varchar
+  remarks text [null]
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (employee_id, attendance_date, faculty_schedule_id) [unique]
+  }
+}
+
+Table calendar_events {
+  id bigint [pk, increment]
+  created_by bigint [ref: > users.id, null]
+  title varchar
+  type varchar [note: 'regular_holiday | special_holiday | suspension | asynchronous']
+  start_date date
+  end_date date
+  is_paid boolean
+  scope_type varchar [note: 'campus | department | faculty']
+  department varchar [null]
+  remarks text [null]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table calendar_event_employee {
+  id bigint [pk, increment]
+  calendar_event_id bigint [ref: > calendar_events.id]
+  employee_id bigint [ref: > employees.id]
+
+  indexes {
+    (calendar_event_id, employee_id) [unique]
+  }
+}
+
+Table leave_types {
+  id bigint [pk, increment]
+  name varchar
+  code varchar [unique]
+  is_paid boolean
+  is_active boolean
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table leave_requests {
+  id bigint [pk, increment]
+  employee_id bigint [ref: > employees.id]
+  leave_type_id bigint [ref: > leave_types.id]
+  reviewed_by bigint [ref: > users.id, null]
+  start_date date
+  end_date date
+  reason text
+  status varchar [note: 'pending | approved | rejected | cancelled']
+  reviewed_at timestamp [null]
+  reviewer_remarks text [null]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table dtr_signatories {
+  id bigint [pk, increment]
+  created_by bigint [ref: > users.id, null]
+  name varchar
+  designation varchar
+  effective_from date
+  effective_to date [null]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table system_settings {
+  id bigint [pk, increment]
+  key varchar [unique]
+  value text
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table audit_trails {
+  id bigint [pk, increment]
+  action varchar
+  table_name varchar [null]
+  record_id bigint [null]
+  description text [null]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table password_reset_tokens {
+  email varchar [pk]
+  token varchar
+  created_at timestamp [null]
+}
+
+Table sessions {
+  id varchar [pk]
+  user_id bigint [ref: > users.id, null]
+  ip_address varchar [null]
+  user_agent text [null]
+  payload text
+  last_activity int
+}
