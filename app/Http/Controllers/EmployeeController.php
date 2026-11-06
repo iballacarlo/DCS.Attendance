@@ -400,7 +400,7 @@ class EmployeeController extends Controller
             }
             $ids[] = $key;
             if ($block['schedule_type'] === 'class') {
-                if (($block['class_mode'] ?? '') === 'laboratory' && in_array($block['subject'] ?? '', ScheduleOptions::LECTURE_ONLY_SUBJECTS, true)) {
+                if (($block['class_mode'] ?? '') === 'laboratory' && in_array($block['subject'] ?? '', ScheduleOptions::lectureOnlySubjects(), true)) {
                     throw ValidationException::withMessages(["blocks.$i.subject" => 'This subject is available for Lecture only.']);
                 }
                 foreach (['section' => ScheduleOptions::sections(), 'subject' => ScheduleOptions::subjectsFor($block['section'] ?? ''), 'class_mode' => array_keys(ScheduleOptions::CLASS_MODES)] as $field => $allowed) {

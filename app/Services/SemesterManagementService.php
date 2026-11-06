@@ -389,7 +389,7 @@ class SemesterManagementService
             }
             if ($publishing && $block['schedule_type'] === 'class' && (! in_array($block['subject'] ?? '', ScheduleOptions::subjectsFor($block['section'] ?? '', $term->semester), true)
                 || ! in_array($block['section'] ?? '', ScheduleOptions::sections(), true) || empty($block['class_mode'])
-                || (($block['class_mode'] ?? '') === 'laboratory' && in_array($block['subject'], ScheduleOptions::LECTURE_ONLY_SUBJECTS, true)))) {
+                || (($block['class_mode'] ?? '') === 'laboratory' && in_array($block['subject'], ScheduleOptions::lectureOnlySubjects(), true)))) {
                 $this->invalid('Review every copied class: subject, section, and delivery must be valid for this semester.');
             }
             foreach (array_slice($blocks, 0, $i) as $other) {

@@ -1,0 +1,138 @@
+/* Shared phone layout safeguards. Loaded last so desktop page rules cannot
+   clip controls and records on narrow screens. */
+@media (max-width: 700px) {
+    html, body, #app, #workspace { max-width: 100%; overflow-x: hidden; }
+    #workspace :is(.panel, .form-grid, .compact-form, .schedule-page, .settings-tool, .content-grid, .bento-panel) { max-width: 100%; min-width: 0; }
+    #workspace :is(input, select, textarea) { max-width: 100%; min-width: 0; }
+    #workspace :is(.content-grid, .form-grid) { grid-template-columns: minmax(0, 1fr); }
+
+    #workspace .table-wrap {
+        max-width: 100%;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+    #workspace .table-wrap > table:has(thead th:nth-child(5)) { min-width: 680px; }
+    #workspace :is(.row-actions, .table-actions, .form-actions) { flex-wrap: wrap; }
+
+    #workspace .settings-tabs {
+        display: flex;
+        gap: 8px;
+        max-width: 100%;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        scroll-snap-type: x proximity;
+    }
+    #workspace .settings-tabs > a { flex: 0 0 auto; min-height: 44px; scroll-snap-align: start; white-space: nowrap; }
+
+    #workspace .alert,
+    #workspace :is(.password-change-reminder, .email-verification-reminder) { align-items: flex-start; flex-wrap: wrap; max-width: 100%; }
+    #workspace .list-filters,
+    #workspace .leave-filter-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+
+    #workspace .class-report-filters .report-period-filters,
+    #workspace .class-report-filters .report-class-filters { grid-template-columns: minmax(0, 1fr); }
+    #workspace .class-report-filters .report-class-filters > .faculty-combobox { grid-column: auto; }
+    #workspace .class-report-filters .report-action-reset { justify-self: stretch; width: 100%; }
+    #workspace .report-graph-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #workspace .report-summary-cards { gap: 10px; }
+}
+
+@media (max-width: 480px) {
+    #workspace .panel { border-radius: 14px; }
+    #workspace .list-filters,
+    #workspace .leave-filter-bar { grid-template-columns: minmax(0, 1fr); }
+    #workspace .list-filters > *,
+    #workspace .leave-filter-bar > * { grid-column: auto; min-width: 0; width: 100%; }
+    #workspace .attendance-filter-fields { grid-template-columns: minmax(0, 1fr); }
+    #workspace .attendance-filter-fields > :is(label, .cutoff-picker, .faculty-combobox) { grid-column: auto; min-width: 0; width: 100%; }
+    #workspace .attendance-filter-fields .cutoff-picker-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #workspace .attendance-filter-fields .cutoff-picker-fields > label:last-child { grid-column: 1 / -1; }
+    #workspace .report-graph-controls,
+    #workspace .report-summary-cards { grid-template-columns: minmax(0, 1fr); }
+    #workspace .report-pie-legend { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Mobile schedule: every day and block is visible without a desktop-width
+   timetable or a second hidden vertical scrollbar. */
+.wp-mobile-schedule,
+.wp-mobile-summary { display: none; }
+
+@media (max-width: 700px) {
+    #workspace .schedule-designer { gap: 15px; min-width: 0; }
+    #workspace .schedule-designer .sd-heading { align-items: flex-start; }
+    #workspace .schedule-designer .semester-schedule-tools { display: grid; grid-template-columns: minmax(0, 1fr); padding: 8px 0; }
+    #workspace .schedule-designer .semester-schedule-tools > * { max-width: 100%; min-width: 0; width: 100%; }
+    #workspace .schedule-designer .semester-picker-fields { grid-template-columns: minmax(0, 1fr); }
+
+    #workspace .schedule-designer .sd-overview { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 14px; }
+    #workspace .schedule-designer .sd-overview > span { align-items: flex-start; line-height: 1.45; min-width: 0; }
+    #workspace .schedule-designer .sd-view-toolbar { align-items: stretch; gap: 12px; }
+    #workspace .schedule-designer .sd-view-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+    #workspace .schedule-designer .sd-view-tabs .sd-button { min-width: 0; white-space: normal; }
+    #workspace .schedule-designer .wp-legend { width: 100%; }
+    #workspace .schedule-designer .sd-faculty-switcher { margin-left: 0; width: 100%; }
+    #workspace .schedule-designer .sd-faculty-switcher > .faculty-combobox { flex: 1; min-width: 0; width: auto; }
+
+    #workspace .weekly-plotting { border: 0; padding: 0; }
+    #workspace .weekly-plotting > :is(.wp-scroll, .wp-summary) { display: none; }
+    #workspace .wp-mobile-schedule,
+    #workspace .wp-mobile-summary { display: grid; gap: 12px; }
+    #workspace .wp-mobile-day { border: 1px solid #ccd9d1; border-radius: 13px; background: #fff; overflow: hidden; }
+    #workspace .wp-mobile-day > header { align-items: center; background: #f1f6f3; display: flex; justify-content: space-between; padding: 13px 15px; }
+    #workspace .wp-mobile-day > header strong { color: #173e2b; font-size: 14px; }
+    #workspace .wp-mobile-day > header span { color: #607168; font-size: 11px; }
+    #workspace .wp-mobile-day > p { color: #687a70; font-size: 12px; margin: 0; padding: 16px; }
+    #workspace .wp-mobile-blocks { display: grid; }
+    #workspace .wp-mobile-block { align-items: stretch; border-top: 1px solid #d9e3dd; display: grid; grid-template-columns: 82px minmax(0, 1fr); min-width: 0; }
+    #workspace .wp-mobile-time { border-right: 1px solid #d9e3dd; display: grid; align-content: center; gap: 3px; padding: 13px 10px; }
+    #workspace .wp-mobile-time strong { font-size: 11px; }
+    #workspace .wp-mobile-time span { font-size: 10px; opacity: .78; }
+    #workspace .wp-mobile-details { border-left: 4px solid #399268; display: grid; gap: 4px; min-width: 0; padding: 12px 13px; }
+    #workspace .wp-mobile-details small { font-size: 9px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; }
+    #workspace .wp-mobile-details > strong { font-size: 13px; overflow-wrap: anywhere; }
+    #workspace .wp-mobile-details > span { font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
+    #workspace .wp-mobile-block.wp-laboratory .wp-mobile-details { border-left-color: #3776c4; }
+    #workspace .wp-mobile-block.wp-consultation .wp-mobile-details { border-left-color: #8877c5; }
+    #workspace .wp-mobile-block.wp-lunch_break .wp-mobile-details { border-left-color: #c3943d; }
+
+    #workspace .wp-mobile-summary { border-top: 1px solid #d4dfd8; margin-top: 18px; padding-top: 18px; }
+    #workspace .wp-mobile-summary > h3 { font-size: 15px; margin: 0; }
+    #workspace .wp-mobile-summary > article { border: 1px solid #ccd9d1; border-radius: 12px; padding: 14px; }
+    #workspace .wp-mobile-summary > article > div { display: grid; gap: 3px; }
+    #workspace .wp-mobile-summary > article > div > strong { font-size: 13px; }
+    #workspace .wp-mobile-summary > article > div > :is(span, small) { color: #607168; font-size: 10px; line-height: 1.4; }
+    #workspace .wp-mobile-summary dl { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 13px 0 0; }
+    #workspace .wp-mobile-summary dl > div { background: #f2f7f4; border-radius: 8px; display: grid; gap: 3px; padding: 9px; }
+    #workspace .wp-mobile-summary dt { color: #607168; font-size: 9px; }
+    #workspace .wp-mobile-summary dd { font-size: 12px; font-weight: 800; margin: 0; }
+
+    #workspace .schedule-designer .sd-day-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #workspace .schedule-designer .sd-timeline-scroll { max-height: none; overflow-y: visible; padding-right: 8px; }
+    #workspace .schedule-designer .sd-time-row { grid-template-columns: 68px minmax(0, 1fr); }
+    #workspace .schedule-designer .sd-timeline-block { left: 68px; }
+    #workspace .schedule-designer .sd-save-bar { bottom: auto; position: static; }
+}
+
+@media (max-width: 420px) {
+    #workspace .schedule-designer .sd-overview { grid-template-columns: minmax(0, 1fr); }
+    #workspace .schedule-designer .sd-section-heading { align-items: flex-start; }
+    #workspace .schedule-designer .sd-agenda-item { display: grid; grid-template-columns: 4px 68px minmax(0, 1fr); }
+    #workspace .schedule-designer .sd-row-actions { grid-column: 2 / -1; margin: 0; padding: 0; }
+    #workspace .schedule-designer .sd-save-bar { align-items: stretch; flex-direction: column; }
+    #workspace .schedule-designer .sd-save-bar .sd-button { width: 100%; }
+}
+
+html[data-theme='dark'] #workspace .wp-mobile-day,
+html[data-theme='dark'] #workspace .wp-mobile-summary > article { background: #13251c; border-color: #496351; }
+html[data-theme='dark'] #workspace .wp-mobile-day > header,
+html[data-theme='dark'] #workspace .wp-mobile-summary dl > div { background: #182e22; }
+html[data-theme='dark'] #workspace .wp-mobile-day > header strong,
+html[data-theme='dark'] #workspace .wp-mobile-summary > h3 { color: #e4f0e8; }
+html[data-theme='dark'] #workspace .wp-mobile-day > header span,
+html[data-theme='dark'] #workspace .wp-mobile-day > p,
+html[data-theme='dark'] #workspace .wp-mobile-summary > article > div > :is(span, small),
+html[data-theme='dark'] #workspace .wp-mobile-summary dt { color: #b5c9bc; }
+html[data-theme='dark'] #workspace .wp-mobile-block,
+html[data-theme='dark'] #workspace .wp-mobile-time,
+html[data-theme='dark'] #workspace .wp-mobile-summary { border-color: #496351; }

@@ -62,7 +62,7 @@ class SelectiveBackupTest extends TestCase
         $this->assertSame(2, $backup['version']);
         $this->assertSame([$first->id], array_column($backup['tables']['employees'], 'id'));
         $this->assertSame([$block->id], array_column($backup['tables']['faculty_schedules'], 'id'));
-        $this->assertEqualsCanonicalizing(['employees', 'faculty_ranks', 'faculty_schedules', 'faculty_schedule_breaks', 'academic_terms', 'faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events'], array_keys($backup['tables']));
+        $this->assertEqualsCanonicalizing(['employees', 'faculty_ranks', 'subjects', 'faculty_schedules', 'faculty_schedule_breaks', 'academic_terms', 'faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events'], array_keys($backup['tables']));
         $this->assertArrayNotHasKey('users', $backup['tables']);
         $this->assertArrayNotHasKey('attendance_logs', $backup['tables']);
         $multiple = $this->download(['schedules'], [$first->id, $second->id]);
@@ -71,7 +71,7 @@ class SelectiveBackupTest extends TestCase
         $this->assertCount(3, $all['tables']['employees']);
         $this->assertNotNull($all['tables']['employees'][2]['archived_at']);
         $settings = $this->download(['settings'], scope: 'all');
-        $this->assertEqualsCanonicalizing(['system_settings', 'dtr_signatories'], array_keys($settings['tables']));
+        $this->assertEqualsCanonicalizing(['subjects', 'system_settings', 'dtr_signatories'], array_keys($settings['tables']));
         $this->assertArrayNotHasKey('employees', $settings['tables']);
         $this->post('/settings/backup/restore', ['backup_file' => $this->file($settings)])->assertSessionHasNoErrors();
     }

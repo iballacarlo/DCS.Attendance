@@ -3,6 +3,7 @@ import '../css/attendance.css';
 import '../css/workspace.css';
 import '../css/form48.css';
 import '../css/weeklyPlotting.css';
+import '../css/mobileResponsive.css';
 import './bootstrap';
 import { createInertiaApp } from '@inertiajs/react';
 import { createRoot } from 'react-dom/client';

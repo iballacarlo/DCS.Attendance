@@ -19,7 +19,7 @@ use Inertia\Inertia;
 class BackupController extends Controller
 {
     private const TABLES = [
-        'faculty_ranks', 'employees', 'users', 'rfid_cards', 'fingerprint_templates', 'employment_histories',
+        'faculty_ranks', 'subjects', 'employees', 'users', 'rfid_cards', 'fingerprint_templates', 'employment_histories',
         'academic_terms', 'faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events',
         'faculty_schedules', 'faculty_schedule_breaks', 'attendance_logs', 'hardware_attendance_events', 'entrance_attendances',
         'calendar_events', 'calendar_event_employee', 'dtr_signatories',
@@ -100,7 +100,7 @@ class BackupController extends Controller
             'academic_terms', 'faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events',
             'entrance_attendances', 'employment_histories', 'system_settings', 'hardware_attendance_events',
             'calendar_events', 'calendar_event_employee', 'dtr_signatories',
-            'leave_types', 'leave_requests',
+            'leave_types', 'leave_requests', 'subjects',
         ]) as $table) {
             if (! isset($backup['tables'][$table]) || ! is_array($backup['tables'][$table])) {
                 throw ValidationException::withMessages(['backup_file' => "Backup data for {$table} is missing."]);
@@ -118,6 +118,11 @@ class BackupController extends Controller
             DB::transaction(function () use ($backup) {
                 $previousVersion = (int) DB::table('users')->max('security_version');
                 foreach (array_reverse(self::TABLES) as $table) {
+                    // Version 1 backups made before subject management did not
+                    // contain a catalog. Keep the local seeded catalog intact.
+                    if ($table === 'subjects' && ! array_key_exists('subjects', $backup['tables'])) {
+                        continue;
+                    }
                     DB::table($table)->delete();
                 }
                 foreach (self::TABLES as $table) {

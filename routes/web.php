@@ -21,6 +21,7 @@ use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SemesterController;
+use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\UserController;
 use App\Http\Middleware\SemesterWriteLock;
 use Illuminate\Support\Facades\Route;
@@ -84,6 +85,10 @@ Route::middleware(['auth', 'auth.session', SemesterWriteLock::class])->group(fun
     Route::post('settings/semesters/{term}/transition', [SemesterController::class, 'transition'])->middleware('role:admin');
     Route::post('settings/semesters/{term}/publish-all', [SemesterController::class, 'publishAll'])->middleware('role:admin');
     Route::post('settings/semesters/{term}/faculty/{employeeId}/copy', [SemesterController::class, 'copy'])->middleware('role:admin');
+    Route::get('settings/subjects', [SubjectController::class, 'index'])->name('settings.subjects.index')->middleware('role:admin');
+    Route::post('settings/subjects', [SubjectController::class, 'store'])->name('settings.subjects.store')->middleware('role:admin');
+    Route::put('settings/subjects/{subject}', [SubjectController::class, 'update'])->name('settings.subjects.update')->middleware('role:admin');
+    Route::patch('settings/subjects/{subject}/status', [SubjectController::class, 'toggle'])->name('settings.subjects.status')->middleware('role:admin');
     Route::get('settings/general', [GeneralSettingsController::class, 'edit'])->name('settings.general.edit')->middleware('role:admin');
     Route::get('settings/holidays-suspensions', [CalendarController::class, 'index'])->name('settings.holidays.index')->middleware('role:admin');
     Route::put('settings/general', [GeneralSettingsController::class, 'update'])->name('settings.general.update')->middleware('role:admin');

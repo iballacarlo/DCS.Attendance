@@ -1376,7 +1376,13 @@ void enrollRfid(String id, String currentIdentifier) {
       } else {
         if (enrollmentCancelled || enrollmentExpired) return;
         errorSignal();
-        showMessage("Server rejected", "RFID card");
+        if (lastEnrollmentError.indexOf("already assigned") >= 0) {
+          showMessage("RFID already used", "By another faculty");
+        } else if (lastEnrollmentError.length() && lastEnrollmentError != "Server unconfirmed") {
+          showMessage("RFID registration", lastEnrollmentError);
+        } else {
+          showMessage("Server rejected", "RFID registration");
+        }
       }
       registrationFeedbackDelay(2500);
       return;

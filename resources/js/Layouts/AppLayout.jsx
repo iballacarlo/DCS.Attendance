@@ -22,7 +22,7 @@ const navigation = [
     { id: 'schedule', label: 'My Schedule', group: 'Operations', href: '/my-schedule', icon: CalendarDays, tone: 'nav-calendar', roles: ['faculty'], active: (url) => url.startsWith('/my-schedule') },
     { id: 'leave', label: 'Leave', group: 'Operations', href: '/leave', icon: FileCheck2, tone: 'nav-leave', active: (url) => url.startsWith('/leave') },
     { id: 'settings', label: 'Settings', group: 'Administration', icon: Settings2, roles: ['admin'], mobileHref: '/settings/semesters', children: [
-        { label: 'Academic Setup', href: '/settings/semesters', icon: CalendarDays, tone: 'nav-settings', active: (url) => url.startsWith('/settings/semesters') || url.startsWith('/settings/holidays-suspensions') || url.startsWith('/school-calendar') || url.startsWith('/settings/dtr-signatories') },
+        { label: 'Academic Setup', href: '/settings/semesters', icon: CalendarDays, tone: 'nav-settings', active: (url) => url.startsWith('/settings/semesters') || url.startsWith('/settings/subjects') || url.startsWith('/settings/holidays-suspensions') || url.startsWith('/school-calendar') || url.startsWith('/settings/dtr-signatories') },
         { label: 'Accounts', href: '/settings/accounts', icon: Users, tone: 'nav-settings', active: (url) => url.startsWith('/settings/accounts') },
         { label: 'Backup & Recovery', href: '/settings/backup', icon: DatabaseBackup, tone: 'nav-settings', active: (url) => url.startsWith('/settings/backup') },
     ] },

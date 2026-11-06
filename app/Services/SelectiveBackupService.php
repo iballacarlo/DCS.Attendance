@@ -11,14 +11,14 @@ class SelectiveBackupService
 {
     public const GROUPS = [
         'faculty' => ['label' => 'Faculty profiles', 'description' => 'Profiles, ranks, and employment history.', 'tables' => ['employees', 'faculty_ranks', 'employment_histories']],
-        'schedules' => ['label' => 'Schedules', 'description' => 'Weekly class, consultation, and break blocks.', 'tables' => ['academic_terms', 'faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events', 'faculty_schedules', 'faculty_schedule_breaks']],
+        'schedules' => ['label' => 'Schedules', 'description' => 'Subject catalog and weekly class, consultation, and break blocks.', 'tables' => ['subjects', 'academic_terms', 'faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events', 'faculty_schedules', 'faculty_schedule_breaks']],
         'attendance' => ['label' => 'Attendance logs', 'description' => 'School entrance records, class snapshots, and hardware events.', 'tables' => ['attendance_logs', 'hardware_attendance_events', 'entrance_attendances']],
         'payroll' => ['label' => 'Payroll records', 'description' => 'Payslips, adjustments, and their payroll periods.', 'tables' => ['payroll_records', 'payroll_periods']],
         'credentials' => ['label' => 'Attendance credentials', 'description' => 'RFID cards and fingerprint registrations.', 'tables' => ['rfid_cards', 'fingerprint_templates']],
         'accounts' => ['label' => 'User accounts', 'description' => 'Linked faculty accounts; all accounts when backing up all faculty.', 'tables' => ['users']],
         'leave' => ['label' => 'Leave requests', 'description' => 'Requests and their leave types.', 'tables' => ['leave_requests', 'leave_types']],
         'calendar' => ['label' => 'School calendar', 'description' => 'Shared events and events assigned to the selected faculty.', 'tables' => ['calendar_events', 'calendar_event_employee']],
-        'settings' => ['label' => 'System settings', 'description' => 'Shared academic term settings and DTR signatories.', 'tables' => ['system_settings', 'dtr_signatories']],
+        'settings' => ['label' => 'Academic settings', 'description' => 'Subject catalog, shared settings, and dean records.', 'tables' => ['subjects', 'system_settings', 'dtr_signatories']],
         'audit' => ['label' => 'Audit history', 'description' => 'Available only when backing up all faculty.', 'tables' => ['audit_trails']],
     ];
 
@@ -60,7 +60,7 @@ class SelectiveBackupService
                     $query->when($scope === 'selected', fn ($q) => $q->whereIn('id', DB::table('leave_requests')->whereIn('employee_id', $employeeIds)->select('leave_type_id')));
                 } elseif ($table === 'calendar_events') {
                     $query->when($scope === 'selected', fn ($q) => $q->where(fn ($q) => $q->where('scope_type', '!=', 'faculty')->orWhereIn('id', DB::table('calendar_event_employee')->whereIn('employee_id', $employeeIds)->select('calendar_event_id'))));
-                } elseif (! in_array($table, ['system_settings', 'dtr_signatories', 'audit_trails'], true)) {
+                } elseif (! in_array($table, ['subjects', 'system_settings', 'dtr_signatories', 'audit_trails'], true)) {
                     $query->whereIn('employee_id', $employeeIds);
                 }
                 $tables[$table] = $query->orderBy('id')->get()->map(fn ($row) => (array) $row)->all();
@@ -100,6 +100,11 @@ class SelectiveBackupService
         }
         if (! isset($backup['tables']['entrance_attendances']) && in_array('attendance', $groups, true)) {
             $backup['tables']['entrance_attendances'] = [];
+        }
+        // Subject management was added after version 2 custom backups were
+        // introduced. An older settings backup may legitimately omit it.
+        if (! isset($backup['tables']['subjects']) && array_intersect(['settings', 'schedules', 'attendance'], $groups)) {
+            $backup['tables']['subjects'] = [];
         }
         $required = $this->tables($groups);
         foreach (['academic_terms', 'faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events'] as $optional) {
@@ -146,8 +151,8 @@ class SelectiveBackupService
                                     $this->invalid('A record ID in '.$table.' belongs to different data. No records were restored.');
                                 }
                             }
-                            if (in_array($table, ['payroll_periods', 'faculty_ranks', 'leave_types', 'system_settings', 'academic_terms'], true)) {
-                                foreach (['start_date', 'end_date', 'name', 'code', 'key', 'school_year', 'semester'] as $field) {
+                            if (in_array($table, ['payroll_periods', 'faculty_ranks', 'leave_types', 'subjects', 'system_settings', 'academic_terms'], true)) {
+                                foreach (['start_date', 'end_date', 'name', 'code', 'key', 'school_year', 'semester', 'year_level'] as $field) {
                                     if (array_key_exists($field, $row) && (string) $row[$field] !== (string) ($existing->$field ?? null)) {
                                         $this->invalid('Reference data in '.$table.' conflicts with the local database. No records were restored.');
                                     }
