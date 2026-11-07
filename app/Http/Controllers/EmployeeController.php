@@ -157,6 +157,12 @@ class EmployeeController extends Controller
 
     public function update(Request $request, Employee $employee)
     {
+        if ((string) $request->input('employee_no') !== $employee->employee_no) {
+            throw ValidationException::withMessages([
+                'employee_no' => 'The faculty ID is permanent and cannot be changed.',
+            ]);
+        }
+
         DB::transaction(function () use ($request, $employee) {
             $employee->update($this->validated($request, $employee->id));
             $this->saveDevices($request, $employee);

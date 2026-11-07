@@ -229,13 +229,13 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber }) {
                 <label><FieldLabel note="Examples: Jr., Sr., II, or III.">Suffix</FieldLabel><input value={form.data.suffix} maxLength="20" placeholder="Jr., III" onChange={(e) => form.setData('suffix', e.target.value)} /></label>
             </div>
             <div className="personal-contact-fields">
-                <label><FieldLabel note="Generated system identifier for this faculty record.">Employee Number</FieldLabel><input value={form.data.employee_no} readOnly aria-readonly="true" /></label>
+                <label><FieldLabel note="Permanent faculty ID. It cannot be changed after creation.">Employee Number</FieldLabel><input value={form.data.employee_no} readOnly aria-readonly="true" /></label>
                 <label><FieldLabel required note="Use an active institutional address ending in @cvsu.edu.ph.">Email Address</FieldLabel><input type="email" value={form.data.email} autoComplete="email" placeholder="name@cvsu.edu.ph" pattern="[^@\s]+@cvsu\.edu\.ph" onChange={(e) => { emailEdited.current = true; form.setData('email', e.target.value); }} required />{form.errors.email && <small className="field-error">{form.errors.email}</small>}</label>
             </div>
             </>}
             <div className="form-section-title"><span>{isNew ? '02' : '01'}</span><div><strong>Official employment details</strong><small>Rank, status, and contract managed by the administrator</small></div></div>
             <div className="employment-fields">
-                {!isNew && <label><FieldLabel note="Generated system identifier for this faculty record.">Employee Number</FieldLabel><input value={form.data.employee_no} readOnly aria-readonly="true" /></label>}
+                {!isNew && <label><FieldLabel note="Permanent faculty ID. It cannot be changed.">Employee Number</FieldLabel><input value={form.data.employee_no} readOnly aria-readonly="true" />{form.errors.employee_no && <small className="field-error">{form.errors.employee_no}</small>}</label>}
                 <label><FieldLabel required note="Faculty academic rank.">Rank</FieldLabel><select value={form.data.faculty_rank_id} onChange={(e) => selectRank(e.target.value)} required><option value="">Select rank</option>{ranks.map((rank) => <option key={rank.id} value={rank.id}>{rank.name}</option>)}</select></label>
                 <label><FieldLabel note="Inactive faculty keep their schedules and records, but cannot record attendance. You can reactivate them later.">Status</FieldLabel><select value={form.data.status} onChange={(e) => form.setData('status', e.target.value)}><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
             </div>

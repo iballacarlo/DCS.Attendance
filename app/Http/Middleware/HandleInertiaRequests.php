@@ -73,6 +73,7 @@ class HandleInertiaRequests extends Middleware
                 'success' => fn () => $request->session()->get('success'),
                 'temporaryCredentials' => fn () => $request->session()->get('temporary_credentials'),
                 'error' => fn () => $request->session()->get('error'),
+                'loginCooldownUntil' => fn () => $request->session()->get('login_cooldown_until'),
             ],
         ];
     }

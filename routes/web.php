@@ -28,9 +28,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
     Route::get('login', [AuthController::class, 'showLogin'])->name('login');
-    Route::post('login', [AuthController::class, 'login'])
-        ->middleware('throttle:5,1')
-        ->name('login.store');
+    Route::post('login', [AuthController::class, 'login'])->name('login.store');
     Route::get('forgot-password', [PasswordResetController::class, 'create'])->name('password.request');
     Route::post('forgot-password', [PasswordResetController::class, 'store'])
         ->middleware('throttle:3,10')

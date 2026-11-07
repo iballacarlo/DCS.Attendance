@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 
 class Employee extends Model
 {
@@ -46,6 +47,14 @@ class Employee extends Model
 
     protected static function booted(): void
     {
+        static::updating(function (Employee $employee) {
+            if ($employee->isDirty('employee_no')) {
+                throw ValidationException::withMessages([
+                    'employee_no' => 'The faculty ID is permanent and cannot be changed.',
+                ]);
+            }
+        });
+
         static::addGlobalScope('not_archived', function (Builder $query) {
             // Earlier historical migrations run before the archive column exists.
             if (app()->runningInConsole() && ! Schema::hasColumn('employees', 'archived_at')) {

@@ -256,6 +256,21 @@ class EmployeeCredentialTest extends TestCase
         $this->assertDatabaseMissing('employment_histories', ['employee_id' => $employee->id]);
     }
 
+    public function test_faculty_id_cannot_be_changed_after_creation(): void
+    {
+        $employee = $this->employee('COS-0003');
+
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->put(route('employees.update', $employee), $this->employeePayload($employee, [
+                'employee_no' => 'COS-9999',
+            ]))
+            ->assertSessionHasErrors([
+                'employee_no' => 'The faculty ID is permanent and cannot be changed.',
+            ]);
+
+        $this->assertSame('COS-0003', $employee->fresh()->employee_no);
+    }
+
     public function test_admin_creating_faculty_also_creates_a_temporary_login(): void
     {
         config([

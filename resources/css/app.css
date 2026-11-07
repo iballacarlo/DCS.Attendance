@@ -3101,6 +3101,10 @@ button.schedule-slot:hover { background: #e5f0e9; }
 }
 .login-auth .full:hover { background: #f1ca6d; border-color: #f1ca6d; }
 .login-auth .alert.error { background: rgba(108, 26, 26, 0.65); border-color: rgba(255, 173, 173, 0.45); color: #ffd4d4; }
+.login-cooldown { display: block; margin-top: 6px; color: #fff; font-variant-numeric: tabular-nums; }
+.login-auth .full:disabled,
+.login-auth .password-toggle:disabled { cursor: not-allowed; opacity: 0.62; }
+.login-auth input:disabled { cursor: not-allowed; opacity: 0.72; }
 
 @media (max-width: 760px) {
     .bento-dashboard { gap: 18px; }
