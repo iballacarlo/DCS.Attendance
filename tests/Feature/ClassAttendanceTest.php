@@ -193,7 +193,10 @@ class ClassAttendanceTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $this->actingAs($admin)->get('/employees/'.$employee->id.'/schedule')->assertInertia(fn (Assert $page) => $page
             ->where('scheduleOptions.subjectsBySection.BSIT 1A', ['COSC 50A', 'CVSU 101', 'DCIT 21A', 'DCIT 22A', 'NSTP 1'])
-            ->has('scheduleOptions.sections', 24)->where('scheduleOptions.sections.0', 'BSIT 1A')->where('scheduleOptions.sections.23', 'BSIT 4F'));
+            ->has('scheduleOptions.sections', 48)->where('scheduleOptions.sections.0', 'BSIT 1A')->where('scheduleOptions.sections.23', 'BSIT 4F')
+            ->where('scheduleOptions.sections.24', 'BSCS 1A')->where('scheduleOptions.sections.47', 'BSCS 4F')
+            ->where('scheduleOptions.courses', ['BSIT' => 'BSIT', 'BSCS' => 'BSCS'])
+            ->where('scheduleOptions.yearLevels', [1, 2, 3, 4])->where('scheduleOptions.sectionLetters', ['A', 'B', 'C', 'D', 'E', 'F']));
         $block = ['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'subject' => 'DCIT 21A', 'section' => 'BSIT 1A', 'class_mode' => 'laboratory'];
         $this->put('/employees/'.$employee->id.'/schedule', ['blocks' => [$block]])->assertSessionHasNoErrors();
         $schedule = $employee->schedules()->firstOrFail();

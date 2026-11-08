@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\Subject;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Support\ScheduleOptions;
@@ -45,6 +46,8 @@ class ScheduleCatalogTest extends TestCase
         }
         $this->assertSame(['COSC 50A', 'CVSU 101', 'DCIT 21A', 'DCIT 22A', 'NSTP 1'], ScheduleOptions::subjectsFor('BSIT 1A'));
         $this->assertSame(ScheduleOptions::subjectsFor('BSIT 1A'), ScheduleOptions::subjectsFor('BSIT 1F'));
+        $this->assertSame(['CVSU 101', 'NSTP 1'], ScheduleOptions::subjectsFor('BSCS 1A'));
+        $this->assertSame(ScheduleOptions::subjectsFor('BSCS 1A'), ScheduleOptions::subjectsFor('BSCS 1F'));
         $this->assertSame(['DCIT 24', 'DCIT50', 'ITEC 55'], ScheduleOptions::subjectsFor('BSIT 2B'));
         $this->assertContains('DCIT 65', ScheduleOptions::subjectsFor('BSIT 4A'));
         $this->assertNotContains('DCIT 65A', ScheduleOptions::subjectsFor('BSIT 4A'));
@@ -64,6 +67,12 @@ class ScheduleCatalogTest extends TestCase
         $this->assertSame(['DCIT 23A', 'ITEC 50A', 'NSTP 2'], ScheduleOptions::all()['subjectsBySection']['BSIT 1A']);
         $this->put('/employees/'.$employee->id.'/schedule', ['blocks' => [$block]])->assertSessionHasErrors('blocks.0.subject');
         $block['subject'] = 'DCIT 23A';
+        $this->put('/employees/'.$employee->id.'/schedule', ['blocks' => [$block]])->assertSessionHasNoErrors();
+
+        Subject::create(['course_scope' => 'BSCS', 'code' => 'COSC 101', 'name' => 'COMPUTER SCIENCE FUNDAMENTALS', 'year_level' => 1, 'semester' => 'Second Semester', 'lecture_only' => false, 'is_active' => true]);
+        $block['section'] = 'BSCS 1A';
+        $this->put('/employees/'.$employee->id.'/schedule', ['blocks' => [$block]])->assertSessionHasErrors('blocks.0.subject');
+        $block['subject'] = 'COSC 101';
         $this->put('/employees/'.$employee->id.'/schedule', ['blocks' => [$block]])->assertSessionHasNoErrors();
     }
 }

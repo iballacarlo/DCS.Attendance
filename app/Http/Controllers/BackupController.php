@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AcademicTerm;
+use App\Models\Subject;
 use App\Services\ScheduleRecoveryService;
 use App\Services\SelectiveBackupService;
 use App\Services\SemesterBackupValidator;
@@ -79,6 +80,10 @@ class BackupController extends Controller
         if (! is_array($backup) || ! in_array($backup['application'] ?? null, ['CvSU Payroll System', 'DCS Attendance & DTR'], true) || ! in_array($backup['version'] ?? null, [1, 2], true)) {
             throw ValidationException::withMessages(['backup_file' => 'The selected file is not a valid attendance system backup.']);
         }
+        foreach ($backup['tables']['subjects'] ?? [] as &$subject) {
+            $subject['course_scope'] ??= Subject::legacyCourseScope((string) ($subject['code'] ?? ''));
+        }
+        unset($subject);
         if ($backup['version'] === 2) {
             [$count, $result] = DB::transaction(function () use ($request, $backup, $service, $recovery) {
                 $count = $service->restore($backup, self::TABLES);

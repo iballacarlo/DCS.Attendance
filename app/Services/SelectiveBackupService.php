@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Subject;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -106,6 +107,10 @@ class SelectiveBackupService
         if (! isset($backup['tables']['subjects']) && array_intersect(['settings', 'schedules', 'attendance'], $groups)) {
             $backup['tables']['subjects'] = [];
         }
+        foreach ($backup['tables']['subjects'] ?? [] as &$subject) {
+            $subject['course_scope'] ??= Subject::legacyCourseScope((string) ($subject['code'] ?? ''));
+        }
+        unset($subject);
         $required = $this->tables($groups);
         foreach (['academic_terms', 'faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events'] as $optional) {
             if (in_array($optional, $required, true) && ! array_key_exists($optional, $backup['tables'])) {

@@ -15,7 +15,13 @@ const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
 const types = { class: 'Class', consultation: 'Consultation', lunch_break: 'Lunch break' };
 const minutes = (time) => { const [hours, mins] = time.split(':').map(Number); return hours * 60 + mins; };
 const clock = (value) => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
-const blank = (day) => ({ day_of_week: day, schedule_type: 'class', start_time: '07:00', end_time: '19:00', subject: '', section: '', class_mode: 'lecture' });
+const sectionParts = (section = '') => {
+    const match = section.match(/^(BSIT|BSCS) ([1-4])([A-F])$/);
+    return match ? { course: match[1], year_level: match[2], section_letter: match[3] } : { course: '', year_level: '', section_letter: '' };
+};
+const withSectionParts = (block) => ({ ...block, ...sectionParts(block.section) });
+const cleanDraft = ({ course, year_level, section_letter, ...block }) => block;
+const blank = (day) => withSectionParts({ day_of_week: day, schedule_type: 'class', start_time: '07:00', end_time: '19:00', subject: '', section: '', class_mode: 'lecture' });
 const scheduleBlocks = (employee) => [...(employee.schedules || []), ...(employee.schedule_breaks || [])].map((block) => ({
     ...block, start_time: block.start_time.slice(0, 5), end_time: block.end_time.slice(0, 5), subject: block.subject || '', section: block.section || '', class_mode: block.class_mode || '',
 }));
@@ -27,7 +33,7 @@ const hoursLabel = (blocks) => {
 export default function EmployeeSchedule({ hasUnpublishedSchedule = false, employee, readOnly = false, scheduleOptions, facultyOptions = [], selectedSemester = null, scheduleVersions = [], facultyView = false }) {
     const { url } = usePage();
     const [view, setView] = useState(() => new URLSearchParams(url.split('?')[1]).get('view') === 'daily' ? 'daily' : 'weekly');
-    const { subjectsBySection, subjectNames, sections, classModes, lectureOnlySubjects } = scheduleOptions;
+    const { subjectsBySection, subjectNames, sections, courses, yearLevels, sectionLetters, classModes, lectureOnlySubjects } = scheduleOptions;
     const blockTypeLabel = (block) => block.schedule_type === 'class' ? (classModes[block.class_mode] || 'Class · Not specified') : types[block.schedule_type];
     const form = useForm({ blocks: scheduleBlocks(employee), term_id: selectedSemester?.id || '', reason: '' });
     const [day, setDay] = useState(() => {
@@ -50,7 +56,7 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
     const editor = useRef(null);
     const subjectInput = useRef(null);
     const { ask, dialog } = useConfirmDialog();
-    const draftChanged = JSON.stringify(draft) !== JSON.stringify(editing === null ? blank(day) : form.data.blocks[editing]);
+    const draftChanged = JSON.stringify(cleanDraft(draft)) !== JSON.stringify(editing === null ? cleanDraft(blank(day)) : form.data.blocks[editing]);
     const facultyIndex = facultyOptions.findIndex((item) => item.id === employee.id);
     const switchFaculty = async (id) => {
         if (readOnly || switchingFaculty || !id || Number(id) === employee.id) return;
@@ -81,7 +87,7 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
         if (!(subjectsBySection[details.section] || []).includes(details.subject) || (details.class_mode === 'laboratory' && lectureOnlySubjects.includes(details.subject))) {
             setError('The copied class details are not valid for the current semester and class delivery.'); return;
         }
-        setDraft((current) => ({ ...current, ...details }));
+        setDraft((current) => withSectionParts({ ...current, ...details }));
         setError('');
     };
     const discardDraft = async () => !draftChanged || await ask({ title: 'Discard block edits?', message: 'This block has changes that have not been added to the schedule yet.', confirmLabel: 'Discard Edits', tone: 'warning' });
@@ -92,7 +98,7 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
     const edit = async (index) => {
         if (editing === index) { focusEditor(); return; }
         if (!await discardDraft()) return;
-        setEditing(index); setDraft({ ...form.data.blocks[index], class_mode: form.data.blocks[index].schedule_type === 'class' ? form.data.blocks[index].class_mode || 'lecture' : form.data.blocks[index].class_mode }); setError(''); setAnchor(null); focusEditor();
+        setEditing(index); setDraft(withSectionParts({ ...form.data.blocks[index], class_mode: form.data.blocks[index].schedule_type === 'class' ? form.data.blocks[index].class_mode || 'lecture' : form.data.blocks[index].class_mode })); setError(''); setAnchor(null); focusEditor();
     };
     const newBlock = async () => { if (await discardDraft()) { reset(); focusEditor(); } };
     const plot = async (slot) => {
@@ -123,10 +129,15 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
         if (form.data.blocks.some((block, index) => index !== editing && Number(block.day_of_week) === Number(draft.day_of_week) && draft.start_time < block.end_time && draft.end_time > block.start_time)) {
             setError('This time overlaps another class, consultation, or break.'); return;
         }
-        const block = { ...draft };
+        const block = cleanDraft(draft);
         if (editing !== null && (existing.schedule_type === 'lunch_break') !== (draft.schedule_type === 'lunch_break')) delete block.id;
         form.setData('blocks', editing === null ? [...form.data.blocks, block] : form.data.blocks.map((item, index) => index === editing ? block : item));
         setDay(Number(block.day_of_week)); reset(Number(block.day_of_week));
+    };
+    const updateSectionPart = (field, value) => {
+        const parts = { course: draft.course, year_level: draft.year_level, section_letter: draft.section_letter, [field]: value };
+        const section = parts.course && parts.year_level && parts.section_letter ? `${parts.course} ${parts.year_level}${parts.section_letter}` : '';
+        setDraft({ ...draft, ...parts, section, subject: '' });
     };
     const remove = async (block) => {
         if (!await ask({ title: 'Remove schedule block?', message: `${block.subject || types[block.schedule_type]} on ${days[block.day_of_week - 1]}, ${time12(block.start_time)} – ${time12(block.end_time)}. Save the schedule to apply this removal.`, confirmLabel: 'Remove Block', tone: 'danger' })) return;
@@ -187,7 +198,14 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
                         <label>Day<select value={draft.day_of_week} onChange={(e) => setDraft({ ...draft, day_of_week: Number(e.target.value) })}>{days.map((name, index) => <option key={name} value={index + 1}>{name}</option>)}</select></label>
                         <label>Block type<select value={draft.schedule_type} onChange={(e) => setDraft({ ...draft, schedule_type: e.target.value, class_mode: e.target.value === 'class' ? 'lecture' : '' })}>{Object.entries(types).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                         <div className="sd-time-inputs"><label>Start time<input type="time" min="07:00" max="19:00" value={draft.start_time} onChange={(e) => setDraft({ ...draft, start_time: e.target.value })} /></label><span>to</span><label>End time<input type="time" min="07:00" max="19:00" value={draft.end_time} onChange={(e) => setDraft({ ...draft, end_time: e.target.value })} /></label></div>
-                        {draft.schedule_type === 'class' ? <><label>Class delivery<select value={draft.class_mode} onChange={(e) => setDraft({ ...draft, class_mode: e.target.value, subject: e.target.value === 'laboratory' && lectureOnlySubjects.includes(draft.subject) ? '' : draft.subject })}>{Object.entries(classModes).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Section<select value={draft.section} onChange={(e) => setDraft({ ...draft, section: e.target.value, subject: '' })}><option value="">Select section</option>{draft.section && !sections.includes(draft.section) && <option value={draft.section}>{draft.section} (existing)</option>}{[1, 2, 3, 4].map((year) => <optgroup key={year} label={`${year}${['ST', 'ND', 'RD', 'TH'][year - 1]} YEAR`}>{sections.filter((section) => section.startsWith(`BSIT ${year}`)).map((section) => <option key={section} value={section}>{section}</option>)}</optgroup>)}</select></label><label>Subject<select disabled={!draft.section} ref={subjectInput} value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })}><option value="">Select subject</option>{editing !== null && draft.subject === form.data.blocks[editing].subject && draft.section === form.data.blocks[editing].section && draft.subject && !subjects.includes(draft.subject) && !(draft.class_mode === 'laboratory' && lectureOnlySubjects.includes(draft.subject)) && <option value={draft.subject}>{draft.subject} (existing)</option>}{subjects.map((subject) => <option key={subject} value={subject}>{subject}</option>)}</select></label></> : <p className="sd-editor-note">{draft.schedule_type === 'consultation' ? 'Consultation contributes to scheduled DTR hours covered by school IN/OUT. No consultation hardware tap is required.' : 'Lunch and schedule gaps are excluded from DTR hours.'}</p>}
+                        {draft.schedule_type === 'class' ? <>
+                            <label>Course<select value={draft.course} onChange={(e) => updateSectionPart('course', e.target.value)}><option value="">Select course</option>{Object.entries(courses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                            <label>Year level<select disabled={!draft.course} value={draft.year_level} onChange={(e) => updateSectionPart('year_level', e.target.value)}><option value="">Select year</option>{yearLevels.map((year) => <option key={year} value={year}>Year {year}</option>)}</select></label>
+                            <label>Section<select disabled={!draft.course || !draft.year_level} value={draft.section_letter} onChange={(e) => updateSectionPart('section_letter', e.target.value)}><option value="">Select section</option>{sectionLetters.map((letter) => <option key={letter} value={letter}>Section {letter}</option>)}</select></label>
+                            <label>Subject<select disabled={!draft.section} ref={subjectInput} value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })}><option value="">Select subject</option>{editing !== null && draft.subject === form.data.blocks[editing].subject && draft.section === form.data.blocks[editing].section && draft.subject && !subjects.includes(draft.subject) && !(draft.class_mode === 'laboratory' && lectureOnlySubjects.includes(draft.subject)) && <option value={draft.subject}>{draft.subject} (existing)</option>}{subjects.map((subject) => <option key={subject} value={subject}>{subject}</option>)}</select></label>
+                            <label>Class delivery<select value={draft.class_mode} onChange={(e) => setDraft({ ...draft, class_mode: e.target.value, subject: e.target.value === 'laboratory' && lectureOnlySubjects.includes(draft.subject) ? '' : draft.subject })}>{Object.entries(classModes).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                            {draft.section && !sections.includes(draft.section) && <p className="sd-editor-note">Existing section: {draft.section}. It remains available for historical viewing.</p>}
+                        </> : <p className="sd-editor-note">{draft.schedule_type === 'consultation' ? 'Consultation contributes to scheduled DTR hours covered by school IN/OUT. No consultation hardware tap is required.' : 'Lunch and schedule gaps are excluded from DTR hours.'}</p>}
                     </div>
                     {error && <p className="sd-error" role="alert">{error}</p>}
                     <div className="sd-editor-actions"><button className="sd-control sd-button sd-primary" type="button" onClick={add}>{editing === null ? <Plus size={17} /> : <Check size={17} />}{editing === null ? 'Add Block' : 'Apply Changes'}</button>{(editing !== null || draftChanged) && <button className="sd-control sd-button sd-secondary" type="button" onClick={() => reset()}><X size={16} />Cancel</button>}</div>

@@ -17,6 +17,10 @@ class SubjectController extends Controller
 
     public function index()
     {
+        $usedCourses = FacultySchedule::withoutGlobalScopes()->whereNotNull('subject')->whereNotNull('section')
+            ->get(['subject', 'section'])->groupBy('subject')->map(fn ($rows) => $rows
+            ->map(fn ($row) => Str::before((string) $row->section, ' '))
+            ->filter(fn ($course) => in_array($course, ['BSIT', 'BSCS'], true))->unique()->values()->all());
         $usedCodes = FacultySchedule::withoutGlobalScopes()->whereNotNull('subject')->distinct()->pluck('subject')->all();
         $openTermIds = AcademicTerm::query()->where('status', '!=', 'closed')->pluck('id');
         $protectedCodes = FacultySchedule::withoutGlobalScopes()->whereNotNull('subject')
@@ -25,15 +29,18 @@ class SubjectController extends Controller
 
         return Inertia::render('Settings/Subjects', [
             'subjects' => Subject::query()
+                ->orderByRaw("CASE course_scope WHEN 'BSIT' THEN 1 WHEN 'BSCS' THEN 2 ELSE 3 END")
                 ->orderBy('year_level')
                 ->orderByRaw("CASE semester WHEN 'First Semester' THEN 1 WHEN 'Second Semester' THEN 2 WHEN 'Midyear Term' THEN 3 ELSE 4 END")
                 ->orderBy('code')
                 ->get()
-                ->each(function (Subject $subject) use ($usedCodes, $protectedCodes) {
+                ->each(function (Subject $subject) use ($usedCodes, $protectedCodes, $usedCourses) {
                     $subject->setAttribute('used_by_schedules', in_array($subject->code, $usedCodes, true));
                     $subject->setAttribute('used_by_open_schedules', in_array($subject->code, $protectedCodes, true));
+                    $subject->setAttribute('used_courses', $usedCourses->get($subject->code, []));
                 }),
             'semesters' => self::SEMESTERS,
+            'courseScopes' => ['BSIT' => 'BSIT', 'BSCS' => 'BSCS', 'BOTH' => 'BSIT and BSCS'],
         ]);
     }
 
@@ -57,6 +64,14 @@ class SubjectController extends Controller
         if ($used && ((int) $data['year_level'] !== $subject->year_level || $data['semester'] !== $subject->semester)) {
             throw ValidationException::withMessages([
                 'year_level' => 'The year level and semester are fixed because saved schedules already use this subject.',
+            ]);
+        }
+        $usedCourses = FacultySchedule::withoutGlobalScopes()->where('subject', $subject->code)->pluck('section')
+            ->map(fn ($section) => Str::before((string) $section, ' '))
+            ->filter(fn ($course) => in_array($course, ['BSIT', 'BSCS'], true))->unique();
+        if ($usedCourses->contains(fn ($course) => $data['course_scope'] !== 'BOTH' && $data['course_scope'] !== $course)) {
+            throw ValidationException::withMessages([
+                'course_scope' => 'The selected course must continue to include every course that already uses this subject.',
             ]);
         }
         if ($data['lecture_only'] && ! $subject->lecture_only && FacultySchedule::withoutGlobalScopes()
@@ -96,6 +111,7 @@ class SubjectController extends Controller
             'code' => ['required', 'string', 'max:50', 'regex:/^(?=.*[A-Z])(?=.*\d)[A-Z0-9]+(?:[ -][A-Z0-9]+)*$/', Rule::unique('subjects', 'code')->ignore($subject)],
             'name' => ['required', 'string', 'max:255', Rule::unique('subjects', 'name')->ignore($subject)
                 ->where(fn ($query) => $query->where('year_level', $request->integer('year_level'))->where('semester', $request->input('semester')))],
+            'course_scope' => ['required', Rule::in(Subject::COURSE_SCOPES)],
             'year_level' => ['required', 'integer', 'between:1,4'],
             'semester' => ['required', Rule::in(self::SEMESTERS)],
             'lecture_only' => ['required', 'boolean'],
