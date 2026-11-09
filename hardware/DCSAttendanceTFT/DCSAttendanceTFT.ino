@@ -139,6 +139,7 @@ volatile bool serverReconnectRequested = false;
 uint8_t serverTransportFailures = 0;
 volatile int lastServerHttpCode = 0;
 volatile unsigned long lastServerResponseAt = 0;
+volatile unsigned long lastServerAttemptAt = 0;
 uint32_t offlineSyncProcessed = 0;
 unsigned long offlineSyncNoticeAt = 0;
 time_t timeOutAvailableAt = 0;
@@ -146,11 +147,12 @@ unsigned long lastServerReconnect = 0;
 
 const unsigned long WIFI_RETRY_MS = 10000;
 const unsigned long DISPLAY_CLOCK_REFRESH_MS = 200;
-const unsigned long ENROLLMENT_POLL_MS = 2500;
+const unsigned long ENROLLMENT_POLL_MS = 1000;
 const unsigned long ENROLLMENT_STATUS_POLL_MS = 750;
 const unsigned long FINGER_SCAN_INTERVAL_MS = 60;
 const uint8_t FINGER_CONFIRMATION_SAMPLES = 3;
 const unsigned long OFFLINE_SYNC_INTERVAL_MS = 1500;
+const unsigned long LIVE_ATTENDANCE_WAIT_MS = 4000;
 const uint32_t MAX_OFFLINE_ATTENDANCE = 2000;
 const time_t MINIMUM_VALID_TIME = 1700000000;
 const char* OFFLINE_QUEUE_PATH = "/attendance.bin";
@@ -173,9 +175,24 @@ struct __attribute__((packed)) OfflineAttendanceRecord {
   char method[12];
 };
 
+struct AttendanceUploadResult {
+  OfflineAttendanceRecord record;
+  int code;
+  uint32_t durationMs;
+  char response[768];
+};
+
 QueueHandle_t enrollmentQueue = nullptr;
+QueueHandle_t attendanceUploadQueue = nullptr;
+QueueHandle_t attendanceResultQueue = nullptr;
+SemaphoreHandle_t offlineQueueMutex = nullptr;
 volatile bool enrollmentBusy = false;
 volatile bool attendanceBusy = false;
+volatile bool liveAttendanceUploadPending = false;
+unsigned long liveAttendanceStartedAt = 0;
+char liveAttendanceEventId[48] = {};
+unsigned long feedbackLedOffAt = 0;
+volatile bool footerRefreshRequested = false;
 volatile bool enrollmentCancelled = false;
 volatile bool enrollmentExpired = false;
 volatile uint32_t activeEnrollmentId = 0;
@@ -300,13 +317,14 @@ void waitWithDisplayRefresh(unsigned long durationMs) {
 void updateDisplayFooter() {
   uint32_t pending = pendingOfflineRecordCount();
   bool connected = WiFi.status() == WL_CONNECTED;
-  bool freshServerStatus = lastServerResponseAt != 0 &&
-                          millis() - lastServerResponseAt < 30000;
+  bool recentSuccess = lastServerResponseAt != 0 && millis() - lastServerResponseAt < 60000;
+  bool recentAttempt = lastServerAttemptAt != 0 && millis() - lastServerAttemptAt < 60000;
   String serverText = !connected ? "SERVER / WAITING FOR WI-FI"
-    : !freshServerStatus ? "SERVER / CHECKING CONNECTION"
-    : lastServerHttpCode == 401 || lastServerHttpCode == 403 ? "SERVER / ACCESS DENIED"
-    : lastServerHttpCode >= 500 ? "SERVER / TEMPORARILY UNAVAILABLE"
-    : lastServerHttpCode > 0 ? "SERVER / ONLINE" : "SERVER / UNREACHABLE";
+    : recentAttempt && (lastServerHttpCode == 401 || lastServerHttpCode == 403) ? "SERVER / ACCESS DENIED"
+    : recentAttempt && lastServerHttpCode >= 500 ? "SERVER / SERVER ERROR"
+    : serverTransportFailures >= 3 && !recentSuccess ? "SERVER / UNREACHABLE"
+    : serverTransportFailures > 0 ? "SERVER / SLOW / RETRYING"
+    : recentSuccess ? "SERVER / ONLINE" : "SERVER / CHECKING CONNECTION";
   if (serverText != lastDisplayServerStatus) {
     lastDisplayServerStatus = serverText;
     lcd.fillRect(0, 228, lcd.width(), 28, DISPLAY_BACKGROUND);
@@ -752,33 +770,46 @@ bool createAttendanceRecord(String identifier, String method, OfflineAttendanceR
 
 bool appendOfflineRecord(const OfflineAttendanceRecord& record) {
   if (!offlineStorageAvailable) return false;
-  if (pendingOfflineRecordCount() >= MAX_OFFLINE_ATTENDANCE) return false;
+  if (offlineQueueMutex && xSemaphoreTake(offlineQueueMutex, pdMS_TO_TICKS(500)) != pdTRUE) return false;
+  if (pendingOfflineRecordCount() >= MAX_OFFLINE_ATTENDANCE) {
+    if (offlineQueueMutex) xSemaphoreGive(offlineQueueMutex);
+    return false;
+  }
 
   File file = LittleFS.open(OFFLINE_QUEUE_PATH, FILE_APPEND);
-  if (!file) return false;
+  if (!file) {
+    if (offlineQueueMutex) xSemaphoreGive(offlineQueueMutex);
+    return false;
+  }
   bool saved = file.write(reinterpret_cast<const uint8_t*>(&record), sizeof(record)) == sizeof(record);
   file.close();
   if (saved) offlineUploadsPending = true;
+  if (offlineQueueMutex) xSemaphoreGive(offlineQueueMutex);
   return saved;
 }
 
 bool readNextOfflineRecord(OfflineAttendanceRecord& record) {
   if (!offlineStorageAvailable || pendingOfflineRecordCount() == 0) return false;
+  if (offlineQueueMutex && xSemaphoreTake(offlineQueueMutex, pdMS_TO_TICKS(500)) != pdTRUE) return false;
   File file = LittleFS.open(OFFLINE_QUEUE_PATH, FILE_READ);
   if (!file || !file.seek(offlineQueueHead * sizeof(OfflineAttendanceRecord))) {
     if (file) file.close();
+    if (offlineQueueMutex) xSemaphoreGive(offlineQueueMutex);
     return false;
   }
   bool read = file.read(reinterpret_cast<uint8_t*>(&record), sizeof(record)) == sizeof(record);
   file.close();
+  if (offlineQueueMutex) xSemaphoreGive(offlineQueueMutex);
   return read && record.version == 1;
 }
 
 void acknowledgeOfflineRecord() {
+  if (offlineQueueMutex && xSemaphoreTake(offlineQueueMutex, pdMS_TO_TICKS(500)) != pdTRUE) return;
   offlineQueueHead++;
   offlinePreferences.putUInt("head", offlineQueueHead);
   if (pendingOfflineRecordCount() == 0) resetOfflineQueue();
   offlineUploadsPending = pendingOfflineRecordCount() > 0;
+  if (offlineQueueMutex) xSemaphoreGive(offlineQueueMutex);
 }
 
 String attendanceTimestamp(const OfflineAttendanceRecord& record) {
@@ -905,7 +936,7 @@ void showClock() {
   if (!hasValidClock()) {
     printLine(0, "Clock not set", 2, true);
     printLine(1, "Attendance unavailable", 2, true);
-    updateDisplayFooter();
+    footerRefreshRequested = true;
     return;
   }
 
@@ -917,7 +948,7 @@ void showClock() {
   strftime(timeText, sizeof(timeText), "%I:%M:%S %p", &info);
   printLine(0, dateText);
   printLine(1, timeText);
-  updateDisplayFooter();
+  footerRefreshRequested = true;
 }
 
 void setupFingerprint() {
@@ -997,10 +1028,13 @@ void noteServerConnectionFailure() {
 
 int requestHardwareServer(String path, String payload, String& response, bool background,
                           bool monitorEnrollment = false) {
+  unsigned long requestQueuedAt = millis();
   response = "";
   if (WiFi.status() != WL_CONNECTED) return -1000;
   if (!hardwareHttpMutex || xSemaphoreTake(hardwareHttpMutex,
-      background ? 0 : pdMS_TO_TICKS(45000)) != pdTRUE) return -1002;
+      background ? 0 : pdMS_TO_TICKS(4500)) != pdTRUE) return -1002;
+  unsigned long requestStartedAt = millis();
+  unsigned long queueWaitMs = requestStartedAt - requestQueuedAt;
 
   // One TLS client at a time: simultaneous handshakes compete for ESP32 heap.
   if (background && (attendanceBusy || (enrollmentBusy && !monitorEnrollment))) {
@@ -1008,7 +1042,7 @@ int requestHardwareServer(String path, String payload, String& response, bool ba
     return -1002;
   }
   int code = -1001;
-  const int maximumAttempts = background ? 1 : 2;
+  const int maximumAttempts = 1;
   for (int attempt = 0; attempt < maximumAttempts; attempt++) {
     if (attempt > 0) {
       Serial.println("Connection failed before sending. Retrying with a fresh TLS client...");
@@ -1038,8 +1072,8 @@ int requestHardwareServer(String path, String payload, String& response, bool ba
       break;
     }
     http.setReuse(false);
-    http.setConnectTimeout(monitorEnrollment ? 2000 : 15000);
-    http.setTimeout(monitorEnrollment ? 2000 : 15000);
+    http.setConnectTimeout(monitorEnrollment ? 2500 : 4000);
+    http.setTimeout(monitorEnrollment ? 2500 : 4000);
     addHardwareHeaders(http);
     code = payload.length() ? http.POST(payload) : http.GET();
     response = http.getString();
@@ -1055,15 +1089,21 @@ int requestHardwareServer(String path, String payload, String& response, bool ba
     // Do not blindly repeat requests whose response was lost after sending.
     if (code != HTTPC_ERROR_CONNECTION_REFUSED) break;
   }
-  if (code < 0) {
+  if (code < 0 && code != -1002) {
     noteServerConnectionFailure();
-  } else {
+  } else if (code > 0) {
     serverTransportFailures = 0;
     serverReconnectRequested = false;
+    lastServerResponseAt = millis();
   }
   xSemaphoreGive(hardwareHttpMutex);
   lastServerHttpCode = code;
-  lastServerResponseAt = millis();
+  lastServerAttemptAt = millis();
+  Serial.println("Server timing " + path + ": queue=" + String(queueWaitMs) +
+                 " ms, request=" + String(millis() - requestStartedAt) +
+                 " ms, total=" + String(millis() - requestQueuedAt) +
+                 " ms, HTTP=" + String(code) + ", RSSI=" + String(WiFi.RSSI()) +
+                 ", heap=" + String(ESP.getFreeHeap()));
   return code;
 }
 
@@ -1573,7 +1613,11 @@ void showOfflineSaved(const OfflineAttendanceRecord& record) {
   strftime(timeText, sizeof(timeText), "%I:%M %p", &info);
   String methodLabel = String(record.method) == "rfid" ? "RFID" : "FINGER";
 
-  successSignal();
+  digitalWrite(GREEN_LED_PIN, LOW);
+  digitalWrite(RED_LED_PIN, LOW);
+  digitalWrite(YELLOW_LED_PIN, HIGH);
+  tone(BUZZER_PIN, 900, 120);
+  feedbackLedOffAt = millis() + 350;
   bool needsVerification = String(record.method) == "rfid" &&
                            cachedRfidRegistration(String(record.identifier)) < 0;
   showMessage("Saved on device", needsVerification ? "Awaiting verification" : "Awaiting upload");
@@ -1582,52 +1626,91 @@ void showOfflineSaved(const OfflineAttendanceRecord& record) {
 }
 
 void sendAttendance(String identifier, String method) {
-  attendanceBusy = true;
   OfflineAttendanceRecord record = {};
   if (!createAttendanceRecord(identifier, method, record)) {
-    attendanceBusy = false;
     errorSignal();
     showMessage("Clock not set", "Attendance unavailable");
-    delay(2500);
     return;
   }
 
-  // WiFi-connected taps go directly to the server, even with an older backlog.
-  if (WiFi.status() != WL_CONNECTED) {
-    attendanceBusy = false;
-    if (appendOfflineRecord(record)) showOfflineSaved(record);
-    else {
-      errorSignal();
-      showMessage(offlineStorageAvailable ? "Offline full" : "Storage error", "Not recorded");
-    }
-    delay(2500);
+  // Write first so a reset or slow connection cannot lose a scan.
+  if (!appendOfflineRecord(record)) {
+    errorSignal();
+    showMessage(offlineStorageAvailable ? "Offline full" : "Storage error", "Not recorded");
     return;
   }
 
-  unsigned long requestStarted = millis();
+  if (WiFi.status() != WL_CONNECTED || !attendanceUploadQueue) {
+    showOfflineSaved(record);
+    return;
+  }
+
+  attendanceBusy = true;
+  liveAttendanceUploadPending = true;
+  liveAttendanceStartedAt = millis();
+  strncpy(liveAttendanceEventId, record.eventId, sizeof(liveAttendanceEventId) - 1);
+  liveAttendanceEventId[sizeof(liveAttendanceEventId) - 1] = '\0';
   digitalWrite(YELLOW_LED_PIN, HIGH);
-  showMessage("Processing...", "Please wait");
-  String response;
-  int code = postAttendanceRecord(record, response);
-  Serial.println("Attendance HTTP " + String(code) + ": " + response);
-  Serial.println("Attendance response time: " + String(millis() - requestStarted) + " ms");
-  digitalWrite(YELLOW_LED_PIN, LOW);
-  attendanceBusy = false;
-
-  if (shouldQueueAttendance(code)) {
-    // WiFi association alone does not mean the attendance server is reachable.
-    if (method == "rfid" && cachedRfidRegistration(identifier) == 0) {
-      showMessage("Card not registered", "See administrator");
-      errorSignal();
-    } else if (appendOfflineRecord(record)) showOfflineSaved(record);
-    else {
-      errorSignal();
-      showMessage(offlineStorageAvailable ? "Offline full" : "Storage error", "Not recorded");
-    }
-  } else {
-    showAttendanceResponse(code, response, method);
+  tone(BUZZER_PIN, 1100, 80);
+  showMessage(method == "rfid" ? "Card detected" : "Fingerprint detected", "Checking attendance...");
+  if (xQueueSend(attendanceUploadQueue, &record, 0) != pdTRUE) {
+    attendanceBusy = false;
+    liveAttendanceUploadPending = false;
+    showOfflineSaved(record);
   }
-  waitWithDisplayRefresh(2500);
+}
+
+void processAttendanceUploadResults() {
+  if (!attendanceResultQueue) return;
+  AttendanceUploadResult result = {};
+  while (xQueueReceive(attendanceResultQueue, &result, 0) == pdTRUE) {
+    bool isActive = strcmp(result.record.eventId, liveAttendanceEventId) == 0;
+    Serial.println("Attendance upload " + String(result.record.eventId) + ": HTTP " +
+                   String(result.code) + " in " + String(result.durationMs) + " ms");
+    if (!isActive) continue;
+    bool stillWaiting = liveAttendanceUploadPending;
+    attendanceBusy = false;
+    liveAttendanceUploadPending = false;
+    liveAttendanceEventId[0] = '\0';
+    digitalWrite(YELLOW_LED_PIN, LOW);
+    if (!stillWaiting) continue;
+    String response = String(result.response);
+    if (shouldQueueAttendance(result.code)) showOfflineSaved(result.record);
+    else showAttendanceResponse(result.code, response, String(result.record.method));
+  }
+}
+
+void refreshLiveAttendanceTimeout() {
+  if (!liveAttendanceUploadPending || millis() - liveAttendanceStartedAt < LIVE_ATTENDANCE_WAIT_MS) return;
+  liveAttendanceUploadPending = false;
+  attendanceBusy = false;
+  OfflineAttendanceRecord pending = {};
+  strncpy(pending.eventId, liveAttendanceEventId, sizeof(pending.eventId) - 1);
+  showOfflineSaved(pending);
+}
+
+void attendanceNetworkTask(void* parameter) {
+  while (true) {
+    OfflineAttendanceRecord record = {};
+    if (attendanceUploadQueue && xQueueReceive(attendanceUploadQueue, &record, 0) == pdTRUE) {
+      unsigned long startedAt = millis();
+      String response;
+      int code = postAttendanceRecord(record, response);
+      if (!shouldQueueAttendance(code)) {
+        OfflineAttendanceRecord next = {};
+        if (readNextOfflineRecord(next) && strcmp(next.eventId, record.eventId) == 0) acknowledgeOfflineRecord();
+      }
+      AttendanceUploadResult result = {};
+      result.record = record;
+      result.code = code;
+      result.durationMs = millis() - startedAt;
+      response.toCharArray(result.response, sizeof(result.response));
+      if (attendanceResultQueue) xQueueSend(attendanceResultQueue, &result, pdMS_TO_TICKS(100));
+      continue;
+    }
+    syncNextOfflineAttendance();
+    vTaskDelay(pdMS_TO_TICKS(25));
+  }
 }
 
 void syncNextOfflineAttendance() {
@@ -1645,15 +1728,13 @@ void syncNextOfflineAttendance() {
     return;
   }
 
-  attendanceBusy = true;
   queuedUploadBlinking = true;
   offlineSyncStatus = "SYNC: UPLOADING " + String(offlineSyncProcessed + 1) + " OF " +
                       String(offlineSyncProcessed + pendingOfflineRecordCount());
-  updateDisplayFooter();
+  footerRefreshRequested = true;
   String response;
   int code = postAttendanceRecord(record, response);
   queuedUploadBlinking = false;
-  attendanceBusy = false;
 
   Serial.println("Offline sync HTTP " + String(code) + ": " + response);
   String rejectionMessage = jsonValue(response, "message");
@@ -1700,6 +1781,7 @@ void syncNextOfflineAttendance() {
 }
 
 void processRfidAttendance() {
+  if (attendanceBusy) return;
   if (!rfid.PICC_IsNewCardPresent() || !rfid.PICC_ReadCardSerial()) return;
   String uid = rfidUid();
   Serial.println("RFID UID: " + uid);
@@ -1715,7 +1797,7 @@ void processRfidAttendance() {
 }
 
 void processFingerprintAttendance() {
-  if (!fingerprintAvailable || waitForFingerRelease ||
+  if (attendanceBusy || !fingerprintAvailable || waitForFingerRelease ||
       millis() - lastFingerprintScan < FINGER_SCAN_INTERVAL_MS) return;
   lastFingerprintScan = millis();
   unsigned long scanStarted = millis();
@@ -1824,6 +1906,7 @@ void setup() {
     Serial.println("RC522 NOT detected. Check 3.3V and SPI wiring.");
   }
   setupFingerprint();
+  offlineQueueMutex = xSemaphoreCreateMutex();
   initializeOfflineStorage();
   initializeRfidCache();
   hardwareHttpMutex = xSemaphoreCreateMutex();
@@ -1832,6 +1915,14 @@ void setup() {
   // Do not hold the startup screen while WiFi negotiates. The RTC and local
   // attendance queue are ready immediately; maintainWiFi() completes this.
   startWiFiInBackground();
+  attendanceUploadQueue = xQueueCreate(4, sizeof(OfflineAttendanceRecord));
+  attendanceResultQueue = xQueueCreate(4, sizeof(AttendanceUploadResult));
+  if (attendanceUploadQueue && attendanceResultQueue) {
+    xTaskCreatePinnedToCore(attendanceNetworkTask, "attendance-net", 12288, nullptr, 2, nullptr, 0);
+    Serial.println("Background attendance network worker started.");
+  } else {
+    Serial.println("Could not create attendance network queues. Records remain stored locally.");
+  }
   enrollmentQueue = xQueueCreate(1, sizeof(EnrollmentRequest));
   if (enrollmentQueue) {
     xTaskCreatePinnedToCore(enrollmentPollTask, "enrollment-poll", 12288, nullptr, 1, nullptr, 0);
@@ -1848,6 +1939,16 @@ void setup() {
 void loop() {
   maintainWiFi();
   syncRtcFromInternet();
+  processAttendanceUploadResults();
+  refreshLiveAttendanceTimeout();
+  if (footerRefreshRequested) {
+    footerRefreshRequested = false;
+    updateDisplayFooter();
+  }
+  if (feedbackLedOffAt && millis() >= feedbackLedOffAt) {
+    digitalWrite(YELLOW_LED_PIN, LOW);
+    feedbackLedOffAt = 0;
+  }
 
   if (millis() - lastClockUpdate >= DISPLAY_CLOCK_REFRESH_MS) {
     showClock();
@@ -1888,5 +1989,4 @@ void loop() {
   }
 
   processRfidAttendance();
-  syncNextOfflineAttendance();
 }

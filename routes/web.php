@@ -89,10 +89,13 @@ Route::middleware(['auth', 'auth.session', SemesterWriteLock::class])->group(fun
     Route::get('settings/rooms-devices', [RoomDeviceController::class, 'index'])->name('settings.rooms.index')->middleware('role:admin');
     Route::post('settings/buildings', [RoomDeviceController::class, 'storeBuilding'])->name('settings.buildings.store')->middleware('role:admin');
     Route::put('settings/buildings/{building}', [RoomDeviceController::class, 'updateBuilding'])->name('settings.buildings.update')->middleware('role:admin');
+    Route::delete('settings/buildings/{building}', [RoomDeviceController::class, 'destroyBuilding'])->name('settings.buildings.destroy')->middleware('role:admin');
     Route::post('settings/rooms', [RoomDeviceController::class, 'storeRoom'])->name('settings.rooms.store')->middleware('role:admin');
     Route::put('settings/rooms/{room}', [RoomDeviceController::class, 'updateRoom'])->name('settings.rooms.update')->middleware('role:admin');
+    Route::delete('settings/rooms/{room}', [RoomDeviceController::class, 'destroyRoom'])->name('settings.rooms.destroy')->middleware('role:admin');
     Route::post('settings/devices', [RoomDeviceController::class, 'storeDevice'])->name('settings.devices.store')->middleware('role:admin');
     Route::put('settings/devices/{device}/assignment', [RoomDeviceController::class, 'assign'])->name('settings.devices.assign')->middleware('role:admin');
+    Route::delete('settings/devices/{device}', [RoomDeviceController::class, 'destroyDevice'])->name('settings.devices.destroy')->middleware('role:admin');
     Route::post('settings/subjects', [SubjectController::class, 'store'])->name('settings.subjects.store')->middleware('role:admin');
     Route::put('settings/subjects/{subject}', [SubjectController::class, 'update'])->name('settings.subjects.update')->middleware('role:admin');
     Route::patch('settings/subjects/{subject}/status', [SubjectController::class, 'toggle'])->name('settings.subjects.status')->middleware('role:admin');
