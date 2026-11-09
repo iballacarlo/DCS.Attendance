@@ -53,7 +53,7 @@ export default function FacultyTodaySchedule({ sessions = [], summary = { finish
                 <article className="faculty-session-card">
                     <div className="faculty-session-time"><Clock3 size={14} aria-hidden="true" /><span>{time12(session.start_time)} – {time12(session.end_time)}</span>{session.is_current && <strong>Now</strong>}</div>
                     <div className="faculty-session-heading"><div><h3>{isClass ? session.subject || 'Class session' : session.schedule_type === 'consultation' ? 'Consultation' : 'Lunch break'}</h3>
-                        {isClass && <p>{[session.section, session.class_mode === 'laboratory' ? 'Laboratory' : session.class_mode === 'lecture' ? 'Lecture' : ''].filter(Boolean).join(' · ')}</p>}
+                        {isClass && <p>{[session.section, session.room || 'Room not assigned', session.class_mode === 'laboratory' ? 'Laboratory' : session.class_mode === 'lecture' ? 'Lecture' : ''].filter(Boolean).join(' · ')}</p>}
                     </div>{state && <span className="faculty-session-status"><state.Icon size={14} aria-hidden="true" />{state.label}</span>}</div>
                     {isClass && <ClassSteps session={session} />}
                     {session.status === 'finished' && (session.late_minutes > 0 || session.undertime_minutes > 0) && <div className="faculty-session-flags">

@@ -2,15 +2,29 @@
 
 namespace Tests\Feature;
 
+use App\Models\AttendanceDevice;
 use App\Models\Employee;
 use App\Models\FacultyRank;
+use App\Models\Room;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use PHPUnit\Framework\Attributes\TestWith;
 use Tests\TestCase;
 
 class HardwareAttendanceTest extends TestCase
 {
     use RefreshDatabase;
+
+    private Room $room;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->room = Room::create(['code' => 'TEST-ROOM', 'name' => 'Test Room', 'is_active' => true]);
+        $device = AttendanceDevice::create(['code' => 'TEST-DEVICE', 'name' => 'Test TFT', 'is_active' => true]);
+        $device->assignments()->create(['room_id' => $this->room->id, 'effective_from' => '2020-01-01 00:00:00']);
+        $this->withHeader('X-Device-Code', 'TEST-DEVICE');
+    }
 
     public function test_rfid_list_requires_the_hardware_key(): void
     {
@@ -111,11 +125,11 @@ class HardwareAttendanceTest extends TestCase
         Carbon::setTestNow();
     }
 
-    #[\PHPUnit\Framework\Attributes\TestWith(['rfid', 'http'])]
-    #[\PHPUnit\Framework\Attributes\TestWith(['rfid', 'https'])]
-    #[\PHPUnit\Framework\Attributes\TestWith(['fingerprint', 'http'])]
-    #[\PHPUnit\Framework\Attributes\TestWith(['fingerprint', 'https'])]
-    public function test_hardware_allows_time_out_at_exactly_two_minutes(string $method, string $scheme): void
+    #[TestWith(['rfid', 'http'])]
+    #[TestWith(['rfid', 'https'])]
+    #[TestWith(['fingerprint', 'http'])]
+    #[TestWith(['fingerprint', 'https'])]
+    public function test_hardware_allows_time_out_only_from_ten_minutes_before_class_end(string $method, string $scheme): void
     {
         config(['services.hardware.api_key' => 'device-secret']);
         $startedAt = Carbon::parse('2026-09-21 08:00:00', 'Asia/Manila');
@@ -130,7 +144,7 @@ class HardwareAttendanceTest extends TestCase
             'rate_amount' => $rank->rate_amount,
             'status' => 'active',
         ]);
-        $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'break_minutes' => 0]);
+        $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'break_minutes' => 0, 'room_id' => $this->room->id]);
         $identifier = $method === 'rfid' ? 'TWO-MINUTE-CARD' : 'FP-2';
         if ($method === 'rfid') {
             $employee->rfidCards()->create(['rfid_uid' => $identifier, 'status' => 'active']);
@@ -144,14 +158,14 @@ class HardwareAttendanceTest extends TestCase
             ]);
 
         $tap()->assertOk()->assertJsonPath('action', 'IN');
-        Carbon::setTestNow($startedAt->copy()->addMinute()->addSeconds(59));
-        $tap()->assertOk()->assertJsonPath('action', 'WAIT')
-            ->assertJsonPath('time_out_available_at', (string) $startedAt->copy()->addMinutes(2)->timestamp);
-        $this->assertDatabaseHas('attendance_logs', ['employee_id' => $employee->id, 'time_out' => null]);
         Carbon::setTestNow($startedAt->copy()->addMinutes(2));
+        $tap()->assertOk()->assertJsonPath('action', 'WAIT')
+            ->assertJsonPath('time_out_available_at', (string) $startedAt->copy()->addHour()->addMinutes(50)->timestamp);
+        $this->assertDatabaseHas('attendance_logs', ['employee_id' => $employee->id, 'time_out' => null]);
+        Carbon::setTestNow($startedAt->copy()->addHour()->addMinutes(50));
         $tap()->assertOk()->assertJsonPath('action', 'OUT');
         $this->assertDatabaseHas('attendance_logs', [
-            'employee_id' => $employee->id, 'time_out' => '08:02:00', 'method_out' => $method,
+            'employee_id' => $employee->id, 'time_out' => '09:50:00', 'method_out' => $method,
         ]);
 
         Carbon::setTestNow();
@@ -171,7 +185,7 @@ class HardwareAttendanceTest extends TestCase
             'rate_amount' => $rank->rate_amount,
             'status' => 'active',
         ]);
-        $employee->schedules()->create(['day_of_week' => 2, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'break_minutes' => 0]);
+        $employee->schedules()->create(['day_of_week' => 2, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'break_minutes' => 0, 'room_id' => $this->room->id]);
         $employee->rfidCards()->create([
             'rfid_uid' => 'OFFLINE-CARD',
             'status' => 'active',
@@ -193,12 +207,12 @@ class HardwareAttendanceTest extends TestCase
             ->postJson('/api/hardware/tap', [
                 'identifier' => 'OFFLINE-CARD',
                 'method' => 'rfid',
-                'event_id' => 'device-001-1791245100-0002',
-                'occurred_at' => '2026-10-06 08:20:30',
+                'event_id' => 'device-001-1791251400-0002',
+                'occurred_at' => '2026-10-06 09:50:00',
             ])
             ->assertOk()
             ->assertJsonPath('action', 'OUT')
-            ->assertJsonPath('display_time', '08:20 AM');
+            ->assertJsonPath('display_time', '09:50 AM');
 
         $this->assertDatabaseCount('attendance_logs', 1);
         $this->assertDatabaseCount('hardware_attendance_events', 2);
@@ -206,9 +220,60 @@ class HardwareAttendanceTest extends TestCase
             'employee_id' => $employee->id,
             'attendance_date' => '2026-10-06',
             'time_in' => '08:15:30',
-            'time_out' => '08:20:30',
+            'time_out' => '09:50:00',
         ]);
 
+        Carbon::setTestNow();
+    }
+
+    public function test_next_faculty_waits_for_room_then_releases_missing_out_at_own_start(): void
+    {
+        config(['services.hardware.api_key' => 'device-secret']);
+        $rank = FacultyRank::where('is_active', true)->firstOrFail();
+        $faculty = collect([
+            ['number' => 'ROOM-ONE', 'first' => 'First', 'card' => 'ROOM-CARD-ONE', 'start' => '08:00', 'end' => '09:00'],
+            ['number' => 'ROOM-TWO', 'first' => 'Next', 'card' => 'ROOM-CARD-TWO', 'start' => '09:00', 'end' => '10:00'],
+        ])->map(function ($item) use ($rank) {
+            $employee = Employee::create(['employee_no' => $item['number'], 'first_name' => $item['first'], 'last_name' => 'Faculty',
+                'faculty_rank_id' => $rank->id, 'rate_type' => 'hourly', 'rate_amount' => $rank->rate_amount, 'status' => 'active']);
+            $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'subject' => 'ITEC 100', 'section' => 'BSIT 1A',
+                'class_mode' => 'lecture', 'start_time' => $item['start'], 'end_time' => $item['end'], 'break_minutes' => 0, 'room_id' => $this->room->id]);
+            $employee->rfidCards()->create(['rfid_uid' => $item['card'], 'status' => 'active']);
+
+            return $employee;
+        });
+        $tap = fn (string $card, string $time) => $this->withHeader('X-Hardware-Key', 'device-secret')->postJson('/api/hardware/tap', [
+            'identifier' => $card, 'method' => 'rfid', 'occurred_at' => '2026-10-05 '.$time,
+        ]);
+
+        Carbon::setTestNow(Carbon::parse('2026-10-05 09:05:00', 'Asia/Manila'));
+        $tap('ROOM-CARD-ONE', '08:00:00')->assertOk()->assertJsonPath('action', 'IN')->assertJsonPath('school_attendance_warning', true);
+        $tap('ROOM-CARD-TWO', '08:40:00')->assertOk()->assertJsonPath('action', 'ROOM OCCUPIED');
+        $tap('ROOM-CARD-TWO', '09:00:00')->assertOk()->assertJsonPath('action', 'IN');
+
+        $this->assertDatabaseHas('attendance_logs', ['employee_id' => $faculty[0]->id, 'time_out' => null, 'room_release_reason' => 'next_session_started']);
+        $this->assertDatabaseHas('attendance_logs', ['employee_id' => $faculty[1]->id, 'time_in' => '09:00:00', 'room_code' => 'TEST-ROOM']);
+        Carbon::setTestNow();
+    }
+
+    public function test_faculty_cannot_tap_in_from_a_device_assigned_to_the_wrong_room(): void
+    {
+        config(['services.hardware.api_key' => 'device-secret']);
+        $otherRoom = Room::create(['code' => 'OTHER-ROOM', 'is_active' => true]);
+        $otherDevice = AttendanceDevice::create(['code' => 'OTHER-DEVICE', 'name' => 'Other TFT', 'is_active' => true]);
+        $otherDevice->assignments()->create(['room_id' => $otherRoom->id, 'effective_from' => '2020-01-01 00:00:00']);
+        $rank = FacultyRank::where('is_active', true)->firstOrFail();
+        $employee = Employee::create(['employee_no' => 'WRONG-ROOM', 'first_name' => 'Wrong', 'last_name' => 'Room',
+            'faculty_rank_id' => $rank->id, 'rate_type' => 'hourly', 'rate_amount' => $rank->rate_amount, 'status' => 'active']);
+        $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'subject' => 'ITEC 101', 'section' => 'BSIT 1A',
+            'class_mode' => 'lecture', 'start_time' => '08:00', 'end_time' => '10:00', 'break_minutes' => 0, 'room_id' => $this->room->id]);
+        $employee->rfidCards()->create(['rfid_uid' => 'WRONG-ROOM-CARD', 'status' => 'active']);
+        Carbon::setTestNow(Carbon::parse('2026-10-05 08:00:00', 'Asia/Manila'));
+
+        $this->withHeaders(['X-Hardware-Key' => 'device-secret', 'X-Device-Code' => 'OTHER-DEVICE'])->postJson('/api/hardware/tap', [
+            'identifier' => 'WRONG-ROOM-CARD', 'method' => 'rfid',
+        ])->assertOk()->assertJsonPath('action', 'NO CLASS')->assertJsonPath('room', 'OTHER-ROOM');
+        $this->assertDatabaseCount('attendance_logs', 0);
         Carbon::setTestNow();
     }
 }

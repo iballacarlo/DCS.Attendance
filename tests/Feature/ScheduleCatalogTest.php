@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\Room;
 use App\Models\Subject;
 use App\Models\SystemSetting;
 use App\Models\User;
@@ -13,6 +14,14 @@ use Tests\TestCase;
 class ScheduleCatalogTest extends TestCase
 {
     use RefreshDatabase;
+
+    private Room $room;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->room = Room::create(['code' => 'CATALOG-ROOM', 'is_active' => true]);
+    }
 
     public function test_lecture_only_subjects_cannot_be_saved_as_laboratory(): void
     {
@@ -28,7 +37,7 @@ class ScheduleCatalogTest extends TestCase
         $this->actingAs(User::factory()->create(['role' => 'admin']));
         foreach (['NSTP 1', 'CVSU 101', 'NSTP 2'] as $subject) {
             SystemSetting::where('key', 'academic_semester')->update(['value' => $subject === 'NSTP 2' ? 'Second Semester' : 'First Semester']);
-            $block = ['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'subject' => $subject, 'section' => 'BSIT 1A', 'class_mode' => 'lecture'];
+            $block = ['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'subject' => $subject, 'section' => 'BSIT 1A', 'class_mode' => 'lecture', 'room_id' => $this->room->id];
             $this->put('/employees/'.$employee->id.'/schedule', ['blocks' => [$block]])->assertSessionHasNoErrors();
             $existing = $employee->schedules()->firstOrFail();
             $this->put('/employees/'.$employee->id.'/schedule', ['blocks' => [[...$block, 'id' => $existing->id, 'class_mode' => 'laboratory']]])->assertSessionHasErrors('blocks.0.subject');
@@ -59,7 +68,7 @@ class ScheduleCatalogTest extends TestCase
         $this->assertSame('SYSTEM INTEGRATION AND ARCHITECTURE 1', ScheduleOptions::all()['subjectNames']['ITEC 75A']);
         $employee = Employee::create(['employee_no' => 'CAT', 'first_name' => 'Catalog', 'last_name' => 'Faculty', 'rate_type' => 'hourly', 'rate_amount' => 100, 'status' => 'active']);
         $this->actingAs(User::factory()->create(['role' => 'admin']));
-        $block = ['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'subject' => 'DCIT 21A', 'section' => 'BSIT 2A', 'class_mode' => 'lecture'];
+        $block = ['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'subject' => 'DCIT 21A', 'section' => 'BSIT 2A', 'class_mode' => 'lecture', 'room_id' => $this->room->id];
         $this->put('/employees/'.$employee->id.'/schedule', ['blocks' => [$block]])->assertSessionHasErrors('blocks.0.subject');
         $block['section'] = 'BSIT 1A';
         $this->put('/employees/'.$employee->id.'/schedule', ['blocks' => [$block]])->assertSessionHasNoErrors();

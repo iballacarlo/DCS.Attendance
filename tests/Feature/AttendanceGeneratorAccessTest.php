@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Employee;
 use App\Models\RfidCard;
+use App\Models\Room;
 use App\Models\User;
 use App\Services\AttendanceGenerationService;
 use App\Services\GoogleAppsScriptMailer;
@@ -21,10 +22,13 @@ class AttendanceGeneratorAccessTest extends TestCase
 {
     use RefreshDatabase;
 
+    private Room $room;
+
     protected function setUp(): void
     {
         parent::setUp();
         config(['attendance_generator.enabled' => true]);
+        $this->room = Room::create(['code' => 'ACCESS-ROOM', 'is_active' => true]);
         // Access and overwrite tests need stable pairs; distribution is tested separately.
         $this->app->bind(AttendanceGenerationService::class, fn () => new class extends AttendanceGenerationService
         {
@@ -45,7 +49,7 @@ class AttendanceGeneratorAccessTest extends TestCase
     private function faculty(): Employee
     {
         $employee = Employee::create(['employee_no' => 'GEN-ONE', 'first_name' => 'Test', 'last_name' => 'Faculty', 'status' => 'active', 'rate_amount' => 0]);
-        $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'subject' => 'DCIT 24', 'section' => 'BSIT 1A', 'start_time' => '08:00', 'end_time' => '10:00']);
+        $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'subject' => 'DCIT 24', 'section' => 'BSIT 1A', 'start_time' => '08:00', 'end_time' => '10:00', 'room_id' => $this->room->id]);
         RfidCard::create(['employee_id' => $employee->id, 'rfid_uid' => 'ABC12345', 'status' => 'active']);
 
         return $employee;

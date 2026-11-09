@@ -182,10 +182,17 @@ class AttendanceGenerationService
         $blocks = collect();
         foreach ($schedules as $schedule) {
             $record = $existing->firstWhere('faculty_schedule_id', $schedule->id);
+            $room = app(RoomAttendanceService::class)->effectiveRoom($schedule, $day);
+            if (! $room && ! $record?->room_id) {
+                $this->skip($result, 'Room not assigned');
+
+                continue;
+            }
             $blocks->push(['key' => 'schedule:'.$schedule->id, 'record' => $record, 'schedule' => $schedule,
                 'start' => $record && $overwrite ? $record->scheduled_start : $schedule->start_time,
                 'end' => $record && $overwrite ? $record->scheduled_end : $schedule->end_time,
-                'subject' => $record && $overwrite ? $record->subject : $schedule->subject]);
+                'subject' => $record && $overwrite ? $record->subject : $schedule->subject,
+                'room' => $room]);
         }
         if ($overwrite) {
             foreach ($existing as $record) {
@@ -194,7 +201,7 @@ class AttendanceGenerationService
                 }
                 $blocks->push(['key' => $record->faculty_schedule_id ? 'schedule:'.$record->faculty_schedule_id : 'record:'.$record->id,
                     'record' => $record, 'schedule' => null, 'start' => $record->scheduled_start,
-                    'end' => $record->scheduled_end, 'subject' => $record->subject]);
+                    'end' => $record->scheduled_end, 'subject' => $record->subject, 'room' => $record->room]);
             }
         }
         if ($blocks->isEmpty()) {
@@ -291,7 +298,10 @@ class AttendanceGenerationService
                     $result['updated']++;
                     $log = $record;
                 } else {
-                    $log = AttendanceLog::create(['employee_id' => $employee->id, 'attendance_date' => $day->toDateString(), ...ClassAttendanceService::snapshot($block['schedule']), ...$attributes]);
+                    $room = $block['room'];
+                    $log = AttendanceLog::create(['employee_id' => $employee->id, 'attendance_date' => $day->toDateString(),
+                        ...ClassAttendanceService::snapshot($block['schedule']), 'room_id' => $room?->id,
+                        'room_code' => $room?->code, ...$attributes]);
                     $result['created']++;
                 }
                 AttendanceCalculator::recalculate($log);

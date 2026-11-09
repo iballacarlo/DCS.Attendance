@@ -3,11 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\AcademicTerm;
+use App\Models\Building;
+use App\Models\ClassSessionRoomChange;
 use App\Models\Employee;
 use App\Models\FacultyRank;
 use App\Models\FacultySchedule;
 use App\Models\FacultyScheduleVersion;
 use App\Models\FacultyTermAssignment;
+use App\Models\Room;
 use App\Models\User;
 use App\Services\GoogleAppsScriptMailer;
 use App\Services\SemesterManagementService;
@@ -252,6 +255,16 @@ class EmployeeController extends Controller
             'selectedSemester' => $term, 'scheduleVersions' => $versions, 'selectedVersion' => $data['version_id'] ?? '',
             'hasUnpublishedSchedule' => ! $faculty && $term && $assignment && app(SemesterManagementService::class)->publicationPending($term, $employee, $assignment->draft_blocks ?? [], $assignment->profile),
             'assignmentProfile' => ($faculty ? $version?->profile : $assignment?->profile) ?? app(SemesterManagementService::class)->profile($employee),
+            'buildings' => Building::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name']),
+            'rooms' => Room::with('building:id,code,name')->where('is_active', true)
+                ->whereHas('building', fn ($query) => $query->where('is_active', true))
+                ->orderBy('building_id')->orderBy('code')->get(['id', 'building_id', 'code', 'name']),
+            'roomChanges' => ! $faculty ? [] : ClassSessionRoomChange::with(['room', 'originalRoom', 'schedule.employee'])
+                ->where(function ($query) use ($employee) {
+                    $query->where('employee_id', $employee->id)->orWhere('swap_employee_id', $employee->id);
+                })
+                ->when($term, fn ($query) => $query->whereHas('schedule', fn ($schedule) => $schedule->where('academic_term_id', $term->id)))
+                ->latest()->get(),
         ]);
     }
 
@@ -382,6 +395,7 @@ class EmployeeController extends Controller
             'blocks.*.schedule_type' => ['required', 'in:class,consultation,lunch_break'],
             'blocks.*.start_time' => ['required', 'date_format:H:i'], 'blocks.*.end_time' => ['required', 'date_format:H:i'],
             'blocks.*.subject' => ['nullable', 'string', 'max:255'], 'blocks.*.section' => ['nullable', 'string', 'max:100'],
+            'blocks.*.room_id' => ['nullable', 'integer', Rule::exists('rooms', 'id')->where(fn ($query) => $query->where('is_active', true)->whereNotNull('building_id'))],
             'blocks.*.class_mode' => ['nullable', Rule::in(['lecture', 'laboratory'])],
         ]);
         $blocks = $data['blocks'];
@@ -422,6 +436,9 @@ class EmployeeController extends Controller
                         throw ValidationException::withMessages(["blocks.$i.$field" => ucfirst($field).' is required for a class.']);
                     }
                 }
+                if (empty($block['room_id']) && (! $existing || $existing->room_id)) {
+                    throw ValidationException::withMessages(["blocks.$i.room_id" => 'Room is required for a class.']);
+                }
             }
             foreach (array_slice($blocks, 0, $i) as $other) {
                 if ($block['day_of_week'] == $other['day_of_week'] && $block['start_time'] < $other['end_time'] && $block['end_time'] > $other['start_time']) {
@@ -438,10 +455,11 @@ class EmployeeController extends Controller
                 $relation = $isBreak ? $employee->scheduleBreaks() : $employee->schedules();
                 $values = collect($block)->except('id')->all();
                 if ($isBreak) {
-                    unset($values['subject'], $values['section'], $values['class_mode']);
+                    unset($values['subject'], $values['section'], $values['class_mode'], $values['room_id']);
                 } else {
                     $values['break_minutes'] = 0;
                     $values['class_mode'] = $block['schedule_type'] === 'class' ? ($block['class_mode'] ?? null) : null;
+                    $values['room_id'] = $block['schedule_type'] === 'class' ? ($block['room_id'] ?? null) : null;
                 }
                 $record = $relation->updateOrCreate(['id' => $block['id'] ?? null], $values);
                 if ($isBreak) {

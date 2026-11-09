@@ -128,6 +128,15 @@ class GoogleAppsScriptMailer
 
     private function deliver(User $user, string $subject, string $textMessage, string $htmlMessage): bool
     {
+        if (! config('services.google_mail.enabled')) {
+            Log::info('External email delivery is disabled for this environment.', [
+                'user_id' => $user->id,
+                'subject' => $subject,
+            ]);
+
+            return false;
+        }
+
         $endpoint = config('services.google_mail.webhook_url');
         $secret = config('services.google_mail.webhook_secret');
 

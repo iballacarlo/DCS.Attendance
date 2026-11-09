@@ -9,6 +9,7 @@ use App\Models\EntranceAttendance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\RfidCard;
+use App\Models\Room;
 use App\Models\User;
 use App\Services\AttendanceGenerationService;
 use App\Services\ClassAttendanceService;
@@ -28,10 +29,13 @@ class AttendanceGeneratorRecordsTest extends TestCase
 {
     use RefreshDatabase;
 
+    private Room $room;
+
     protected function setUp(): void
     {
         parent::setUp();
         config(['attendance_generator.enabled' => true]);
+        $this->room = Room::create(['code' => 'GEN-ROOM', 'is_active' => true]);
         $this->travelTo(Carbon::parse('2026-10-05 18:00', 'Asia/Manila'));
     }
 
@@ -41,7 +45,7 @@ class AttendanceGeneratorRecordsTest extends TestCase
         RfidCard::create(['employee_id' => $employee->id, 'rfid_uid' => $number.'-CARD', 'status' => 'active']);
         foreach ([['08:00', '10:00'], ['14:00', '16:00']] as [$start, $end]) {
             $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'class_mode' => 'lecture',
-                'start_time' => $start, 'end_time' => $end, 'subject' => 'DCIT 24', 'section' => 'BSIT 1A']);
+                'start_time' => $start, 'end_time' => $end, 'subject' => 'DCIT 24', 'section' => 'BSIT 1A', 'room_id' => $this->room->id]);
         }
         $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'consultation', 'start_time' => '10:00', 'end_time' => '11:00']);
         $employee->scheduleBreaks()->create(['day_of_week' => 1, 'schedule_type' => 'lunch_break', 'start_time' => '12:00', 'end_time' => '13:00']);
@@ -286,7 +290,7 @@ class AttendanceGeneratorRecordsTest extends TestCase
         $oldLog = AttendanceLog::create(['employee_id' => $employee->id, 'attendance_date' => '2026-10-05',
             ...ClassAttendanceService::snapshot($old), 'time_in' => '08:00', 'time_out' => '10:00', 'method_in' => 'fingerprint']);
         $old->delete();
-        $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:30', 'end_time' => '09:30', 'subject' => 'EDITED']);
+        $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:30', 'end_time' => '09:30', 'subject' => 'EDITED', 'room_id' => $this->room->id]);
         $consultation = AttendanceLog::create(['employee_id' => $employee->id, 'attendance_date' => '2026-10-05',
             'schedule_type' => 'consultation', 'is_legacy' => true, 'time_in' => '10:00', 'time_out' => '11:00']);
         $this->assertSame(1, $this->service()->generate($this->filters('class', $employee), 'seed', $this->actor())['created']);

@@ -1,8 +1,8 @@
 import { formatDate } from './format.js';
 import { sessionIndicators } from './classAnalytics.js';
 
-export const reportColumns = ['Date', 'Faculty', 'Subject', 'Section', 'Mode', 'Scheduled IN', 'Scheduled OUT', 'Actual IN', 'Actual OUT', 'Late (min)', 'Undertime (min)', 'Status', 'Exclusion'];
-export const reportValues = (r) => [formatDate(r.date), r.faculty, r.subject || '', r.section || '', r.class_mode || '', r.scheduled_start, r.scheduled_end, r.time_in || '', r.time_out || '', r.late_minutes, r.early_departure_minutes, sessionIndicators(r).map((item) => item.label).join('; '), r.exclusion || ''];
+export const reportColumns = ['Date', 'Faculty', 'Subject', 'Section', 'Room', 'Mode', 'Scheduled IN', 'Scheduled OUT', 'Actual IN', 'Actual OUT', 'Late (min)', 'Undertime (min)', 'Status', 'School warning', 'Exclusion'];
+export const reportValues = (r) => [formatDate(r.date), r.faculty, r.subject || '', r.section || '', r.room || '', r.class_mode || '', r.scheduled_start, r.scheduled_end, r.time_in || '', r.time_out || '', r.late_minutes, r.early_departure_minutes, sessionIndicators(r).map((item) => item.label).join('; '), r.school_attendance_warning ? 'No School IN' : '', r.exclusion || ''];
 export const reportSummary = (r) => [['Expected sessions', r.summary.expected], ['Eligible ended sessions', r.summary.ended], ['Complete', r.summary.complete], ['For review', r.summary.incomplete], ['Absent', r.summary.missed], ['Excluded', r.summary.excluded], ['Completion rate (%)', r.summary.completion_rate], ['On time & full class', r.summary.on_time || 0], ['Late classes', r.summary.late || 0], ['Undertime classes', r.summary.undertime || 0], ['Total late minutes', r.summary.total_late_minutes || 0], ['Total undertime minutes', r.summary.total_undertime_minutes || 0]];
 export const reportFilterLabel = (r) => Object.entries(r.filters).filter(([, v]) => v != null && v !== '').map(([k, v]) => `${k.replaceAll('_', ' ')}: ${['start_date', 'end_date', 'cutoff_start'].includes(k) ? formatDate(v) : v}`).join(' | ');
 
@@ -23,8 +23,8 @@ export async function makeClassReportWorkbook(report) {
     const details = workbook.addWorksheet('Sessions');
     details.addRow(reportColumns);
     report.rows.forEach((r) => details.addRow(reportValues(r)));
-    details.columns.forEach((col, i) => { col.width = [12, 30, 28, 18, 16, 16, 16, 16, 16, 14, 16, 18, 30][i]; });
-    details.autoFilter = { from: 'A1', to: 'M1' };
+    details.columns.forEach((col, i) => { col.width = [12, 30, 28, 18, 14, 16, 16, 16, 16, 16, 14, 16, 18, 20, 30][i]; });
+    details.autoFilter = { from: 'A1', to: 'O1' };
     details.views = [{ state: 'frozen', ySplit: 1 }];
     for (const [title, rows] of [['By Faculty', report.faculty_breakdown], ['By Subject', report.subject_breakdown], ['Daily Trend', report.trend]]) {
         const sheet = workbook.addWorksheet(title);
@@ -76,7 +76,7 @@ export async function makeClassReportPdf(report) {
     pdf.addPage(); detailHeader();
     if (!report.rows.length) { pdf.setFontSize(9); pdf.text('No class sessions match the applied filters.', 12, y + 3); }
     report.rows.forEach((r) => {
-        const values = [formatDate(r.date), r.faculty, r.subject || '-', `${r.section || '-'} / ${r.class_mode || '-'}`, sessionIndicators(r).map((item) => item.label.replace(' ? ', ' ')).join('; '), `${r.scheduled_start} - ${r.scheduled_end}`, `${r.time_in || '-'} / ${r.time_out || '-'}`, `${r.late_minutes ?? '-'} / ${r.early_departure_minutes ?? '-'}`, r.exclusion ? 'Yes' : 'No', r.exclusion || '-'];
+        const values = [formatDate(r.date), r.faculty, r.subject || '-', `${r.section || '-'} / ${r.room || 'No room'} / ${r.class_mode || '-'}`, sessionIndicators(r).map((item) => item.label.replace(' ? ', ' ')).join('; '), `${r.scheduled_start} - ${r.scheduled_end}`, `${r.time_in || '-'} / ${r.time_out || '-'}`, `${r.late_minutes ?? '-'} / ${r.early_departure_minutes ?? '-'}`, r.exclusion ? 'Yes' : 'No', [r.school_attendance_warning ? 'No School IN' : '', r.exclusion || ''].filter(Boolean).join('; ') || '-'];
         const wrapped = values.map((v, i) => pdf.splitTextToSize(String(v), widths[i] - 2));
         const height = Math.max(...wrapped.map((v) => v.length)) * 3.5 + 3;
         if (y + height > 195) { pdf.addPage(); detailHeader(); }

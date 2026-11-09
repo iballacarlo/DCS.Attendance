@@ -41,7 +41,7 @@ class ScheduleRecoveryService
 
                     continue;
                 }
-                $blocks = $rows->map(fn ($row) => array_intersect_key($row, array_flip(['schedule_type', 'day_of_week', 'start_time', 'end_time', 'subject', 'section', 'class_mode'])))->values()->all();
+                $blocks = $rows->map(fn ($row) => array_intersect_key($row, array_flip(['schedule_type', 'day_of_week', 'start_time', 'end_time', 'subject', 'section', 'class_mode', 'room_id'])))->values()->all();
                 try {
                     $semesters->save($term, $employee, $blocks, [], 'publish', $term->start_date->toDateString(),
                         'Recovered saved schedules for administrator-confirmed semester dates', $actor);

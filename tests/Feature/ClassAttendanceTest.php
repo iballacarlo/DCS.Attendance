@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AttendanceLog;
 use App\Models\Employee;
+use App\Models\Room;
 use App\Models\User;
 use App\Services\ClassAttendanceService;
 use App\Services\ClassReportService;
@@ -16,6 +17,14 @@ use Tests\TestCase;
 class ClassAttendanceTest extends TestCase
 {
     use RefreshDatabase;
+
+    private Room $room;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->room = Room::create(['code' => 'CLASS-ROOM', 'is_active' => true]);
+    }
 
     protected function tearDown(): void
     {
@@ -30,7 +39,7 @@ class ClassAttendanceTest extends TestCase
 
     private function block(Employee $employee, string $start = '08:00', string $end = '10:00', string $type = 'class')
     {
-        return $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => $type, 'start_time' => $start, 'end_time' => $end, 'break_minutes' => 0, 'subject' => 'Programming', 'section' => 'BSCS-1A']);
+        return $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => $type, 'start_time' => $start, 'end_time' => $end, 'break_minutes' => 0, 'subject' => 'Programming', 'section' => 'BSCS-1A', 'room_id' => $type === 'class' ? $this->room->id : null]);
     }
 
     private function tap(Employee $employee, string $time): array
@@ -99,7 +108,7 @@ class ClassAttendanceTest extends TestCase
         $employee = $this->employee();
         $existing = $this->block($employee);
         $admin = User::factory()->create(['role' => 'admin']);
-        $block = ['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'subject' => 'DCIT 21A', 'section' => 'BSIT 1A', 'class_mode' => 'lecture'];
+        $block = ['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'subject' => 'DCIT 21A', 'section' => 'BSIT 1A', 'class_mode' => 'lecture', 'room_id' => $this->room->id];
         $next = [...$block, 'start_time' => '10:00', 'end_time' => '12:00'];
         $this->actingAs($admin)->put('/employees/'.$employee->id.'/schedule', ['blocks' => [['id' => $existing->id, ...$block], $next]])->assertSessionHasNoErrors();
         $this->assertSame(2, $employee->schedules()->count());
@@ -114,7 +123,7 @@ class ClassAttendanceTest extends TestCase
         $employee = $this->employee();
         $this->actingAs(User::factory()->create(['role' => 'admin']));
         foreach (['class', 'consultation', 'lunch_break'] as $type) {
-            $block = ['day_of_week' => 1, 'schedule_type' => $type, 'start_time' => '07:00', 'end_time' => '19:00', 'subject' => 'DCIT 21A', 'section' => 'BSIT 1A', 'class_mode' => 'lecture'];
+            $block = ['day_of_week' => 1, 'schedule_type' => $type, 'start_time' => '07:00', 'end_time' => '19:00', 'subject' => 'DCIT 21A', 'section' => 'BSIT 1A', 'class_mode' => 'lecture', 'room_id' => $type === 'class' ? $this->room->id : null];
             $this->put('/employees/'.$employee->id.'/schedule', ['blocks' => [$block]])->assertSessionHasNoErrors();
             foreach (['start_time' => '06:59', 'end_time' => '19:01'] as $field => $time) {
                 $this->put('/employees/'.$employee->id.'/schedule', ['blocks' => [[...$block, $field => $time]]])->assertSessionHasErrors('blocks.0.'.$field);
@@ -197,7 +206,7 @@ class ClassAttendanceTest extends TestCase
             ->where('scheduleOptions.sections.24', 'BSCS 1A')->where('scheduleOptions.sections.47', 'BSCS 4F')
             ->where('scheduleOptions.courses', ['BSIT' => 'BSIT', 'BSCS' => 'BSCS'])
             ->where('scheduleOptions.yearLevels', [1, 2, 3, 4])->where('scheduleOptions.sectionLetters', ['A', 'B', 'C', 'D', 'E', 'F']));
-        $block = ['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'subject' => 'DCIT 21A', 'section' => 'BSIT 1A', 'class_mode' => 'laboratory'];
+        $block = ['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00', 'subject' => 'DCIT 21A', 'section' => 'BSIT 1A', 'class_mode' => 'laboratory', 'room_id' => $this->room->id];
         $this->put('/employees/'.$employee->id.'/schedule', ['blocks' => [$block]])->assertSessionHasNoErrors();
         $schedule = $employee->schedules()->firstOrFail();
         $this->assertSame('laboratory', $schedule->class_mode);
@@ -276,7 +285,7 @@ class ClassAttendanceTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $this->actingAs($admin)->put('/employees/'.$employee->id.'/schedule', ['blocks' => [[
             'id' => $schedule->id, 'day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '10:00',
-            'subject' => 'Programming', 'section' => 'BSCS-1A', 'class_mode' => 'lecture',
+            'subject' => 'Programming', 'section' => 'BSCS-1A', 'class_mode' => 'lecture', 'room_id' => $this->room->id,
         ]]])->assertSessionHasNoErrors();
         $this->assertSame('Programming', $schedule->fresh()->subject);
         $this->assertSame('lecture', $schedule->fresh()->class_mode);

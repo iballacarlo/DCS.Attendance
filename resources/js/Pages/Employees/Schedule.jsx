@@ -20,8 +20,8 @@ const sectionParts = (section = '') => {
     return match ? { course: match[1], year_level: match[2], section_letter: match[3] } : { course: '', year_level: '', section_letter: '' };
 };
 const withSectionParts = (block) => ({ ...block, ...sectionParts(block.section) });
-const cleanDraft = ({ course, year_level, section_letter, ...block }) => block;
-const blank = (day) => withSectionParts({ day_of_week: day, schedule_type: 'class', start_time: '07:00', end_time: '19:00', subject: '', section: '', class_mode: 'lecture' });
+const cleanDraft = ({ course, year_level, section_letter, building_id, ...block }) => block;
+const blank = (day) => withSectionParts({ day_of_week: day, schedule_type: 'class', start_time: '07:00', end_time: '19:00', subject: '', section: '', building_id: '', room_id: '', class_mode: 'lecture' });
 const scheduleBlocks = (employee) => [...(employee.schedules || []), ...(employee.schedule_breaks || [])].map((block) => ({
     ...block, start_time: block.start_time.slice(0, 5), end_time: block.end_time.slice(0, 5), subject: block.subject || '', section: block.section || '', class_mode: block.class_mode || '',
 }));
@@ -30,12 +30,14 @@ const hoursLabel = (blocks) => {
     return `${Number(hours.toFixed(2))} ${hours === 1 ? 'hour' : 'hours'}`;
 };
 
-export default function EmployeeSchedule({ hasUnpublishedSchedule = false, employee, readOnly = false, scheduleOptions, facultyOptions = [], selectedSemester = null, scheduleVersions = [], facultyView = false }) {
+export default function EmployeeSchedule({ hasUnpublishedSchedule = false, employee, readOnly = false, scheduleOptions, facultyOptions = [], selectedSemester = null, scheduleVersions = [], facultyView = false, buildings = [], rooms = [], roomChanges = [] }) {
     const { url } = usePage();
     const [view, setView] = useState(() => new URLSearchParams(url.split('?')[1]).get('view') === 'daily' ? 'daily' : 'weekly');
     const { subjectsBySection, subjectNames, sections, courses, yearLevels, sectionLetters, classModes, lectureOnlySubjects } = scheduleOptions;
+    const roomLabel = (id) => rooms.find((room) => String(room.id) === String(id))?.code || 'Room not assigned';
     const blockTypeLabel = (block) => block.schedule_type === 'class' ? (classModes[block.class_mode] || 'Class · Not specified') : types[block.schedule_type];
     const form = useForm({ blocks: scheduleBlocks(employee), term_id: selectedSemester?.id || '', reason: '' });
+    const roomMove = useForm({ faculty_schedule_id: '', session_date: '', building_id: '', room_id: '' });
     const [day, setDay] = useState(() => {
         const requested = Number(new URLSearchParams(url.split('?')[1]).get('day'));
         return Number.isInteger(requested) && requested >= 1 && requested <= 6 ? requested : Number(form.data.blocks.slice().sort((a, b) => a.day_of_week - b.day_of_week)[0]?.day_of_week) || 1;
@@ -64,6 +66,9 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
         setSwitchingFaculty(true);
         router.get(`/employees/${id}/schedule`, { view, day, term_id: selectedSemester?.id || '' }, { preserveState: false, preserveScroll: true, onFinish: () => setSwitchingFaculty(false) });
     };
+    const requestRoom = () => roomMove.post('/my-schedule/room-changes', { preserveScroll: true, onSuccess: () => roomMove.reset() });
+    const respondRoom = (id, action) => router.patch(`/my-schedule/room-changes/${id}/respond`, { action }, { preserveScroll: true });
+    const cancelRoom = (id) => router.patch(`/my-schedule/room-changes/${id}/cancel`, {}, { preserveScroll: true });
     const dayBlocks = form.data.blocks.map((block, index) => ({ ...block, index })).filter((block) => Number(block.day_of_week) === day).sort((a, b) => a.start_time.localeCompare(b.start_time));
     const firstMinute = 7 * 60;
     const lastMinute = 19 * 60;
@@ -98,7 +103,9 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
     const edit = async (index) => {
         if (editing === index) { focusEditor(); return; }
         if (!await discardDraft()) return;
-        setEditing(index); setDraft(withSectionParts({ ...form.data.blocks[index], class_mode: form.data.blocks[index].schedule_type === 'class' ? form.data.blocks[index].class_mode || 'lecture' : form.data.blocks[index].class_mode })); setError(''); setAnchor(null); focusEditor();
+        const block = form.data.blocks[index];
+        const buildingId = rooms.find((room) => String(room.id) === String(block.room_id))?.building_id || '';
+        setEditing(index); setDraft(withSectionParts({ ...block, building_id: buildingId, class_mode: block.schedule_type === 'class' ? block.class_mode || 'lecture' : block.class_mode })); setError(''); setAnchor(null); focusEditor();
     };
     const newBlock = async () => { if (await discardDraft()) { reset(); focusEditor(); } };
     const plot = async (slot) => {
@@ -126,6 +133,7 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
         if (draft.schedule_type === 'class' && ['subject', 'section', 'class_mode'].some((field) => !draft[field].trim() && (!existing || existing[field]))) {
             setError('Select the subject, section, and lecture/laboratory type for this class.'); subjectInput.current?.focus(); return;
         }
+        if (draft.schedule_type === 'class' && !draft.room_id) { setError('Select the room for this class.'); return; }
         if (form.data.blocks.some((block, index) => index !== editing && Number(block.day_of_week) === Number(draft.day_of_week) && draft.start_time < block.end_time && draft.end_time > block.start_time)) {
             setError('This time overlaps another class, consultation, or break.'); return;
         }
@@ -162,6 +170,18 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
                 <div><span className="sd-eyebrow"><CalendarDays size={16} />Faculty plotting</span><h2>Weekly schedule</h2><p>{readOnly ? 'View your weekly plotting or inspect one day at a time.' : 'View the weekly plotting, or switch to Manage by Day to edit and save blocks.'}</p></div>
                 {!readOnly && <Link className="sd-back" href="/employees"><ArrowLeft size={16} />Back to Faculty</Link>}
             </header>
+            {facultyView && <section className="faculty-room-changes">
+                <div><h3>One-session room change</h3><p>Move a future class to a vacant room. If occupied, the other faculty must accept the swap.</p></div>
+                <div className="faculty-room-change-fields">
+                    <label>Class<select value={roomMove.data.faculty_schedule_id} onChange={(e) => roomMove.setData('faculty_schedule_id', e.target.value)}><option value="">Select class</option>{form.data.blocks.filter((b) => b.schedule_type === 'class' && b.id).map((b) => <option key={b.id} value={b.id}>{days[b.day_of_week - 1]} · {b.subject} · {time12(b.start_time)} · {roomLabel(b.room_id)}</option>)}</select></label>
+                    <label>Date<input type="date" value={roomMove.data.session_date} min={new Date().toISOString().slice(0, 10)} onChange={(e) => roomMove.setData('session_date', e.target.value)} /></label>
+                    <label>Building<select value={roomMove.data.building_id} onChange={(e) => roomMove.setData({ ...roomMove.data, building_id: e.target.value, room_id: '' })}><option value="">Select building</option>{buildings.map((building) => <option key={building.id} value={building.id}>{building.code}</option>)}</select></label>
+                    <label>New room<select disabled={!roomMove.data.building_id} value={roomMove.data.room_id} onChange={(e) => roomMove.setData('room_id', e.target.value)}><option value="">Select room</option>{rooms.filter((room) => String(room.building_id) === String(roomMove.data.building_id)).map((room) => <option key={room.id} value={room.id}>{room.code}</option>)}</select></label>
+                    <button type="button" disabled={roomMove.processing || !roomMove.data.faculty_schedule_id || !roomMove.data.session_date || !roomMove.data.room_id} onClick={requestRoom}>Check &amp; request</button>
+                </div>
+                {Object.values(roomMove.errors).map((message) => <p className="sd-error" key={message}>{message}</p>)}
+                {roomChanges.filter((change) => ['pending', 'approved', 'accepted'].includes(change.status)).map((change) => <article className="room-change-request" key={change.id}><div><strong>{change.status === 'pending' && Number(change.swap_employee_id) === Number(employee.id) ? 'Room swap request' : 'Room change'}</strong><span>{change.session_date} · {change.original_room?.code || 'Unassigned'} → {change.room?.code}</span></div><span className={`room-change-status is-${change.status}`}>{change.status}</span>{change.status === 'pending' && Number(change.swap_employee_id) === Number(employee.id) ? <div><button type="button" onClick={() => respondRoom(change.id, 'accept')}>Accept</button><button type="button" className="ui-secondary" onClick={() => respondRoom(change.id, 'reject')}>Reject</button></div> : ['pending', 'approved'].includes(change.status) && Number(change.employee_id) === Number(employee.id) ? <button type="button" className="ui-secondary" onClick={() => cancelRoom(change.id)}>Cancel</button> : null}</article>)}
+            </section>}
             
             <div className="semester-schedule-tools">
                 {selectedSemester?.status === 'draft' ? <div className="semester-draft-context"><strong>{selectedSemester.label}</strong><Link href={`/settings/semesters?term_id=${selectedSemester.id}`}>Back to semesters</Link></div> : <SemesterPicker value={selectedSemester?.id || ''} legacyOnly compact onChange={(term_id) => router.get(facultyView ? '/my-schedule' : '/employees/' + employee.id + '/schedule', { term_id }, { preserveState: false })} />}
@@ -185,7 +205,7 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
                         {dayBlocks.filter((block) => minutes(block.end_time) > firstMinute && minutes(block.start_time) < lastMinute).map((block) => {
                             const start = Math.max(firstMinute, minutes(block.start_time)), end = Math.min(lastMinute, minutes(block.end_time));
                             const style = { top: ((start - firstMinute) / 30) * 40, height: Math.max(1, ((end - start) / 30) * 40 - 3) };
-                            const content = <><span className="sd-block-type">{blockTypeLabel(block)}</span><strong>{block.subject || (block.schedule_type === 'class' ? 'Not specified' : types[block.schedule_type])}</strong><span>{block.schedule_type === 'class' ? `${block.section || 'Not specified'} · ` : ''}{time12(block.start_time)} – {time12(block.end_time)}</span>{!readOnly && <Edit3 size={14} className="sd-block-edit-icon" />}</>;
+                            const content = <><span className="sd-block-type">{blockTypeLabel(block)}</span><strong>{block.subject || (block.schedule_type === 'class' ? 'Not specified' : types[block.schedule_type])}</strong><span>{block.schedule_type === 'class' ? `${block.section || 'Not specified'} · ${roomLabel(block.room_id)} · ` : ''}{time12(block.start_time)} – {time12(block.end_time)}</span>{!readOnly && <Edit3 size={14} className="sd-block-edit-icon" />}</>;
                             const compact = minutes(block.end_time) - minutes(block.start_time) <= 30 ? ' is-short' : '';
                             const title = `${blockTypeLabel(block)} · ${block.subject || types[block.schedule_type]} · ${block.section || ''} · ${time12(block.start_time)} – ${time12(block.end_time)}`;
                             return readOnly ? <div key={block.index} className={`sd-timeline-block is-${block.schedule_type}${block.class_mode === 'laboratory' ? ' is-laboratory' : ''}${compact}`} style={style} title={title}>{content}</div> : <button className={`sd-control sd-timeline-block is-${block.schedule_type}${block.class_mode === 'laboratory' ? ' is-laboratory' : ''}${compact}${editing === block.index ? ' is-editing' : ''}`} type="button" key={block.index} style={style} title={title} onClick={() => edit(block.index)} aria-label={`Edit ${block.subject || types[block.schedule_type]}, ${time12(block.start_time)} to ${time12(block.end_time)}`}>{content}</button>;
@@ -203,6 +223,8 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
                             <label>Year level<select disabled={!draft.course} value={draft.year_level} onChange={(e) => updateSectionPart('year_level', e.target.value)}><option value="">Select year</option>{yearLevels.map((year) => <option key={year} value={year}>Year {year}</option>)}</select></label>
                             <label>Section<select disabled={!draft.course || !draft.year_level} value={draft.section_letter} onChange={(e) => updateSectionPart('section_letter', e.target.value)}><option value="">Select section</option>{sectionLetters.map((letter) => <option key={letter} value={letter}>Section {letter}</option>)}</select></label>
                             <label>Subject<select disabled={!draft.section} ref={subjectInput} value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })}><option value="">Select subject</option>{editing !== null && draft.subject === form.data.blocks[editing].subject && draft.section === form.data.blocks[editing].section && draft.subject && !subjects.includes(draft.subject) && !(draft.class_mode === 'laboratory' && lectureOnlySubjects.includes(draft.subject)) && <option value={draft.subject}>{draft.subject} (existing)</option>}{subjects.map((subject) => <option key={subject} value={subject}>{subject}</option>)}</select></label>
+                            <label>Building<select value={draft.building_id || ''} onChange={(e) => setDraft({ ...draft, building_id: e.target.value, room_id: '' })}><option value="">Select building</option>{buildings.map((building) => <option key={building.id} value={building.id}>{building.code} — {building.name}</option>)}</select></label>
+                            <label>Room<select disabled={!draft.building_id} value={draft.room_id || ''} onChange={(e) => setDraft({ ...draft, room_id: e.target.value })}><option value="">Select room</option>{rooms.filter((room) => String(room.building_id) === String(draft.building_id)).map((room) => <option key={room.id} value={room.id}>{room.code}{room.name ? ` — ${room.name}` : ''}</option>)}</select></label>
                             <label>Class delivery<select value={draft.class_mode} onChange={(e) => setDraft({ ...draft, class_mode: e.target.value, subject: e.target.value === 'laboratory' && lectureOnlySubjects.includes(draft.subject) ? '' : draft.subject })}>{Object.entries(classModes).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                             {draft.section && !sections.includes(draft.section) && <p className="sd-editor-note">Existing section: {draft.section}. It remains available for historical viewing.</p>}
                         </> : <p className="sd-editor-note">{draft.schedule_type === 'consultation' ? 'Consultation contributes to scheduled DTR hours covered by school IN/OUT. No consultation hardware tap is required.' : 'Lunch and schedule gaps are excluded from DTR hours.'}</p>}
@@ -213,7 +235,7 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
                 </section>}
             </div>
             <section className="sd-agenda"><div className="sd-section-heading"><div><h3>{days[day - 1]} blocks</h3><p>All classes and activities for the selected day.</p></div>{!readOnly && <button className="sd-control sd-button sd-secondary" type="button" onClick={newBlock}><Plus size={16} />New Block</button>}</div>
-                {dayBlocks.length ? <div className="sd-agenda-list">{dayBlocks.map((block) => <article className={`sd-agenda-item is-${block.schedule_type}${block.class_mode === 'laboratory' ? ' is-laboratory' : ''}${editing === block.index ? ' is-editing' : ''}`} key={block.index}><span className="sd-agenda-marker" /><div className="sd-agenda-time"><strong>{time12(block.start_time)}</strong><span>{time12(block.end_time)}</span></div><div className="sd-agenda-details"><small>{blockTypeLabel(block)}</small><h4>{block.subject || (block.schedule_type === 'class' ? 'Not specified' : types[block.schedule_type])}</h4><span>{block.schedule_type === 'class' ? block.section || 'Not specified' : block.schedule_type === 'consultation' ? 'DTR schedule basis' : 'Excluded from DTR hours'}</span></div>{!readOnly && <div className="sd-row-actions"><button className="sd-control sd-button sd-secondary" type="button" onClick={() => edit(block.index)} aria-label={`Edit ${block.subject || types[block.schedule_type]}`}><Edit3 size={15} />Edit</button><button className="sd-control sd-button sd-remove" type="button" onClick={() => remove(block)} aria-label={`Remove ${block.subject || types[block.schedule_type]}`}><Trash2 size={15} />Remove</button></div>}</article>)}</div> : <div className="sd-empty-state"><CalendarDays size={28} /><h4>No blocks on {days[day - 1]}</h4><p>{readOnly ? 'No classes or activities have been assigned for this day.' : 'Add your first class using the editor or select a time on the timetable.'}</p></div>}
+                {dayBlocks.length ? <div className="sd-agenda-list">{dayBlocks.map((block) => <article className={`sd-agenda-item is-${block.schedule_type}${block.class_mode === 'laboratory' ? ' is-laboratory' : ''}${editing === block.index ? ' is-editing' : ''}`} key={block.index}><span className="sd-agenda-marker" /><div className="sd-agenda-time"><strong>{time12(block.start_time)}</strong><span>{time12(block.end_time)}</span></div><div className="sd-agenda-details"><small>{blockTypeLabel(block)}</small><h4>{block.subject || (block.schedule_type === 'class' ? 'Not specified' : types[block.schedule_type])}</h4><span>{block.schedule_type === 'class' ? `${block.section || 'Not specified'} · ${roomLabel(block.room_id)}` : block.schedule_type === 'consultation' ? 'DTR schedule basis' : 'Excluded from DTR hours'}</span></div>{!readOnly && <div className="sd-row-actions"><button className="sd-control sd-button sd-secondary" type="button" onClick={() => edit(block.index)} aria-label={`Edit ${block.subject || types[block.schedule_type]}`}><Edit3 size={15} />Edit</button><button className="sd-control sd-button sd-remove" type="button" onClick={() => remove(block)} aria-label={`Remove ${block.subject || types[block.schedule_type]}`}><Trash2 size={15} />Remove</button></div>}</article>)}</div> : <div className="sd-empty-state"><CalendarDays size={28} /><h4>No blocks on {days[day - 1]}</h4><p>{readOnly ? 'No classes or activities have been assigned for this day.' : 'Add your first class using the editor or select a time on the timetable.'}</p></div>}
             </section>
             </div>}
             {Object.entries(form.errors).map(([key, message]) => <p className="sd-error" role="alert" key={key}>{message}</p>)}

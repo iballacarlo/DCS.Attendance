@@ -4,6 +4,7 @@
 const char* WIFI_NAME = "YOUR_WIFI_NAME";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 const char* HARDWARE_API_KEY = "YOUR_RAILWAY_HARDWARE_API_KEY";
+const char* DEVICE_CODE = "TFT-ROOM-01";
 
 // Set this to true for one upload only if Serial Monitor says LittleFS cannot
 // mount. Set it back to false immediately after the storage is initialized.

@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Models\AttendanceDevice;
 use App\Models\AttendanceLog;
 use App\Models\CalendarEvent;
 use App\Models\DtrSignatory;
 use App\Models\Employee;
 use App\Models\FacultySchedule;
 use App\Models\RfidCard;
+use App\Models\Room;
 use App\Models\User;
 use App\Services\DtrService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -68,7 +70,10 @@ class SchoolCalendarDtrTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-10-05 08:00:00', 'Asia/Manila'));
         config(['services.hardware.api_key' => 'test-hardware-key']);
         $employee = $this->employee('EMP-001', 'Ada');
-        FacultySchedule::create(['employee_id' => $employee->id, 'day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '17:00', 'break_minutes' => 60]);
+        $room = Room::create(['code' => 'CALENDAR-ROOM', 'is_active' => true]);
+        $device = AttendanceDevice::create(['code' => 'CALENDAR-DEVICE', 'name' => 'Calendar TFT', 'is_active' => true]);
+        $device->assignments()->create(['room_id' => $room->id, 'effective_from' => '2020-01-01 00:00:00']);
+        FacultySchedule::create(['employee_id' => $employee->id, 'day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00', 'end_time' => '17:00', 'break_minutes' => 60, 'room_id' => $room->id]);
         RfidCard::create(['employee_id' => $employee->id, 'rfid_uid' => 'AABBCCDD', 'status' => 'active']);
         CalendarEvent::create([
             'title' => 'Regular Holiday', 'type' => 'regular_holiday',
@@ -77,7 +82,7 @@ class SchoolCalendarDtrTest extends TestCase
         ]);
 
         $this->withHeader('X-Hardware-Key', 'test-hardware-key')->postJson('/api/hardware/tap', [
-            'identifier' => 'AABBCCDD', 'method' => 'rfid',
+            'device_code' => 'CALENDAR-DEVICE', 'identifier' => 'AABBCCDD', 'method' => 'rfid',
             'event_id' => 'PAID-EVENT-1', 'occurred_at' => '2026-10-05 08:00:00',
         ])->assertOk()->assertJsonPath('action', 'IN');
 

@@ -31,7 +31,7 @@ class TodayScheduleService
                     : ($in ? 'checked_in' : ($now->gte($start) ? 'awaiting_in' : 'upcoming'))));
 
             return ['key' => $row['key'], 'schedule_type' => 'class', 'subject' => $row['subject'],
-                'section' => $row['section'], 'class_mode' => $row['class_mode'],
+                'section' => $row['section'], 'class_mode' => $row['class_mode'], 'room' => $row['room'] ?? null,
                 'start_time' => $row['scheduled_start'], 'end_time' => $row['scheduled_end'],
                 'time_in' => $row['time_in'], 'time_out' => $row['time_out'], 'status' => $status,
                 'is_current' => ! in_array($status, ['finished', 'not_required'], true) && $now->gte($start) && $now->lt($end),

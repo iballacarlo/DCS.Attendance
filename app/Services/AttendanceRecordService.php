@@ -108,7 +108,7 @@ class AttendanceRecordService
 
                 $rows->push(['id' => 'absent:class:'.$session['key'], 'employee_id' => $employee->id, 'employee' => $this->identity(SemesterScheduleService::profile($employee, $session['date'])),
 
-                    'attendance_date' => $session['date'], 'subject' => $session['subject'], 'section' => $session['section'],
+                    'attendance_date' => $session['date'], 'subject' => $session['subject'], 'section' => $session['section'], 'room_id' => $session['room_id'] ?? null, 'room_code' => $session['room'] ?? null,
 
                     'scheduled_start' => $session['scheduled_start'], 'scheduled_end' => $session['scheduled_end'],
 

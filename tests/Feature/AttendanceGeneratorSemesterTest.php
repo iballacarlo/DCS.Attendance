@@ -8,6 +8,7 @@ use App\Models\CalendarEvent;
 use App\Models\Employee;
 use App\Models\EntranceAttendance;
 use App\Models\RfidCard;
+use App\Models\Room;
 use App\Models\User;
 use App\Services\AttendanceGenerationService;
 use App\Services\SemesterManagementService;
@@ -22,8 +23,12 @@ class AttendanceGeneratorSemesterTest extends TestCase
     use RefreshDatabase;
 
     private User $actor;
+
     private Employee $employee;
+
     private AcademicTerm $term;
+
+    private Room $room;
 
     protected function setUp(): void
     {
@@ -38,13 +43,14 @@ class AttendanceGeneratorSemesterTest extends TestCase
             }
         });
         $admin = User::factory()->create(['role' => 'admin']);
+        $this->room = Room::create(['code' => 'SEMESTER-ROOM', 'is_active' => true]);
         $this->actor = User::factory()->create(['role' => 'generator', 'must_change_password' => false]);
         $this->employee = Employee::create(['employee_no' => 'SEM-GEN', 'first_name' => 'Test', 'last_name' => 'Faculty', 'status' => 'active', 'rate_amount' => 0]);
         RfidCard::create(['employee_id' => $this->employee->id, 'rfid_uid' => 'SEM-GEN-CARD', 'status' => 'active']);
         $service = app(SemesterManagementService::class);
         $this->term = $service->create(['school_year' => '2026-2027', 'semester' => 'First Semester', 'start_date' => '2026-09-01', 'end_date' => '2026-10-31'], $admin);
         $service->save($this->term, $this->employee, [
-            ['schedule_type' => 'class', 'day_of_week' => 1, 'start_time' => '08:00', 'end_time' => '10:00', 'subject' => 'DCIT 24', 'section' => 'BSIT 2A', 'class_mode' => 'lecture'],
+            ['schedule_type' => 'class', 'day_of_week' => 1, 'start_time' => '08:00', 'end_time' => '10:00', 'subject' => 'DCIT 24', 'section' => 'BSIT 2A', 'class_mode' => 'lecture', 'room_id' => $this->room->id],
             ['schedule_type' => 'consultation', 'day_of_week' => 1, 'start_time' => '10:00', 'end_time' => '11:00'],
             ['schedule_type' => 'lunch_break', 'day_of_week' => 1, 'start_time' => '12:00', 'end_time' => '13:00'],
         ], [], 'publish', null, '', $admin);

@@ -7,7 +7,8 @@ use App\Models\FingerprintTemplate;
 use App\Models\HardwareAttendanceEvent;
 use App\Models\HardwareEnrollment;
 use App\Models\RfidCard;
-use App\Services\ClassAttendanceService;
+use App\Services\RoomAttendanceService;
+use App\Services\RoomAwareClassAttendanceService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
@@ -22,11 +23,16 @@ class HardwareAttendanceController extends Controller
             return $unauthorized;
         }
 
+        if (! $request->filled('device_code') && $request->hasHeader('X-Device-Code')) {
+            $request->merge(['device_code' => $request->header('X-Device-Code')]);
+        }
+
         $data = $request->validate([
             'identifier' => ['required', 'max:100'],
             'method' => ['required', 'in:rfid,fingerprint'],
             'event_id' => ['nullable', 'string', 'max:64', 'regex:/^[A-Za-z0-9._:-]+$/'],
             'occurred_at' => ['nullable', 'date_format:Y-m-d H:i:s'],
+            'device_code' => ['required', 'string', 'max:64', 'regex:/^[A-Za-z0-9._-]+$/'],
         ]);
 
         if (! empty($data['event_id'])) {
@@ -44,6 +50,12 @@ class HardwareAttendanceController extends Controller
             ? Carbon::createFromFormat('Y-m-d H:i:s', $data['occurred_at'], 'Asia/Manila')
             : Carbon::now('Asia/Manila');
 
+        try {
+            [$device, $deviceRoom] = app(RoomAttendanceService::class)->deviceRoom($data['device_code'], $occurredAt);
+        } catch (\DomainException $exception) {
+            return response()->json(['ok' => false, 'message' => $exception->getMessage()], 422);
+        }
+
         if ($occurredAt->greaterThan(Carbon::now('Asia/Manila')->addMinutes(5))) {
             return response()->json(['ok' => false, 'message' => 'Attendance time cannot be in the future.'], 422);
         }
@@ -60,7 +72,7 @@ class HardwareAttendanceController extends Controller
         }
 
         try {
-            $responsePayload = DB::transaction(function () use ($data, $employee, $occurredAt) {
+            $responsePayload = DB::transaction(function () use ($data, $employee, $occurredAt, $device, $deviceRoom) {
                 Employee::whereKey($employee->id)->lockForUpdate()->firstOrFail();
                 if (! empty($data['event_id']) && ($event = HardwareAttendanceEvent::where('event_id', $data['event_id'])->first())) {
                     if ($event->identifier !== $data['identifier'] || $event->method !== $data['method']) {
@@ -69,7 +81,7 @@ class HardwareAttendanceController extends Controller
 
                     return $event->response_payload;
                 }
-                $result = $this->recordAttendance($employee->id, $data['method'], $occurredAt);
+                $result = app(RoomAwareClassAttendanceService::class)->record($employee, $data['method'], $occurredAt, $deviceRoom);
                 $payload = [
                     'ok' => true,
                     'message' => $result['message'],
@@ -81,12 +93,16 @@ class HardwareAttendanceController extends Controller
                     'status' => $result['log']?->status,
                     'time_in' => $result['log']?->time_in,
                     'time_out' => $result['log']?->time_out,
+                    'room' => $result['room'] ?? $deviceRoom->code,
+                    'school_attendance_warning' => $result['school_attendance_warning'] ?? false,
                 ];
 
                 if (! empty($data['event_id'])) {
                     HardwareAttendanceEvent::create([
                         'event_id' => $data['event_id'],
                         'employee_id' => $employee->id,
+                        'attendance_device_id' => $device->id,
+                        'room_id' => $deviceRoom->id,
                         'identifier' => $data['identifier'],
                         'method' => $data['method'],
                         'occurred_at' => $occurredAt,
@@ -362,11 +378,6 @@ class HardwareAttendanceController extends Controller
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-    }
-
-    private function recordAttendance(int $employeeId, string $method, Carbon $occurredAt): array
-    {
-        return app(ClassAttendanceService::class)->record(Employee::findOrFail($employeeId), $method, $occurredAt);
     }
 
     private function displayName(Employee $employee): string

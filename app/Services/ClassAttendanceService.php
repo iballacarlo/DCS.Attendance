@@ -13,7 +13,7 @@ class ClassAttendanceService
     public static function snapshot(FacultySchedule $schedule): array
     {
         return ['academic_term_id' => $schedule->academic_term_id, 'faculty_schedule_id' => $schedule->id, 'schedule_type' => $schedule->schedule_type, 'class_mode' => $schedule->class_mode, 'subject' => $schedule->subject,
-            'section' => $schedule->section, 'scheduled_start' => $schedule->start_time,
+            'section' => $schedule->section, 'room_id' => $schedule->room_id, 'room_code' => $schedule->room?->code, 'scheduled_start' => $schedule->start_time,
             'scheduled_end' => $schedule->end_time, 'is_legacy' => false];
     }
 

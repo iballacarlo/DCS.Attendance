@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AcademicTerm;
 use App\Models\Employee;
+use App\Models\Room;
 use App\Services\ClassReportService;
 use App\Services\CutoffService;
 use App\Services\SemesterScheduleService;
@@ -22,6 +23,7 @@ class ClassReportController extends Controller
             'employee_id' => ['nullable', 'integer', 'exists:employees,id'],
             'subject' => ['nullable', 'string', 'max:255'], 'section' => ['nullable', 'string', 'max:255'],
             'class_mode' => ['nullable', 'in:lecture,laboratory'],
+            'room_id' => ['nullable', 'integer', 'exists:rooms,id'],
         ]);
         if (! empty($filters['start_date']) && ! empty($filters['end_date']) &&
             (Carbon::parse($filters['end_date'])->lt(Carbon::parse($filters['start_date'])) ||
@@ -42,6 +44,7 @@ class ClassReportController extends Controller
             'start_date' => $start->toDateString(), 'end_date' => $end->toDateString(),
             'employee_id' => $filters['employee_id'] ?? '', 'subject' => $filters['subject'] ?? '',
             'section' => $filters['section'] ?? '', 'class_mode' => $filters['class_mode'] ?? '',
+            'room_id' => $filters['room_id'] ?? '',
         ];
 
         // Choices come from this faculty's actual report sessions, including saved
@@ -71,6 +74,7 @@ class ClassReportController extends Controller
             })->orderBy('last_name')->get(),
             'subjects' => $subjects,
             'sections' => $sections,
+            'rooms' => Room::where('is_active', true)->orderBy('code')->get(['id', 'code']),
         ]);
     }
 }

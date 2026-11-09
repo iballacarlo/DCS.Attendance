@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AttendanceDevice;
 use App\Models\AttendanceLog;
 use App\Models\CalendarEvent;
 use App\Models\Employee;
@@ -11,6 +12,7 @@ use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRecord;
+use App\Models\Room;
 use App\Models\User;
 use App\Services\ClassAttendanceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -145,12 +147,15 @@ class FacultyArchiveTest extends TestCase
     public function test_archived_credentials_cannot_tap_and_return_after_restore(): void
     {
         [$employee] = $this->faculty();
+        $room = Room::create(['code' => 'ARCHIVE-ROOM', 'is_active' => true]);
+        $device = AttendanceDevice::create(['code' => 'ARCHIVE-DEVICE', 'name' => 'Archive TFT', 'is_active' => true]);
+        $device->assignments()->create(['room_id' => $room->id, 'effective_from' => '2020-01-01 00:00:00']);
         $employee->rfidCards()->create(['rfid_uid' => 'AABBCCDD', 'status' => 'active']);
         config(['services.hardware.api_key' => 'archive-key']);
         $admin = User::factory()->create(['role' => 'admin']);
         $this->actingAs($admin)->post('/employees/archive', ['employee_ids' => [$employee->id]])->assertSessionHasNoErrors();
         $this->withHeader('X-Hardware-Key', 'archive-key')->getJson('/api/hardware/rfid-cards')->assertJsonPath('uids', '');
-        $this->postJson('/api/hardware/tap', ['identifier' => 'AABBCCDD', 'method' => 'rfid'])->assertNotFound();
+        $this->postJson('/api/hardware/tap', ['device_code' => 'ARCHIVE-DEVICE', 'identifier' => 'AABBCCDD', 'method' => 'rfid'])->assertNotFound();
         $this->post('/archived-faculty/'.$employee->id.'/restore')->assertSessionHasNoErrors();
         $this->getJson('/api/hardware/rfid-cards')->assertJsonPath('uids', 'AABBCCDD');
     }

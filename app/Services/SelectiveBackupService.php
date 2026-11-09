@@ -12,14 +12,14 @@ class SelectiveBackupService
 {
     public const GROUPS = [
         'faculty' => ['label' => 'Faculty profiles', 'description' => 'Profiles, ranks, and employment history.', 'tables' => ['employees', 'faculty_ranks', 'employment_histories']],
-        'schedules' => ['label' => 'Schedules', 'description' => 'Subject catalog and weekly class, consultation, and break blocks.', 'tables' => ['subjects', 'academic_terms', 'faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events', 'faculty_schedules', 'faculty_schedule_breaks']],
-        'attendance' => ['label' => 'Attendance logs', 'description' => 'School entrance records, class snapshots, and hardware events.', 'tables' => ['attendance_logs', 'hardware_attendance_events', 'entrance_attendances']],
+        'schedules' => ['label' => 'Schedules', 'description' => 'Subject catalog, buildings, rooms, and weekly class, consultation, and break blocks.', 'tables' => ['subjects', 'buildings', 'rooms', 'academic_terms', 'faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events', 'faculty_schedules', 'faculty_schedule_breaks', 'class_session_room_changes']],
+        'attendance' => ['label' => 'Attendance logs', 'description' => 'School entrance records, room devices, class snapshots, corrections, and hardware events.', 'tables' => ['attendance_devices', 'attendance_device_room_assignments', 'attendance_logs', 'attendance_corrections', 'hardware_attendance_events', 'entrance_attendances']],
         'payroll' => ['label' => 'Payroll records', 'description' => 'Payslips, adjustments, and their payroll periods.', 'tables' => ['payroll_records', 'payroll_periods']],
         'credentials' => ['label' => 'Attendance credentials', 'description' => 'RFID cards and fingerprint registrations.', 'tables' => ['rfid_cards', 'fingerprint_templates']],
         'accounts' => ['label' => 'User accounts', 'description' => 'Linked faculty accounts; all accounts when backing up all faculty.', 'tables' => ['users']],
         'leave' => ['label' => 'Leave requests', 'description' => 'Requests and their leave types.', 'tables' => ['leave_requests', 'leave_types']],
         'calendar' => ['label' => 'School calendar', 'description' => 'Shared events and events assigned to the selected faculty.', 'tables' => ['calendar_events', 'calendar_event_employee']],
-        'settings' => ['label' => 'Academic settings', 'description' => 'Subject catalog, shared settings, and dean records.', 'tables' => ['subjects', 'system_settings', 'dtr_signatories']],
+        'settings' => ['label' => 'Academic settings', 'description' => 'Subject catalog, buildings, rooms, devices, shared settings, and dean records.', 'tables' => ['subjects', 'buildings', 'rooms', 'attendance_devices', 'attendance_device_room_assignments', 'system_settings', 'dtr_signatories']],
         'audit' => ['label' => 'Audit history', 'description' => 'Available only when backing up all faculty.', 'tables' => ['audit_trails']],
     ];
 
@@ -47,6 +47,8 @@ class SelectiveBackupService
                 $query = DB::table($table);
                 if ($table === 'academic_terms') {
                     // Semester definitions are shared; faculty-bound contents remain scoped.
+                } elseif (in_array($table, ['buildings', 'rooms', 'attendance_devices', 'attendance_device_room_assignments'], true)) {
+                    // Rooms and their device assignment history are shared infrastructure.
                 } elseif ($table === 'semester_events') {
                     $query->when($scope === 'selected', fn ($q) => $q->whereIn('employee_id', $employeeIds));
                 } elseif ($table === 'employees') {
@@ -61,6 +63,8 @@ class SelectiveBackupService
                     $query->when($scope === 'selected', fn ($q) => $q->whereIn('id', DB::table('leave_requests')->whereIn('employee_id', $employeeIds)->select('leave_type_id')));
                 } elseif ($table === 'calendar_events') {
                     $query->when($scope === 'selected', fn ($q) => $q->where(fn ($q) => $q->where('scope_type', '!=', 'faculty')->orWhereIn('id', DB::table('calendar_event_employee')->whereIn('employee_id', $employeeIds)->select('calendar_event_id'))));
+                } elseif ($table === 'attendance_corrections') {
+                    $query->when($scope === 'selected', fn ($q) => $q->whereIn('attendance_log_id', DB::table('attendance_logs')->whereIn('employee_id', $employeeIds)->select('id')));
                 } elseif (! in_array($table, ['subjects', 'system_settings', 'dtr_signatories', 'audit_trails'], true)) {
                     $query->whereIn('employee_id', $employeeIds);
                 }
@@ -112,7 +116,7 @@ class SelectiveBackupService
         }
         unset($subject);
         $required = $this->tables($groups);
-        foreach (['academic_terms', 'faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events'] as $optional) {
+        foreach (['buildings', 'rooms', 'attendance_devices', 'attendance_device_room_assignments', 'academic_terms', 'faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events', 'class_session_room_changes', 'attendance_corrections'] as $optional) {
             if (in_array($optional, $required, true) && ! array_key_exists($optional, $backup['tables'])) {
                 $backup['tables'][$optional] = [];
             }

@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Models\AttendanceDevice;
 use App\Models\AttendanceLog;
 use App\Models\CalendarEvent;
 use App\Models\Employee;
 use App\Models\EntranceAttendance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Models\Room;
 use App\Models\User;
 use App\Services\ClassAttendanceService;
 use App\Services\ClassReportService;
@@ -330,10 +332,13 @@ class AttendanceSeparationTest extends TestCase
     public function test_class_hardware_retries_are_idempotent_without_school_records(): void
     {
         $employee = $this->faculty();
-        $this->schedule($employee);
+        $room = Room::create(['code' => 'SEPARATION-ROOM', 'is_active' => true]);
+        $this->schedule($employee)->update(['room_id' => $room->id]);
+        $device = AttendanceDevice::create(['code' => 'SEPARATION-DEVICE', 'name' => 'Separation TFT', 'is_active' => true]);
+        $device->assignments()->create(['room_id' => $room->id, 'effective_from' => '2020-01-01 00:00:00']);
         config(['services.hardware.api_key' => 'separation-test']);
         $this->travelTo(Carbon::parse('2026-10-05 10:00', 'Asia/Manila'));
-        $tap = ['identifier' => 'RFID-ONE', 'method' => 'rfid', 'event_id' => 'CLASS-ONLY-IN', 'occurred_at' => '2026-10-05 08:00:00'];
+        $tap = ['device_code' => 'SEPARATION-DEVICE', 'identifier' => 'RFID-ONE', 'method' => 'rfid', 'event_id' => 'CLASS-ONLY-IN', 'occurred_at' => '2026-10-05 08:00:00'];
         $this->withHeader('X-Hardware-Key', 'separation-test')->postJson('/api/hardware/tap', $tap)->assertOk()->assertJsonPath('action', 'IN');
         $this->postJson('/api/hardware/tap', $tap)->assertOk()->assertJsonPath('action', 'IN');
         $this->postJson('/api/hardware/tap', [...$tap, 'event_id' => 'CLASS-WAIT', 'occurred_at' => '2026-10-05 08:01:00'])->assertOk()->assertJsonPath('action', 'WAIT');

@@ -20,6 +20,8 @@ use App\Http\Controllers\GeneralSettingsController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\RoomChangeController;
+use App\Http\Controllers\RoomDeviceController;
 use App\Http\Controllers\SemesterController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\UserController;
@@ -84,6 +86,13 @@ Route::middleware(['auth', 'auth.session', SemesterWriteLock::class])->group(fun
     Route::post('settings/semesters/{term}/publish-all', [SemesterController::class, 'publishAll'])->middleware('role:admin');
     Route::post('settings/semesters/{term}/faculty/{employeeId}/copy', [SemesterController::class, 'copy'])->middleware('role:admin');
     Route::get('settings/subjects', [SubjectController::class, 'index'])->name('settings.subjects.index')->middleware('role:admin');
+    Route::get('settings/rooms-devices', [RoomDeviceController::class, 'index'])->name('settings.rooms.index')->middleware('role:admin');
+    Route::post('settings/buildings', [RoomDeviceController::class, 'storeBuilding'])->name('settings.buildings.store')->middleware('role:admin');
+    Route::put('settings/buildings/{building}', [RoomDeviceController::class, 'updateBuilding'])->name('settings.buildings.update')->middleware('role:admin');
+    Route::post('settings/rooms', [RoomDeviceController::class, 'storeRoom'])->name('settings.rooms.store')->middleware('role:admin');
+    Route::put('settings/rooms/{room}', [RoomDeviceController::class, 'updateRoom'])->name('settings.rooms.update')->middleware('role:admin');
+    Route::post('settings/devices', [RoomDeviceController::class, 'storeDevice'])->name('settings.devices.store')->middleware('role:admin');
+    Route::put('settings/devices/{device}/assignment', [RoomDeviceController::class, 'assign'])->name('settings.devices.assign')->middleware('role:admin');
     Route::post('settings/subjects', [SubjectController::class, 'store'])->name('settings.subjects.store')->middleware('role:admin');
     Route::put('settings/subjects/{subject}', [SubjectController::class, 'update'])->name('settings.subjects.update')->middleware('role:admin');
     Route::patch('settings/subjects/{subject}/status', [SubjectController::class, 'toggle'])->name('settings.subjects.status')->middleware('role:admin');
@@ -104,12 +113,16 @@ Route::middleware(['auth', 'auth.session', SemesterWriteLock::class])->group(fun
     Route::delete('settings/dtr-signatories/{dtrSignatory}', [DtrSignatoryController::class, 'destroy'])->name('settings.dtr-signatories.destroy')->middleware('role:admin');
 
     Route::get('my-schedule', [EmployeeController::class, 'mySchedule'])->name('faculty.schedule')->middleware('role:faculty');
+    Route::post('my-schedule/room-changes', [RoomChangeController::class, 'store'])->name('faculty.room-changes.store')->middleware('role:faculty');
+    Route::patch('my-schedule/room-changes/{change}/respond', [RoomChangeController::class, 'respond'])->name('faculty.room-changes.respond')->middleware('role:faculty');
+    Route::patch('my-schedule/room-changes/{change}/cancel', [RoomChangeController::class, 'cancel'])->name('faculty.room-changes.cancel')->middleware('role:faculty');
     Route::get('entrance', [EntranceAttendanceController::class, 'index'])->name('entrance.index');
     Route::get('entrance-kiosk', [EntranceAttendanceController::class, 'kiosk'])->name('entrance.kiosk')->middleware('role:guard');
     Route::post('entrance-kiosk', [EntranceAttendanceController::class, 'store'])->name('entrance.kiosk.store')->middleware(['role:guard', 'throttle:60,1']);
     Route::post('entrance-kiosk/preview', [EntranceAttendanceController::class, 'preview'])->name('entrance.kiosk.preview')->middleware(['role:guard', 'throttle:120,1']);
     Route::get('class-reports', [ClassReportController::class, 'index'])->name('class-reports.index')->middleware('role:admin');
     Route::get('attendance', [AttendanceController::class, 'index'])->name('attendance.index');
+    Route::put('attendance/{attendanceLog}/correction', [AttendanceController::class, 'correct'])->name('attendance.correct')->middleware('role:admin');
     Route::get('attendance/dtr', [DtrController::class, 'show'])->name('attendance.dtr');
 
     Route::get('school-calendar', [CalendarController::class, 'index'])->name('calendar.index');

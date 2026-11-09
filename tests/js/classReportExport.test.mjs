@@ -31,13 +31,13 @@ test('Excel report preserves applied filters, all rows, summaries, and breakdown
     assert.equal(reopened.getWorksheet('By Faculty').getCell('E1').value, 'For review');
     assert.match(reopened.getWorksheet('Summary').getCell('A2').value, /subject: DCIT 21/);
     assert.equal(reopened.getWorksheet('By Faculty').getCell('D2').value, report.summary.complete);
-    assert.equal(reopened.getWorksheet('Sessions').getCell('J2').type, ExcelJS.ValueType.Number);
+    assert.equal(reopened.getWorksheet('Sessions').getCell('K2').type, ExcelJS.ValueType.Number);
     assert.equal(reopened.getWorksheet('Summary').getCell('B13').value, 80);
     assert.equal(reopened.getWorksheet('Summary').getCell('B15').value, 400);
     assert.equal(reopened.getWorksheet('By Faculty').getCell('J2').value, 80);
     assert.equal(reopened.getWorksheet('By Faculty').getCell('M2').value, 800);
-    assert.equal(reopened.getWorksheet('Sessions').getCell('K1').value, 'Undertime (min)');
-    assert.match(reopened.getWorksheet('Sessions').getCell('L2').value, /Late.*Undertime/);
+    assert.equal(reopened.getWorksheet('Sessions').getCell('L1').value, 'Undertime (min)');
+    assert.match(reopened.getWorksheet('Sessions').getCell('M2').value, /Late.*Undertime/);
 });
 
 test('PDF paginates all details and repeats column headings on later pages', async () => {

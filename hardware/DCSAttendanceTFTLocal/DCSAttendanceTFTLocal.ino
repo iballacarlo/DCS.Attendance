@@ -781,7 +781,7 @@ String attendanceTimestamp(const OfflineAttendanceRecord& record) {
 }
 
 String attendancePayload(const OfflineAttendanceRecord& record) {
-  return "{\"method\":\"" + String(record.method) +
+  return "{\"device_code\":\"" + String(DEVICE_CODE) + "\",\"method\":\"" + String(record.method) +
          "\",\"identifier\":\"" + String(record.identifier) +
          "\",\"event_id\":\"" + String(record.eventId) +
          "\",\"occurred_at\":\"" + attendanceTimestamp(record) + "\"}";
@@ -1519,6 +1519,7 @@ void showAttendanceResponse(int code, const String& response, const String& meth
   if (code == 200) {
     String action = jsonValue(response, "action");
     String displayTime = jsonValue(response, "display_time");
+    String room = jsonValue(response, "room");
     if (action == "WAIT") {
       showMessage(jsonValue(response, "display_name"), "OUT NOT RECORDED", true);
       drawDisplayHeading("WAIT / OUT NOT RECORDED");
@@ -1528,13 +1529,15 @@ void showAttendanceResponse(int code, const String& response, const String& meth
       waitSignal();
       return;
     }
-    showMessage(jsonValue(response, "display_name"), attendanceDisplayLine(action, displayTime), true);
-    if (action == "IN" || action == "OUT") successSignal();
+    showMessage(jsonValue(response, "display_name"), (action == "IN" || action == "OUT") ? action + " " + displayTime + " / " + room : action, true);
+    if (action == "IN" || action == "OUT") {
+      if (jsonValue(response, "school_attendance_warning") == "true") waitSignal();
+      else successSignal();
+    }
     else if (action == "ALREADY OUT") doneSignal();
     else {
       errorSignal();
-      showMessage(jsonValue(response, "display_name"),
-                  action == "NO CLASS" ? "No eligible class" : "Unexpected response", true);
+      showMessage(jsonValue(response, "display_name"), action, true);
     }
   } else if (code == 409) {
     errorSignal();
@@ -1543,6 +1546,9 @@ void showAttendanceResponse(int code, const String& response, const String& meth
     errorSignal();
     showMessage(method == "rfid" ? "Card not registered" : "Fingerprint not registered",
                 "See administrator");
+  } else if (code == 422) {
+    errorSignal();
+    showMessage("Attendance rejected", jsonValue(response, "message"));
   } else {
     errorSignal();
     showMessage("Server error", "Please try again");

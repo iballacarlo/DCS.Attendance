@@ -37,14 +37,15 @@ class ClassReportService
                 $historicalEmployee = SemesterScheduleService::profile($employee, $date);
                 $dayLogs = $logs->get($employee->id.'|'.$date->toDateString(), collect());
                 $dayLogs = $dayLogs->filter(fn ($log) => SemesterScheduleService::matches($log->academic_term_id, (string) ($filters['term_id'] ?? ''), $date));
-                $sessions = $dayLogs->map(fn ($l) => ['schedule_id' => $l->faculty_schedule_id, 'start' => $l->scheduled_start, 'end' => $l->scheduled_end, 'subject' => $l->subject, 'section' => $l->section, 'class_mode' => $l->class_mode, 'log' => $l]);
+                $sessions = $dayLogs->map(fn ($l) => ['schedule_id' => $l->faculty_schedule_id, 'start' => $l->scheduled_start, 'end' => $l->scheduled_end, 'subject' => $l->subject, 'section' => $l->section, 'class_mode' => $l->class_mode, 'room_id' => $l->room_id, 'room' => $l->room_code, 'log' => $l]);
                 foreach ((($filters['term_id'] ?? '') === 'legacy' ? collect() : SemesterScheduleService::schedules($employee, $date))->where('schedule_type', 'class')->where('day_of_week', $date->dayOfWeek) as $schedule) {
                     if (! $dayLogs->contains(fn ($log) => $log->faculty_schedule_id === $schedule->id
                         || ($log->subject === $schedule->subject && $log->section === $schedule->section && $log->class_mode === $schedule->class_mode
                         && substr($log->scheduled_start ?? '', 0, 5) === substr($schedule->start_time, 0, 5)
                         && substr($log->scheduled_end ?? '', 0, 5) === substr($schedule->end_time, 0, 5)))
                         && ($employee->status === 'active' || $term !== null)) {
-                        $sessions->push(['schedule_id' => $schedule->id, 'start' => $schedule->start_time, 'end' => $schedule->end_time, 'subject' => $schedule->subject, 'section' => $schedule->section, 'class_mode' => $schedule->class_mode, 'log' => null]);
+                        $room = app(RoomAttendanceService::class)->effectiveRoom($schedule, $date);
+                        $sessions->push(['schedule_id' => $schedule->id, 'start' => $schedule->start_time, 'end' => $schedule->end_time, 'subject' => $schedule->subject, 'section' => $schedule->section, 'class_mode' => $schedule->class_mode, 'room_id' => $room?->id, 'room' => $room?->code, 'log' => null]);
                     }
                 }
                 $excluded = $this->excluded($employee, $date);
@@ -54,6 +55,9 @@ class ClassReportService
                             continue 2;
                         }
                     }
+                    if (! empty($filters['room_id']) && (int) $session['room_id'] !== (int) $filters['room_id']) {
+                        continue;
+                    }
                     $log = $session['log'];
                     $ended = Carbon::parse($date->toDateString().' '.$session['end'], 'Asia/Manila')->lte($now);
                     $begun = Carbon::parse($date->toDateString().' '.$session['start'], 'Asia/Manila')->lte($now);
@@ -61,8 +65,10 @@ class ClassReportService
                     $status = $excluded ? 'excluded' : ($complete ? 'complete' : ($ended ? ($log ? 'incomplete' : 'missed') : ($begun ? 'in_progress' : 'upcoming')));
                     $difference = fn ($a, $b) => max(0, (int) ceil((Carbon::parse($date->toDateString().' '.$a, 'Asia/Manila')->timestamp - Carbon::parse($date->toDateString().' '.$b, 'Asia/Manila')->timestamp) / 60));
                     $rows->push(['key' => $employee->id.'-'.$date->toDateString().'-'.$session['schedule_id'].'-'.($log?->id ?? 'expected'),
+                        'log_id' => $log?->id,
                         'employee_id' => $employee->id, 'faculty' => $historicalEmployee->full_name, 'academic_term_id' => $term?->id, 'term_label' => $term?->label ?? 'Legacy / Unassigned', 'date' => $date->toDateString(),
-                        'subject' => $session['subject'], 'section' => $session['section'], 'class_mode' => $session['class_mode'],
+                        'subject' => $session['subject'], 'section' => $session['section'], 'class_mode' => $session['class_mode'], 'room_id' => $session['room_id'], 'room' => $session['room'],
+                        'school_attendance_warning' => (bool) ($log?->school_attendance_warning),
                         'scheduled_start' => $session['start'], 'scheduled_end' => $session['end'], 'time_in' => $log?->time_in, 'time_out' => $log?->time_out,
                         'late_minutes' => $log?->time_in ? $difference($log->time_in, $session['start']) : null,
                         'early_departure_minutes' => $log?->time_out ? $difference($session['end'], $log->time_out) : null,

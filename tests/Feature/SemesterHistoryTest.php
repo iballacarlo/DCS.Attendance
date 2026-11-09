@@ -15,6 +15,7 @@ use App\Models\FacultyTermAssignment;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\RfidCard;
+use App\Models\Room;
 use App\Models\SemesterDaySnapshot;
 use App\Models\SemesterEvent;
 use App\Models\SystemSetting;
@@ -46,11 +47,14 @@ class SemesterHistoryTest extends TestCase
 
     private Employee $employee;
 
+    private Room $room;
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->travelTo(Carbon::parse('2026-10-05 18:00', 'Asia/Manila'));
         $this->admin = User::factory()->create(['role' => 'admin']);
+        $this->room = Room::create(['code' => 'SEM-HISTORY-ROOM', 'is_active' => true]);
         $this->employee = Employee::create(['employee_no' => 'SEM-ONE', 'first_name' => 'Original', 'last_name' => 'Faculty',
             'status' => 'active', 'position' => 'Instructor', 'contract_start' => '2026-10-01', 'contract_end' => '2026-10-15', 'rate_amount' => 0]);
         RfidCard::create(['employee_id' => $this->employee->id, 'rfid_uid' => 'SEM-CARD', 'status' => 'active']);
@@ -65,7 +69,7 @@ class SemesterHistoryTest extends TestCase
     private function blocks(bool $second = false): array
     {
         return [['schedule_type' => 'class', 'day_of_week' => 1, 'start_time' => '08:00', 'end_time' => '10:00',
-            'subject' => $second ? 'DCIT 25A' : 'DCIT 24', 'section' => 'BSIT 2A', 'class_mode' => 'lecture'],
+            'subject' => $second ? 'DCIT 25A' : 'DCIT 24', 'section' => 'BSIT 2A', 'class_mode' => 'lecture', 'room_id' => $this->room->id],
             ['schedule_type' => 'consultation', 'day_of_week' => 1, 'start_time' => '10:00', 'end_time' => '11:00'],
             ['schedule_type' => 'lunch_break', 'day_of_week' => 1, 'start_time' => '12:00', 'end_time' => '13:00']];
     }
@@ -819,7 +823,9 @@ class SemesterHistoryTest extends TestCase
         $second = $this->term(true);
         $service->transition($second, 'activate', 'Start second semester', $this->admin);
         $other = Employee::create(['employee_no' => 'VISIBLE-OTHER', 'first_name' => 'Other', 'last_name' => 'Faculty', 'status' => 'active', 'rate_amount' => 0]);
-        $service->save($second, $other, $this->blocks(true), [], 'publish', '2026-10-16', '', $this->admin);
+        $otherBlocks = $this->blocks(true);
+        $otherBlocks[0]['room_id'] = Room::create(['code' => 'SEM-HISTORY-ROOM-2', 'is_active' => true])->id;
+        $service->save($second, $other, $otherBlocks, [], 'publish', '2026-10-16', '', $this->admin);
         $this->get('/my-schedule')->assertInertia(fn (Assert $page) => $page
             ->where('selectedSemester.id', $first->id)->has('semesterOptions', 1)->where('semesterOptions.0.id', $first->id)
             ->where('employee.id', $this->employee->id));

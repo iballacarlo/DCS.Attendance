@@ -12,6 +12,7 @@ use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRecord;
+use App\Models\Room;
 use App\Models\User;
 use App\Services\ClassAttendanceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -25,6 +26,14 @@ class SelectiveBackupTest extends TestCase
 {
     use RefreshDatabase;
 
+    private Room $room;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->room = Room::create(['code' => 'BACKUP-ROOM', 'is_active' => true]);
+    }
+
     private function faculty(string $number): Employee
     {
         return Employee::create(['employee_no' => $number, 'first_name' => 'Backup', 'last_name' => $number,
@@ -34,7 +43,7 @@ class SelectiveBackupTest extends TestCase
     private function schedule(Employee $employee): FacultySchedule
     {
         return $employee->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'start_time' => '08:00',
-            'end_time' => '10:00', 'break_minutes' => 0, 'subject' => 'DCIT 26', 'section' => 'BSIT 3A', 'class_mode' => 'lecture']);
+            'end_time' => '10:00', 'break_minutes' => 0, 'subject' => 'DCIT 26', 'section' => 'BSIT 3A', 'class_mode' => 'lecture', 'room_id' => $this->room->id]);
     }
 
     private function download(array $groups, array $ids = [], string $scope = 'selected'): array
@@ -62,7 +71,7 @@ class SelectiveBackupTest extends TestCase
         $this->assertSame(2, $backup['version']);
         $this->assertSame([$first->id], array_column($backup['tables']['employees'], 'id'));
         $this->assertSame([$block->id], array_column($backup['tables']['faculty_schedules'], 'id'));
-        $this->assertEqualsCanonicalizing(['employees', 'faculty_ranks', 'subjects', 'faculty_schedules', 'faculty_schedule_breaks', 'academic_terms', 'faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events'], array_keys($backup['tables']));
+        $this->assertEqualsCanonicalizing(['employees', 'faculty_ranks', 'subjects', 'buildings', 'rooms', 'faculty_schedules', 'faculty_schedule_breaks', 'class_session_room_changes', 'academic_terms', 'faculty_term_assignments', 'faculty_schedule_versions', 'semester_day_snapshots', 'semester_events'], array_keys($backup['tables']));
         $this->assertArrayNotHasKey('users', $backup['tables']);
         $this->assertArrayNotHasKey('attendance_logs', $backup['tables']);
         $multiple = $this->download(['schedules'], [$first->id, $second->id]);
@@ -71,7 +80,7 @@ class SelectiveBackupTest extends TestCase
         $this->assertCount(3, $all['tables']['employees']);
         $this->assertNotNull($all['tables']['employees'][2]['archived_at']);
         $settings = $this->download(['settings'], scope: 'all');
-        $this->assertEqualsCanonicalizing(['subjects', 'system_settings', 'dtr_signatories'], array_keys($settings['tables']));
+        $this->assertEqualsCanonicalizing(['subjects', 'buildings', 'rooms', 'attendance_devices', 'attendance_device_room_assignments', 'system_settings', 'dtr_signatories'], array_keys($settings['tables']));
         $this->assertArrayNotHasKey('employees', $settings['tables']);
         $this->post('/settings/backup/restore', ['backup_file' => $this->file($settings)])->assertSessionHasNoErrors();
     }

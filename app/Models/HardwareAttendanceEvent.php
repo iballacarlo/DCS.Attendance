@@ -12,6 +12,8 @@ class HardwareAttendanceEvent extends Model
     protected $fillable = [
         'event_id',
         'employee_id',
+        'attendance_device_id',
+        'room_id',
         'identifier',
         'method',
         'occurred_at',

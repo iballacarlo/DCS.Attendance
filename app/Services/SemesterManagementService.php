@@ -7,6 +7,7 @@ use App\Models\AttendanceLog;
 use App\Models\DtrSignatory;
 use App\Models\Employee;
 use App\Models\EntranceAttendance;
+use App\Models\FacultySchedule;
 use App\Models\FacultyScheduleVersion;
 use App\Models\FacultyTermAssignment;
 use App\Models\LeaveRequest;
@@ -229,6 +230,7 @@ class SemesterManagementService
             $before = $assignment->toArray();
             $assignment->update(['draft_blocks' => $blocks, 'profile' => $profile]);
             if ($intent === 'publish') {
+                $this->assertRoomConflicts($term, $employee, $blocks);
                 if ($term->reopened && ! trim($reason)) {
                     $this->invalid('A reason is required for a historical correction.');
                 }
@@ -347,6 +349,7 @@ class SemesterManagementService
             'subject' => $block['schedule_type'] === 'class' ? ($block['subject'] ?? '') : '',
             'section' => $block['schedule_type'] === 'class' ? ($block['section'] ?? '') : '',
             'class_mode' => $block['schedule_type'] === 'class' ? ($block['class_mode'] ?? '') : '',
+            'room_id' => $block['schedule_type'] === 'class' ? (int) ($block['room_id'] ?? 0) : 0,
         ], $blocks);
         usort($values, fn ($left, $right) => strcmp(json_encode($left), json_encode($right)));
 
@@ -361,7 +364,7 @@ class SemesterManagementService
             $version = FacultyScheduleVersion::where('academic_term_id', (int) $source)->where('employee_id', $employee->id)->orderByDesc('effective_from')->orderByDesc('id')->firstOrFail();
             $blocks = $employee->schedules()->where('schedule_version_id', $version->id)->get()->concat($employee->scheduleBreaks()->where('schedule_version_id', $version->id)->get());
         }
-        $this->save($term, $employee, $blocks->map(fn ($b) => $b->only(['schedule_type', 'day_of_week', 'start_time', 'end_time', 'subject', 'section', 'class_mode']))->all(), [], 'draft', null, 'Copied schedule as draft; review required', $actor);
+        $this->save($term, $employee, $blocks->map(fn ($b) => $b->only(['schedule_type', 'day_of_week', 'start_time', 'end_time', 'subject', 'section', 'class_mode', 'room_id']))->all(), [], 'draft', null, 'Copied schedule as draft; review required', $actor);
     }
 
     public function profile(Employee $employee): array
@@ -372,7 +375,7 @@ class SemesterManagementService
     private function validateBlocks(array $blocks, AcademicTerm $term, bool $publishing): array
     {
         $blocks = array_map(function ($block) {
-            $block = array_intersect_key($block, array_flip(['schedule_type', 'day_of_week', 'start_time', 'end_time', 'subject', 'section', 'class_mode']));
+            $block = array_intersect_key($block, array_flip(['schedule_type', 'day_of_week', 'start_time', 'end_time', 'subject', 'section', 'class_mode', 'room_id']));
             foreach (['start_time', 'end_time'] as $field) {
                 $block[$field] = substr($block[$field] ?? '', 0, 5);
             }
@@ -382,13 +385,14 @@ class SemesterManagementService
         Validator::make(['blocks' => $blocks], ['blocks' => ['array', 'max:100'], 'blocks.*.schedule_type' => ['required', 'in:class,consultation,lunch_break'],
             'blocks.*.day_of_week' => ['required', 'integer', 'between:1,6'], 'blocks.*.start_time' => ['required', 'date_format:H:i'],
             'blocks.*.end_time' => ['required', 'date_format:H:i'], 'blocks.*.subject' => ['nullable', 'string', 'max:255'],
-            'blocks.*.section' => ['nullable', 'string', 'max:100'], 'blocks.*.class_mode' => ['nullable', 'in:lecture,laboratory']])->validate();
+            'blocks.*.section' => ['nullable', 'string', 'max:100'], 'blocks.*.class_mode' => ['nullable', 'in:lecture,laboratory'],
+            'blocks.*.room_id' => ['nullable', 'integer', 'exists:rooms,id']])->validate();
         foreach ($blocks as $i => $block) {
             if ($block['start_time'] < '07:00' || $block['end_time'] > '19:00' || $block['end_time'] <= $block['start_time']) {
                 $this->invalid('Choose valid schedule times from 7:00 AM to 7:00 PM.');
             }
             if ($publishing && $block['schedule_type'] === 'class' && (! in_array($block['subject'] ?? '', ScheduleOptions::subjectsFor($block['section'] ?? '', $term->semester), true)
-                || ! in_array($block['section'] ?? '', ScheduleOptions::sections(), true) || empty($block['class_mode'])
+                || ! in_array($block['section'] ?? '', ScheduleOptions::sections(), true) || empty($block['class_mode']) || empty($block['room_id'])
                 || (($block['class_mode'] ?? '') === 'laboratory' && in_array($block['subject'], ScheduleOptions::lectureOnlySubjects(), true)))) {
                 $this->invalid('Review every copied class: subject, section, and delivery must be valid for this semester.');
             }
@@ -400,6 +404,20 @@ class SemesterManagementService
         }
 
         return $blocks;
+    }
+
+    private function assertRoomConflicts(AcademicTerm $term, Employee $employee, array $blocks): void
+    {
+        $versionIds = FacultyScheduleVersion::where('academic_term_id', $term->id)->where('employee_id', '!=', $employee->id)
+            ->orderByDesc('effective_from')->orderByDesc('id')->get()->unique('employee_id')->pluck('id');
+        foreach (collect($blocks)->where('schedule_type', 'class')->whereNotNull('room_id') as $block) {
+            $conflict = FacultySchedule::withoutGlobalScopes()->whereIn('schedule_version_id', $versionIds)
+                ->where('room_id', $block['room_id'])->where('day_of_week', $block['day_of_week'])
+                ->where('start_time', '<', $block['end_time'])->where('end_time', '>', $block['start_time'])->exists();
+            if ($conflict) {
+                $this->invalid('A published class already uses the selected room during this time.');
+            }
+        }
     }
 
     private function freeze(AcademicTerm $term): void

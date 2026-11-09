@@ -40,6 +40,7 @@ return [
     ],
 
     'google_mail' => [
+        'enabled' => env('GOOGLE_MAIL_ENABLED', env('APP_ENV', 'production') === 'production'),
         'webhook_url' => env('GOOGLE_MAIL_WEBHOOK_URL'),
         'webhook_secret' => env('GOOGLE_MAIL_WEBHOOK_SECRET'),
         'logo_url' => env('GOOGLE_MAIL_LOGO_URL'),
