@@ -255,7 +255,7 @@ class EmployeeController extends Controller
             'selectedSemester' => $term, 'scheduleVersions' => $versions, 'selectedVersion' => $data['version_id'] ?? '',
             'hasUnpublishedSchedule' => ! $faculty && $term && $assignment && (
                 app(SemesterManagementService::class)->publicationPending($term, $employee, $assignment->draft_blocks ?? [], $assignment->profile)
-                || app(SemesterManagementService::class)->initialPublicationNeedsActivation($term, $employee)
+                || app(SemesterManagementService::class)->publicationNeedsActivationToday($term, $employee)
             ),
             'assignmentProfile' => ($faculty ? $version?->profile : $assignment?->profile) ?? app(SemesterManagementService::class)->profile($employee),
             'buildings' => Building::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name']),

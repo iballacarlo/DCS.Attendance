@@ -948,6 +948,69 @@ class SemesterHistoryTest extends TestCase
         $this->assertCount(0, SemesterScheduleService::schedules($this->employee, Carbon::parse('2026-10-04', 'Asia/Manila')));
     }
 
+    #[TestWith([false, '16:00'])]
+    #[TestWith([false, '17:00'])]
+    #[TestWith([false, '18:00'])]
+    #[TestWith([false, '20:00'])]
+    #[TestWith([true, '18:00'])]
+    public function test_adding_todays_evening_class_to_an_existing_schedule_appears_in_weekly_attendance(bool $bulk, string $at): void
+    {
+        $this->travelTo(Carbon::parse('2026-10-05 '.$at, 'Asia/Manila'));
+        $term = $this->active();
+        $original = FacultyScheduleVersion::firstOrFail();
+        $blocks = $this->blocks();
+        $blocks[] = array_merge($blocks[0], ['start_time' => '17:00', 'end_time' => '19:00']);
+        $this->actingAs($this->admin);
+        if ($bulk) {
+            app(SemesterManagementService::class)->save($term, $this->employee, $blocks, [], 'draft', null, '', $this->admin);
+            $this->assertSame(1, app(SemesterManagementService::class)->publishAll($term, $this->admin)['published']);
+        } else {
+            $this->put('/employees/'.$this->employee->id.'/schedule', [
+                'term_id' => $term->id, 'intent' => 'publish', 'blocks' => $blocks,
+            ])->assertSessionHasNoErrors();
+        }
+        $latest = FacultyScheduleVersion::orderByDesc('id')->firstOrFail();
+        $this->assertSame('2026-10-05', $latest->effective_from->toDateString());
+        $this->assertSame('2026-10-01', $original->fresh()->effective_from->toDateString());
+        $this->assertCount(2, SemesterScheduleService::schedules($this->employee, Carbon::parse('2026-10-02', 'Asia/Manila')));
+        $this->get('/attendance?employee_id='.$this->employee->id.'&week_start=2026-10-05')
+            ->assertOk()->assertInertia(fn (Assert $page) => $page->has('weekly.rows', 2)
+            ->where('weekly.rows.0.date', '2026-10-05')
+            ->where('weekly.rows.0.scheduled_start', fn ($time) => substr($time, 0, 5) === '08:00')
+            ->where('weekly.rows.1.date', '2026-10-05')
+            ->where('weekly.rows.1.scheduled_start', fn ($time) => substr($time, 0, 5) === '17:00')
+            ->where('weekly.rows.1.scheduled_end', fn ($time) => substr($time, 0, 5) === '19:00'));
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function test_republishing_a_postponed_additional_class_makes_today_visible_without_duplicate_versions(bool $bulk): void
+    {
+        $term = $this->active();
+        $blocks = $this->blocks();
+        $blocks[] = array_merge($blocks[0], ['start_time' => '17:00', 'end_time' => '19:00']);
+        $this->publish($term, $blocks, '2026-10-06');
+        $postponed = FacultyScheduleVersion::orderByDesc('id')->firstOrFail();
+        $url = '/employees/'.$this->employee->id.'/schedule';
+        $this->actingAs($this->admin)->get($url.'?term_id='.$term->id)
+            ->assertInertia(fn (Assert $page) => $page->where('hasUnpublishedSchedule', true));
+        if ($bulk) {
+            $this->assertSame(1, app(SemesterManagementService::class)->publishAll($term, $this->admin)['published']);
+        } else {
+            $this->put($url, ['term_id' => $term->id, 'intent' => 'publish', 'blocks' => $blocks])
+                ->assertSessionHasNoErrors();
+        }
+        $this->assertSame(2, FacultyScheduleVersion::count());
+        $this->assertSame('2026-10-05', $postponed->fresh()->effective_from->toDateString());
+        $this->get('/attendance?employee_id='.$this->employee->id.'&week_start=2026-10-05')
+            ->assertOk()->assertInertia(fn (Assert $page) => $page->has('weekly.rows', 2)
+            ->where('weekly.rows.1.date', '2026-10-05')
+            ->where('weekly.rows.1.scheduled_start', fn ($time) => substr($time, 0, 5) === '17:00'));
+        $this->get($url.'?term_id='.$term->id)
+            ->assertInertia(fn (Assert $page) => $page->where('hasUnpublishedSchedule', false));
+        $this->assertSame(1, app(SemesterManagementService::class)->publishAll($term, $this->admin)['unchanged']);
+    }
+
     public function test_schedule_rank_follows_the_faculty_profile_without_rewriting_old_publications(): void
     {
         $oldRank = FacultyRank::create(['name' => 'Previous faculty rank', 'rate_type' => 'hourly', 'rate_amount' => 0]);

@@ -242,18 +242,15 @@ class SemesterManagementService
                 }
                 $today = Carbon::today('Asia/Manila');
                 if ($this->hasEffectivePublicationToday($latest) && ! $term->reopened && ($date->lt($today)
-                    || ($date->isToday() && ($this->hasStartedClassToday($blocks) || $this->hasStartedPublishedClassToday($latest))))) {
+                    || ($date->isToday() && $this->changesStartedPublishedBlocks($latest, $blocks)))) {
                     $this->invalid('Publish changes from tomorrow or later. Reopen a closed semester for historical corrections.');
                 }
                 if ($term->reopened && ! trim($reason)) {
                     $this->invalid('A reason is required for a historical correction.');
                 }
                 if (! $this->publicationPending($term, $employee, $blocks, $profile)) {
-                    // A publish made earlier today may already have created a
-                    // tomorrow-dated version under the former rule. If no
-                    // class in this version has started today, it is safe to
-                    // make that same published version available today rather
-                    // than leaving the weekly view apparently empty.
+                    // Bring a previously postponed publication forward when
+                    // it preserves every already-started published block.
                     if (! $term->reopened && $latest && $date->isToday() && $latest->effective_from->gt($date)) {
                         $beforeVersion = $latest->toArray();
                         $latest->update(['effective_from' => $date->toDateString()]);
@@ -305,7 +302,7 @@ class SemesterManagementService
                     $latest = FacultyScheduleVersion::where('academic_term_id', $term->id)->where('employee_id', $employee->id)
                         ->orderByDesc('effective_from')->orderByDesc('id')->first();
                     if (! $this->publicationPending($term, $employee, $blocks, $assignment->profile)
-                        && ! $this->initialPublicationNeedsActivation($term, $employee)) {
+                        && ! $this->publicationNeedsActivationToday($term, $employee)) {
                         $result['unchanged']++;
 
                         continue;
@@ -340,7 +337,7 @@ class SemesterManagementService
         return $this->comparableBlocks($blocks) !== $this->comparableBlocks($published) || $profile != $latest->profile;
     }
 
-    public function initialPublicationNeedsActivation(AcademicTerm $term, Employee $employee): bool
+    public function publicationNeedsActivationToday(AcademicTerm $term, Employee $employee): bool
     {
         $today = Carbon::today('Asia/Manila');
         if ($term->reopened || $term->status === 'closed' || ! $today->betweenIncluded($term->start_date, $term->end_date)) {
@@ -349,7 +346,13 @@ class SemesterManagementService
         $latest = FacultyScheduleVersion::where('academic_term_id', $term->id)->where('employee_id', $employee->id)
             ->orderByDesc('effective_from')->orderByDesc('id')->first();
 
-        return $latest && $latest->effective_from->gt($today) && ! $this->hasEffectivePublicationToday($latest);
+        if (! $latest || ! $latest->effective_from->gt($today)) {
+            return false;
+        }
+        $blocks = $employee->schedules()->where('schedule_version_id', $latest->id)->get()
+            ->concat($employee->scheduleBreaks()->where('schedule_version_id', $latest->id)->get())->toArray();
+
+        return ! $this->changesStartedPublishedBlocks($latest, $blocks);
     }
 
     private function automaticEffectiveDate(AcademicTerm $term, ?FacultyScheduleVersion $latest, array $blocks): Carbon
@@ -357,21 +360,11 @@ class SemesterManagementService
         $today = Carbon::today('Asia/Manila');
         $date = $term->start_date->copy();
 
-        // The first publication establishes the semester's schedule basis;
-        // there is no earlier published version to preserve. Only revisions
-        // need to defer changes to classes which have already started today.
-        // A schedule prepared for a later day should appear immediately. For a
-        // class that has already started today, keep the new version from the
-        // next day so that today's expected-session and attendance basis stays
-        // intact.
-        if ($latest && ! $term->reopened && $date->lte($today) && ! $this->hasEffectivePublicationToday($latest)) {
-            // Repair an initial publication postponed by the old rule without
-            // rewriting prior days or creating a duplicate published version.
-            $date = $today;
-        } elseif ($latest && ! $term->reopened && $date->lte($today)) {
-            $now = now('Asia/Manila');
-            $hasStartedClassToday = $this->hasStartedClassToday($blocks, $now) || $this->hasStartedPublishedClassToday($latest);
-            $date = $hasStartedClassToday ? $today->copy()->addDay() : $today;
+        // Initial publication establishes the semester basis. Later additions
+        // apply today, even when the new class has started. Only a change to,
+        // or removal of, an already-started published block waits until tomorrow.
+        if ($latest && ! $term->reopened && $date->lte($today)) {
+            $date = $this->changesStartedPublishedBlocks($latest, $blocks) ? $today->copy()->addDay() : $today;
         }
 
         // A version dated for a future day can still be brought forward when
@@ -396,17 +389,7 @@ class SemesterManagementService
             ->exists();
     }
 
-    private function hasStartedClassToday(array $blocks, ?Carbon $now = null): bool
-    {
-        $now ??= now('Asia/Manila');
-
-        return collect($blocks)->contains(function (array $block) use ($now) {
-            return (int) ($block['day_of_week'] ?? 0) === $now->dayOfWeekIso
-                && ($block['start_time'] ?? '23:59') <= $now->format('H:i');
-        });
-    }
-
-    private function hasStartedPublishedClassToday(FacultyScheduleVersion $latest): bool
+    private function changesStartedPublishedBlocks(FacultyScheduleVersion $latest, array $proposed): bool
     {
         $current = FacultyScheduleVersion::where('academic_term_id', $latest->academic_term_id)
             ->where('employee_id', $latest->employee_id)
@@ -418,8 +401,19 @@ class SemesterManagementService
         $employee = Employee::findOrFail($latest->employee_id);
         $blocks = $employee->schedules()->where('schedule_version_id', $current->id)->get()
             ->concat($employee->scheduleBreaks()->where('schedule_version_id', $current->id)->get())->toArray();
+        $now = now('Asia/Manila');
+        $started = array_values(array_filter($blocks, fn ($block) => (int) $block['day_of_week'] === $now->dayOfWeekIso
+            && substr($block['start_time'], 0, 5) <= $now->format('H:i')));
+        $remaining = $this->comparableBlocks($proposed);
+        foreach ($this->comparableBlocks($started) as $block) {
+            $match = array_search($block, $remaining, true);
+            if ($match === false) {
+                return true;
+            }
+            unset($remaining[$match]);
+        }
 
-        return $this->hasStartedClassToday($blocks);
+        return false;
     }
 
     private function comparableBlocks(array $blocks): array
