@@ -236,7 +236,7 @@ class SemesterManagementService
                 }
                 $latest = FacultyScheduleVersion::where('academic_term_id', $term->id)->where('employee_id', $employee->id)
                     ->orderByDesc('effective_from')->orderByDesc('id')->first();
-                $date = $effective ? Carbon::parse($effective, 'Asia/Manila')->startOfDay() : $this->automaticEffectiveDate($term, $latest);
+                $date = $effective ? Carbon::parse($effective, 'Asia/Manila')->startOfDay() : $this->automaticEffectiveDate($term, $latest, $blocks);
                 if (! $date->betweenIncluded($term->start_date, $term->end_date)) {
                     $this->invalid('The effective date must fall within this semester.');
                 }
@@ -247,6 +247,18 @@ class SemesterManagementService
                     $this->invalid('A reason is required for a historical correction.');
                 }
                 if (! $this->publicationPending($term, $employee, $blocks, $profile)) {
+                    // A publish made earlier today may already have created a
+                    // tomorrow-dated version under the former rule. If no
+                    // class in this version has started today, it is safe to
+                    // make that same published version available today rather
+                    // than leaving the weekly view apparently empty.
+                    if (! $term->reopened && $latest && $date->isToday() && $latest->effective_from->gt($date)) {
+                        $beforeVersion = $latest->toArray();
+                        $latest->update(['effective_from' => $date->toDateString()]);
+                        $this->event($term, $actor, 'schedule_effective_updated', 'Made an unstarted schedule effective today', $beforeVersion, $latest->fresh()->toArray(), $employee->id);
+                        SemesterScheduleService::reset();
+                    }
+
                     return;
                 }
                 $version = FacultyScheduleVersion::create(['academic_term_id' => $term->id, 'employee_id' => $employee->id,
@@ -295,7 +307,7 @@ class SemesterManagementService
 
                         continue;
                     }
-                    $effective = $this->automaticEffectiveDate($term, $latest);
+                    $effective = $this->automaticEffectiveDate($term, $latest, $blocks);
                     $this->save($term, $employee, $blocks, [], 'publish', $effective->toDateString(), 'Published with Publish all schedules', $actor);
                     $result['published']++;
                 } catch (ValidationException $exception) {
@@ -325,17 +337,29 @@ class SemesterManagementService
         return $this->comparableBlocks($blocks) !== $this->comparableBlocks($published) || $profile != $latest->profile;
     }
 
-    private function automaticEffectiveDate(AcademicTerm $term, ?FacultyScheduleVersion $latest): Carbon
+    private function automaticEffectiveDate(AcademicTerm $term, ?FacultyScheduleVersion $latest, array $blocks): Carbon
     {
+        $today = Carbon::today('Asia/Manila');
         $date = $term->start_date->copy();
-        if ($latest && ! $term->reopened) {
-            $tomorrow = Carbon::today('Asia/Manila')->addDay();
-            if ($date->lt($tomorrow)) {
-                $date = $tomorrow;
-            }
-            if ($date->lt($latest->effective_from)) {
-                $date = $latest->effective_from->copy();
-            }
+
+        // A schedule prepared for a later day should appear immediately. For a
+        // class that has already started today, keep the new version from the
+        // next day so that today's expected-session and attendance basis stays
+        // intact.
+        if (! $term->reopened && $date->lte($today)) {
+            $now = now('Asia/Manila');
+            $hasStartedClassToday = collect($blocks)->contains(function (array $block) use ($now) {
+                return (int) ($block['day_of_week'] ?? 0) === $now->dayOfWeekIso
+                    && ($block['start_time'] ?? '23:59') <= $now->format('H:i');
+            });
+            $date = $hasStartedClassToday ? $today->copy()->addDay() : $today;
+        }
+
+        // A version dated for a future day can still be brought forward when
+        // its classes have not started. A past/current version remains the
+        // lower boundary for the next version.
+        if ($latest && ! $latest->effective_from->isFuture() && $date->lt($latest->effective_from)) {
+            $date = $latest->effective_from->copy();
         }
 
         return $date;
