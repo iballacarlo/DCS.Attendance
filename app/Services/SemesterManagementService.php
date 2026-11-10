@@ -240,7 +240,8 @@ class SemesterManagementService
                 if (! $date->betweenIncluded($term->start_date, $term->end_date)) {
                     $this->invalid('The effective date must fall within this semester.');
                 }
-                if ($latest && ! $term->reopened && $date->lte(Carbon::today('Asia/Manila'))) {
+                $today = Carbon::today('Asia/Manila');
+                if ($latest && ! $term->reopened && ($date->lt($today) || ($date->isToday() && $this->hasStartedClassToday($blocks)))) {
                     $this->invalid('Publish changes from tomorrow or later. Reopen a closed semester for historical corrections.');
                 }
                 if ($term->reopened && ! trim($reason)) {
@@ -348,10 +349,7 @@ class SemesterManagementService
         // intact.
         if (! $term->reopened && $date->lte($today)) {
             $now = now('Asia/Manila');
-            $hasStartedClassToday = collect($blocks)->contains(function (array $block) use ($now) {
-                return (int) ($block['day_of_week'] ?? 0) === $now->dayOfWeekIso
-                    && ($block['start_time'] ?? '23:59') <= $now->format('H:i');
-            });
+            $hasStartedClassToday = $this->hasStartedClassToday($blocks, $now);
             $date = $hasStartedClassToday ? $today->copy()->addDay() : $today;
         }
 
@@ -363,6 +361,16 @@ class SemesterManagementService
         }
 
         return $date;
+    }
+
+    private function hasStartedClassToday(array $blocks, ?Carbon $now = null): bool
+    {
+        $now ??= now('Asia/Manila');
+
+        return collect($blocks)->contains(function (array $block) use ($now) {
+            return (int) ($block['day_of_week'] ?? 0) === $now->dayOfWeekIso
+                && ($block['start_time'] ?? '23:59') <= $now->format('H:i');
+        });
     }
 
     private function comparableBlocks(array $blocks): array
