@@ -312,6 +312,9 @@ void updateDisplayFooter() {
   bool connected = WiFi.status() == WL_CONNECTED;
   bool recentSuccess = lastServerResponseAt != 0 && millis() - lastServerResponseAt < 60000;
   bool recentAttempt = lastServerAttemptAt != 0 && millis() - lastServerAttemptAt < 60000;
+  // A footer status is fresh only while the latest server result is recent.
+  // Keep this local so it is always available before the TFT is updated.
+  bool freshServerStatus = recentSuccess || recentAttempt;
   String serverText = !connected ? "SERVER / WAITING FOR WI-FI"
     : recentAttempt && (lastServerHttpCode == 401 || lastServerHttpCode == 403) ? "SERVER / ACCESS DENIED"
     : recentAttempt && lastServerHttpCode >= 500 ? "SERVER / SERVER ERROR"
@@ -1663,10 +1666,16 @@ void processAttendanceUploadResults() {
     liveAttendanceUploadPending = false;
     liveAttendanceEventId[0] = '\0';
     digitalWrite(YELLOW_LED_PIN, LOW);
-    if (!stillWaiting) continue;
     String response = String(result.response);
-    if (shouldQueueAttendance(result.code)) showOfflineSaved(result.record);
-    else showAttendanceResponse(result.code, response, String(result.record.method));
+    // A slow server response can arrive after the four-second Pending sync
+    // screen. If the faculty has not started another scan, replace that
+    // temporary screen with the real result (name, IN/OUT time, WAIT, etc.).
+    // The record remains queued only when the server did not confirm it.
+    if (shouldQueueAttendance(result.code)) {
+      if (stillWaiting) showOfflineSaved(result.record);
+    } else {
+      showAttendanceResponse(result.code, response, String(result.record.method));
+    }
   }
 }
 

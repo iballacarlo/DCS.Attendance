@@ -391,10 +391,28 @@ class SemesterManagementService
             if ($block['start_time'] < '07:00' || $block['end_time'] > '19:00' || $block['end_time'] <= $block['start_time']) {
                 $this->invalid('Choose valid schedule times from 7:00 AM to 7:00 PM.');
             }
-            if ($publishing && $block['schedule_type'] === 'class' && (! in_array($block['subject'] ?? '', ScheduleOptions::subjectsFor($block['section'] ?? '', $term->semester), true)
-                || ! in_array($block['section'] ?? '', ScheduleOptions::sections(), true) || empty($block['class_mode']) || empty($block['room_id'])
-                || (($block['class_mode'] ?? '') === 'laboratory' && in_array($block['subject'], ScheduleOptions::lectureOnlySubjects(), true)))) {
-                $this->invalid('Review every copied class: subject, section, and delivery must be valid for this semester.');
+            if ($publishing && $block['schedule_type'] === 'class') {
+                $classLabel = trim(($block['subject'] ?? 'Class').' · '.($block['section'] ?? 'no section'));
+
+                if (! in_array($block['section'] ?? '', ScheduleOptions::sections(), true)) {
+                    $this->invalid("{$classLabel}: choose a valid course, year level, and section.");
+                }
+
+                if (! in_array($block['subject'] ?? '', ScheduleOptions::subjectsFor($block['section'] ?? '', $term->semester), true)) {
+                    $this->invalid("{$classLabel}: this subject is not available for the selected section and {$term->semester}. Check the Subject Catalog or select the correct subject.");
+                }
+
+                if (empty($block['class_mode'])) {
+                    $this->invalid("{$classLabel}: choose Lecture or Laboratory before publishing.");
+                }
+
+                if (($block['class_mode'] ?? '') === 'laboratory' && in_array($block['subject'] ?? '', ScheduleOptions::lectureOnlySubjects(), true)) {
+                    $this->invalid("{$classLabel}: this subject is available for Lecture only.");
+                }
+
+                if (empty($block['room_id'])) {
+                    $this->invalid("{$classLabel}: assign a room before publishing. Class attendance is room-based.");
+                }
             }
             foreach (array_slice($blocks, 0, $i) as $other) {
                 if ($block['day_of_week'] == $other['day_of_week'] && $block['start_time'] < $other['end_time'] && $block['end_time'] > $other['start_time']) {
