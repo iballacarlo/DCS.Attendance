@@ -272,7 +272,7 @@ class HardwareAttendanceTest extends TestCase
 
         $this->withHeaders(['X-Hardware-Key' => 'device-secret', 'X-Device-Code' => 'OTHER-DEVICE'])->postJson('/api/hardware/tap', [
             'identifier' => 'WRONG-ROOM-CARD', 'method' => 'rfid',
-        ])->assertOk()->assertJsonPath('action', 'NO CLASS')->assertJsonPath('room', 'OTHER-ROOM');
+        ])->assertOk()->assertJsonPath('action', 'WRONG ROOM')->assertJsonPath('room', 'OTHER-ROOM')->assertJsonPath('expected_room', 'TEST-ROOM');
         $this->assertDatabaseCount('attendance_logs', 0);
         Carbon::setTestNow();
     }

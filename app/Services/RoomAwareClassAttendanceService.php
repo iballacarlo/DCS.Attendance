@@ -28,17 +28,31 @@ class RoomAwareClassAttendanceService
             }
 
             $rooms = app(RoomAttendanceService::class);
-            $eligible = SemesterScheduleService::schedules($employee, $now)->where('schedule_type', 'class')
-                ->where('day_of_week', $now->dayOfWeek)->sortBy('start_time')->filter(function ($schedule) use ($now, $date, $logs, $deviceRoom, $rooms) {
+            // First find the faculty's classes that are actually eligible at
+            // this time, regardless of terminal room. This lets the device
+            // distinguish "no class" from "you are in the wrong room".
+            $available = SemesterScheduleService::schedules($employee, $now)->where('schedule_type', 'class')
+                ->where('day_of_week', $now->dayOfWeek)->sortBy('start_time')->filter(function ($schedule) use ($now, $date, $logs) {
                     $start = Carbon::parse($date.' '.$schedule->start_time, 'Asia/Manila');
                     $end = Carbon::parse($date.' '.$schedule->end_time, 'Asia/Manila');
 
-                    return $rooms->effectiveRoom($schedule, $date)?->id === $deviceRoom->id
-                        && $now->gte($start->copy()->subMinutes(30)) && $now->lt($end)
+                    return $now->gte($start->copy()->subMinutes(30)) && $now->lt($end)
                         && ! $logs->contains('faculty_schedule_id', $schedule->id);
                 });
+            $eligible = $available->filter(fn ($schedule) => $rooms->effectiveRoom($schedule, $date)?->id === $deviceRoom->id);
             $schedule = $eligible->first(fn ($item) => $now->gte(Carbon::parse($date.' '.$item->start_time, 'Asia/Manila'))) ?? $eligible->first();
             if (! $schedule) {
+                $scheduledElsewhere = $available->first(fn ($item) => $rooms->effectiveRoom($item, $date)?->id !== $deviceRoom->id);
+                if ($scheduledElsewhere) {
+                    $expectedRoom = $rooms->effectiveRoom($scheduledElsewhere, $date);
+                    if ($expectedRoom) {
+                        return [...$this->result('WRONG ROOM', 'You are scheduled in '.$expectedRoom->code.', not '.$deviceRoom->code.'.', null, $deviceRoom),
+                            'expected_room' => $expectedRoom->code];
+                    }
+
+                    return $this->result('ROOM NOT ASSIGNED', 'Your scheduled class does not have a room assignment. Ask an administrator to update the schedule.', null, $deviceRoom);
+                }
+
                 return $this->result('NO CLASS', 'No eligible class is scheduled for you in '.$deviceRoom->code.'.', null, $deviceRoom);
             }
             $start = Carbon::parse($date.' '.$schedule->start_time, 'Asia/Manila');

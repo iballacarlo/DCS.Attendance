@@ -94,6 +94,7 @@ class HardwareAttendanceController extends Controller
                     'time_in' => $result['log']?->time_in,
                     'time_out' => $result['log']?->time_out,
                     'room' => $result['room'] ?? $deviceRoom->code,
+                    'expected_room' => $result['expected_room'] ?? '',
                     'school_attendance_warning' => $result['school_attendance_warning'] ?? false,
                 ];
 

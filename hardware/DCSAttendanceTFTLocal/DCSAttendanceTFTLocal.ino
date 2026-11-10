@@ -1563,12 +1563,15 @@ void showAttendanceResponse(int code, const String& response, const String& meth
     String action = jsonValue(response, "action");
     String displayTime = jsonValue(response, "display_time");
     String room = jsonValue(response, "room");
+    String expectedRoom = jsonValue(response, "expected_room");
     if (action == "WAIT") {
       showMessage(jsonValue(response, "display_name"), "OUT NOT RECORDED", true);
       drawDisplayHeading("WAIT / OUT NOT RECORDED");
-      timeOutAvailableAt = static_cast<time_t>(jsonValue(response, "time_out_available_at").toInt());
-      if (timeOutAvailableAt > 0) refreshTimeOutCountdown();
-      else showTimeOutWait("Wait until " + displayTime);
+      // WAIT is only a result notice. Keeping its countdown active here used
+      // to prevent the terminal from returning to Ready to scan until another
+      // card was tapped. The server still enforces the OUT time on the next
+      // tap, so show the allowed time briefly then return to the idle screen.
+      showTimeOutWait(displayTime.length() ? "OUT available " + displayTime : "Please scan again later");
       waitSignal();
       return;
     }
@@ -1576,6 +1579,11 @@ void showAttendanceResponse(int code, const String& response, const String& meth
     if (action == "IN" || action == "OUT") {
       if (jsonValue(response, "school_attendance_warning") == "true") waitSignal();
       else successSignal();
+    }
+    else if (action == "WRONG ROOM") {
+      errorSignal();
+      showMessage(jsonValue(response, "display_name"), expectedRoom.length() ? "Go to " + expectedRoom : "Wrong scheduled room", true);
+      drawDisplayHeading("WRONG ROOM");
     }
     else if (action == "ALREADY OUT") doneSignal();
     else {
