@@ -43,6 +43,9 @@ finishes, then show the faculty name and IN/OUT time on success. A slow response
 does not switch to a saved/offline notice or the idle clock. Saved notices are
 reserved for offline scans, an unavailable upload queue, or failed requests;
 WiFi association alone does not guarantee that the API server is reachable.
+While a live tap is being processed, the footer shows `CHECKING...` instead of
+counting its safety backup as a pending upload. After the result arrives, the
+footer returns to the actual retained queue count.
 
 The header always shows `ROOM: A-301`, `ROOM: RM 1`, or the assigned room code.
 The terminal sends its `DEVICE_CODE` in the `X-Device-Code` header and reads
@@ -50,8 +53,13 @@ The terminal sends its `DEVICE_CODE` in the `X-Device-Code` header and reads
 minute). Install the matching API change to show the room before the first tap.
 Successful IN/OUT responses also refresh the label with older API versions.
 The last confirmed room is cached across restarts, scoped to the terminal ID,
-and remains visible offline. Before the room is known, it shows `ROOM: NOT SET`.
-Room changes come from Settings > Rooms & Devices; no room is hard-coded.
+and remains visible offline. Set `DEVICE_ROOM_LABEL` in private `device_config.h`
+to the terminal's actual assigned room (for example, `A-301`) to show a startup
+label even before the first successful sync. A nonempty cached room for the same
+terminal takes precedence, and live server updates override both. This label
+only affects the display; attendance still uses the server's room assignment.
+Without a configured/cached room it shows `ROOM: NOT SET` until sync succeeds.
+Update the fallback label if the physical terminal is moved to another room.
 
 ## Wireless firmware uploads (ArduinoOTA)
 
@@ -81,6 +89,14 @@ The compiled firmware must fit both OTA app slots. If the network port is absent
 check the same-network connection, guest WiFi/client isolation, and firewall
 access for Arduino IDE. With ESP32 core 3.3.12, use the uploader bundled with that
 core so its password authentication matches the device.
+
+The device allows a five-second receive gap and redraws OTA progress in roughly
+five-percent steps. If a transfer stops with `Error Uploading: timed out`, that
+firmware has not been confirmed installed. Upload through USB to install these
+settings if OTA keeps failing, then retry OTA on a stable local WiFi connection.
+Keep the same partition layout and flash erase disabled. If it persists, capture
+the ESP32 Serial Monitor output during transfer to distinguish an OTA receive
+error from a reset, power issue, or a failure on the computer.
 
 ## Grouped wiring revision
 

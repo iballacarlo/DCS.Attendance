@@ -253,7 +253,10 @@ class EmployeeController extends Controller
             'facultyView' => $faculty,
             ...($faculty ? [] : ['facultyOptions' => Employee::orderBy('last_name')->get(['id', 'employee_no', 'first_name', 'middle_name', 'last_name', 'suffix'])]),
             'selectedSemester' => $term, 'scheduleVersions' => $versions, 'selectedVersion' => $data['version_id'] ?? '',
-            'hasUnpublishedSchedule' => ! $faculty && $term && $assignment && app(SemesterManagementService::class)->publicationPending($term, $employee, $assignment->draft_blocks ?? [], $assignment->profile),
+            'hasUnpublishedSchedule' => ! $faculty && $term && $assignment && (
+                app(SemesterManagementService::class)->publicationPending($term, $employee, $assignment->draft_blocks ?? [], $assignment->profile)
+                || app(SemesterManagementService::class)->initialPublicationNeedsActivation($term, $employee)
+            ),
             'assignmentProfile' => ($faculty ? $version?->profile : $assignment?->profile) ?? app(SemesterManagementService::class)->profile($employee),
             'buildings' => Building::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name']),
             'rooms' => Room::with('building:id,code,name')->where('is_active', true)

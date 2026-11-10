@@ -35,6 +35,9 @@
 #ifndef OTA_PASSWORD
 #define OTA_PASSWORD ""
 #endif
+#ifndef DEVICE_ROOM_LABEL
+#define DEVICE_ROOM_LABEL ""
+#endif
 
 #define RFID_SS_PIN 5
 #define RFID_RST_PIN 4
@@ -314,10 +317,16 @@ void drawDisplayHeading(const String& heading) {
 }
 
 void initializeTerminalRoom() {
+  // Display the configured room immediately, before sensors or WiFi finish.
+  // The server remains authoritative for attendance and later room updates.
+  terminalRoom = DEVICE_ROOM_LABEL;
   terminalRoomQueue = xQueueCreate(1, 65);
   Preferences settings;
   if (settings.begin("terminal-ui", true)) {
-    if (settings.getString("device", "") == String(DEVICE_CODE)) terminalRoom = settings.getString("room", "");
+    if (settings.getString("device", "") == String(DEVICE_CODE)) {
+      String cachedRoom = settings.getString("room", "");
+      if (cachedRoom.length()) terminalRoom = cachedRoom;
+    }
     settings.end();
   }
 }
@@ -419,7 +428,10 @@ void updateDisplayFooter() {
     lcd.setTextColor(syncError ? DISPLAY_ERROR : DISPLAY_MUTED, DISPLAY_BACKGROUND);
     lcd.drawString(syncText.substring(0, 73), lcd.width() / 2, 270);
   }
-  String text = String(connected ? "WI-FI CONNECTED" : "WI-FI OFFLINE") + String(pending);
+  // The active online tap is durably saved too, but is being checked now.
+  // Do not label that in-flight request as an offline/pending upload.
+  String uploadStatus = liveAttendanceUploadPending ? "CHECKING..." : "PENDING " + String(pending);
+  String text = String(connected ? "WI-FI CONNECTED" : "WI-FI OFFLINE") + uploadStatus;
   if (text == lastDisplayFooter) return;
   lastDisplayFooter = text;
   lcd.fillRect(0, 288, lcd.width(), 32, DISPLAY_FOOTER);
@@ -431,8 +443,9 @@ void updateDisplayFooter() {
   lcd.drawString(connected ? "WI-FI CONNECTED" : "WI-FI OFFLINE", 34, 303);
   lcd.drawFastVLine(lcd.width() / 2 + 20, 296, 15, DISPLAY_RULE);
   lcd.setTextDatum(lgfx::middle_right);
-  lcd.setTextColor(pending ? DISPLAY_WARNING : DISPLAY_MUTED, DISPLAY_FOOTER);
-  lcd.drawString("PENDING " + String(pending), lcd.width() - 18, 303);
+  lcd.setTextColor(liveAttendanceUploadPending ? DISPLAY_GREEN :
+                   (pending ? DISPLAY_WARNING : DISPLAY_MUTED), DISPLAY_FOOTER);
+  lcd.drawString(uploadStatus, lcd.width() - 18, 303);
 }
 
 void showMessage(String first, String second, bool firstIsFacultyName = false) {
@@ -1000,6 +1013,8 @@ void maintainOTA() {
     }
     ArduinoOTA.setHostname(OTA_HOSTNAME);
     ArduinoOTA.setPassword(OTA_PASSWORD);
+    // Allow brief WiFi stalls while keeping below the uploader's 10s ACK wait.
+    ArduinoOTA.setTimeout(5000);
     ArduinoOTA.onStart([]() {
       if (ArduinoOTA.getCommand() != U_FLASH) {
         // onStart runs before any payload is written. Preserve attendance data.
@@ -1015,7 +1030,8 @@ void maintainOTA() {
     ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
       if (!otaUpdating || !total) return;
       unsigned int percent = static_cast<unsigned int>((uint64_t(progress) * 100) / total);
-      if (percent == otaLastPercent) return;
+      // Limit TFT/serial work during transfer to each five-percent milestone.
+      if (otaLastPercent != 101 && percent < 100 && percent / 5 == otaLastPercent / 5) return;
       otaLastPercent = percent;
       Serial.printf("OTA: %u%%\n", percent);
       printLine(1, "Uploading: " + String(percent) + "%", 2, true);

@@ -6,7 +6,12 @@ const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 const char* HARDWARE_API_KEY = "YOUR_RAILWAY_HARDWARE_API_KEY";
 // Copy the Terminal ID generated in Settings > Rooms & Devices exactly as shown.
 // It identifies this physical terminal to the server; it is not the room name.
+// Keep this same ID across firmware/OTA updates and room reassignment.
 const char* DEVICE_CODE = "TERM-EXAMPLE01";
+
+// Optional startup room label, matching this terminal's actual room assignment.
+// Cached/server room updates override this display-only fallback.
+#define DEVICE_ROOM_LABEL ""
 
 // First upload is through USB. Later, select this network port in Arduino IDE.
 // Use a unique hostname per terminal and a private password (required for OTA).

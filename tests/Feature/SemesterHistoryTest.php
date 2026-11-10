@@ -37,6 +37,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Inertia\Testing\AssertableInertia as Assert;
+use PHPUnit\Framework\Attributes\TestWith;
 use Tests\TestCase;
 
 class SemesterHistoryTest extends TestCase
@@ -897,6 +898,54 @@ class SemesterHistoryTest extends TestCase
             ])->assertSessionHasNoErrors();
             $this->assertSame('2026-10-16', FacultyScheduleVersion::orderByDesc('id')->firstOrFail()->effective_from->toDateString());
         }
+    }
+
+    public function test_initial_evening_class_publication_appears_in_todays_weekly_attendance(): void
+    {
+        $term = $this->term();
+        app(SemesterManagementService::class)->transition($term, 'activate', 'Start semester', $this->admin);
+        $blocks = [array_merge($this->blocks()[0], ['start_time' => '17:00', 'end_time' => '19:00'])];
+        $url = '/employees/'.$this->employee->id.'/schedule';
+        $this->actingAs($this->admin)->put($url, [
+            'term_id' => $term->id, 'intent' => 'publish', 'blocks' => $blocks,
+        ])->assertSessionHasNoErrors();
+        $version = FacultyScheduleVersion::firstOrFail();
+        $this->assertSame('2026-10-01', $version->effective_from->toDateString());
+        $this->get('/attendance?employee_id='.$this->employee->id.'&week_start=2026-10-05')
+            ->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->has('weekly.rows', 1)->where('weekly.rows.0.date', '2026-10-05')
+            ->where('weekly.rows.0.scheduled_start', fn ($time) => substr($time, 0, 5) === '17:00')
+            ->where('weekly.rows.0.scheduled_end', fn ($time) => substr($time, 0, 5) === '19:00'));
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function test_republishing_a_postponed_initial_class_makes_today_visible_without_duplicate_versions(bool $bulk): void
+    {
+        $term = $this->term();
+        app(SemesterManagementService::class)->transition($term, 'activate', 'Start semester', $this->admin);
+        $blocks = [array_merge($this->blocks()[0], ['start_time' => '17:00', 'end_time' => '19:00'])];
+        $this->publish($term, $blocks, '2026-10-06');
+        $version = FacultyScheduleVersion::firstOrFail();
+        $url = '/employees/'.$this->employee->id.'/schedule';
+        $this->actingAs($this->admin)->get($url.'?term_id='.$term->id)
+            ->assertInertia(fn (Assert $page) => $page->where('hasUnpublishedSchedule', true));
+        if ($bulk) {
+            $result = app(SemesterManagementService::class)->publishAll($term, $this->admin);
+            $this->assertSame(1, $result['published']);
+        } else {
+            $this->put($url, [
+                'term_id' => $term->id, 'intent' => 'publish', 'blocks' => $blocks,
+            ])->assertSessionHasNoErrors();
+        }
+        $this->assertSame(1, FacultyScheduleVersion::count());
+        $this->assertSame('2026-10-05', $version->fresh()->effective_from->toDateString());
+        $this->get($url.'?term_id='.$term->id)
+            ->assertInertia(fn (Assert $page) => $page->where('hasUnpublishedSchedule', false));
+        $this->get('/attendance?employee_id='.$this->employee->id.'&week_start=2026-10-05')
+            ->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->has('weekly.rows', 1)->where('weekly.rows.0.date', '2026-10-05'));
+        $this->assertCount(0, SemesterScheduleService::schedules($this->employee, Carbon::parse('2026-10-04', 'Asia/Manila')));
     }
 
     public function test_schedule_rank_follows_the_faculty_profile_without_rewriting_old_publications(): void
