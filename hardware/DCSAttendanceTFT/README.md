@@ -40,8 +40,16 @@ already used by the device; do not erase flash when updating firmware.
 
 Online taps keep `Checking attendance...` visible until the server request
 finishes, then show the faculty name and IN/OUT time on success. A slow response
-does not switch to a saved/offline notice or the idle clock. Saved notices are
-reserved for offline scans, an unavailable upload queue, or failed requests;
+does not switch to a saved/offline notice or the idle clock. Online requests
+wait for an existing server request to finish and allow ten seconds for connect
+and response reads. A transient failure is retried once while Checking remains
+visible, with the same event ID and scan timestamp to avoid duplicate IN/OUT.
+Offline scans show `Saved offline`. After both online attempts fail, the screen
+shows `Server not confirmed / Retrying attendance...`; it does not invent a
+confirmed result or show `RFID saved` / `FINGER saved` as the online result.
+When a retained tap is later confirmed, its name/time result is displayed if
+it is still the latest scan. Older records never replace a newer scan's result.
+Missing-action responses and API-key failures retain the scan for retry.
 WiFi association alone does not guarantee that the API server is reachable.
 While a live tap is being processed, the footer shows `CHECKING...` instead of
 counting its safety backup as a pending upload. After the result arrives, the

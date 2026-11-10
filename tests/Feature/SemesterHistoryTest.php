@@ -773,9 +773,10 @@ class SemesterHistoryTest extends TestCase
     {
         $term = $this->active();
         $service = app(SemesterManagementService::class);
+        $nonConflicting = array_map(fn ($block) => array_replace($block, ['day_of_week' => 2]), $this->blocks());
         foreach (['inactive', 'archived'] as $state) {
             $faculty = Employee::create(['employee_no' => 'BULK-'.$state, 'first_name' => $state, 'last_name' => 'Faculty', 'status' => 'active', 'rate_amount' => 0]);
-            $service->save($term, $faculty, $this->blocks(), [], 'draft', null, '', $this->admin);
+            $service->save($term, $faculty, $nonConflicting, [], 'draft', null, '', $this->admin);
             $faculty->forceFill($state === 'inactive' ? ['status' => 'inactive'] : ['archived_at' => now()])->save();
         }
         $this->assertSame(2, $service->publishAll($term, $this->admin)['ineligible']);
@@ -989,6 +990,8 @@ class SemesterHistoryTest extends TestCase
         $term = $this->active();
         $blocks = $this->blocks();
         $blocks[] = array_merge($blocks[0], ['start_time' => '17:00', 'end_time' => '19:00']);
+        $obsolete = [...$blocks, array_merge($blocks[0], ['start_time' => '16:00', 'end_time' => '16:05'])];
+        $this->publish($term, $obsolete, '2026-10-06');
         $this->publish($term, $blocks, '2026-10-06');
         $postponed = FacultyScheduleVersion::orderByDesc('id')->firstOrFail();
         $url = '/employees/'.$this->employee->id.'/schedule';
@@ -1000,7 +1003,7 @@ class SemesterHistoryTest extends TestCase
             $this->put($url, ['term_id' => $term->id, 'intent' => 'publish', 'blocks' => $blocks])
                 ->assertSessionHasNoErrors();
         }
-        $this->assertSame(2, FacultyScheduleVersion::count());
+        $this->assertSame(3, FacultyScheduleVersion::count());
         $this->assertSame('2026-10-05', $postponed->fresh()->effective_from->toDateString());
         $this->get('/attendance?employee_id='.$this->employee->id.'&week_start=2026-10-05')
             ->assertOk()->assertInertia(fn (Assert $page) => $page->has('weekly.rows', 2)
@@ -1009,6 +1012,9 @@ class SemesterHistoryTest extends TestCase
         $this->get($url.'?term_id='.$term->id)
             ->assertInertia(fn (Assert $page) => $page->where('hasUnpublishedSchedule', false));
         $this->assertSame(1, app(SemesterManagementService::class)->publishAll($term, $this->admin)['unchanged']);
+        foreach (['2026-10-06', '2026-10-12'] as $day) {
+            $this->assertSame($postponed->id, SemesterScheduleService::version($this->employee, $day)->id);
+        }
     }
 
     public function test_schedule_rank_follows_the_faculty_profile_without_rewriting_old_publications(): void

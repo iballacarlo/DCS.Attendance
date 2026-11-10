@@ -1185,7 +1185,7 @@ int requestHardwareServer(String path, String payload, String& response, bool ba
   response = "";
   if (WiFi.status() != WL_CONNECTED) return -1000;
   if (!hardwareHttpMutex || xSemaphoreTake(hardwareHttpMutex,
-      background ? 0 : pdMS_TO_TICKS(4500)) != pdTRUE) return -1002;
+      background ? 0 : pdMS_TO_TICKS(20000)) != pdTRUE) return -1002;
   unsigned long requestStartedAt = millis();
   unsigned long queueWaitMs = requestStartedAt - requestQueuedAt;
 
@@ -1208,7 +1208,7 @@ int requestHardwareServer(String path, String payload, String& response, bool ba
     // Both clients are destroyed at the end of each attempt, before retrying.
     WiFiClientSecure secureClient;
     secureClient.setCACert(HARDWARE_ROOT_CA);
-    secureClient.setHandshakeTimeout(monitorEnrollment ? 2 : 15);
+    secureClient.setHandshakeTimeout(background ? 2 : 15);
     IPAddress serverIp;
     if (WiFi.hostByName(API_HOST, serverIp) != 1) {
       Serial.println("Server DNS lookup failed. Check WiFi internet access and DNS.");
@@ -1225,8 +1225,8 @@ int requestHardwareServer(String path, String payload, String& response, bool ba
       break;
     }
     http.setReuse(false);
-    http.setConnectTimeout(monitorEnrollment ? 2500 : 4000);
-    http.setTimeout(monitorEnrollment ? 2500 : 4000);
+    http.setConnectTimeout(background ? 2500 : 10000);
+    http.setTimeout(background ? 2500 : 10000);
     addHardwareHeaders(http);
     code = payload.length() ? http.POST(payload) : http.GET();
     response = http.getString();
@@ -1714,11 +1714,16 @@ bool processEnrollmentRequest() {
 }
 
 int postAttendanceRecord(const OfflineAttendanceRecord& record, String& response) {
-  return requestHardwareServer("/tap", attendancePayload(record), response, false);
+  int code = requestHardwareServer("/tap", attendancePayload(record), response, false);
+  if (code == 200 && jsonValue(response, "action").isEmpty()) {
+    Serial.println("Attendance response has no action; keeping the tap for retry.");
+    return -1004;
+  }
+  return code;
 }
 
 bool shouldQueueAttendance(int code) {
-  return code < 0 || code == 408 || code == 429 || code >= 500;
+  return code < 0 || code == 401 || code == 403 || code == 408 || code == 429 || code >= 500;
 }
 
 void showTimeOutWait(const String& message) {
@@ -1786,13 +1791,6 @@ void showAttendanceResponse(int code, const String& response, const String& meth
 }
 
 void showOfflineSaved(const OfflineAttendanceRecord& record) {
-  time_t timestamp = static_cast<time_t>(record.occurredAt);
-  struct tm info;
-  localtime_r(&timestamp, &info);
-  char timeText[9];
-  strftime(timeText, sizeof(timeText), "%I:%M %p", &info);
-  String methodLabel = String(record.method) == "rfid" ? "RFID" : "FINGER";
-
   digitalWrite(GREEN_LED_PIN, LOW);
   digitalWrite(RED_LED_PIN, LOW);
   digitalWrite(YELLOW_LED_PIN, HIGH);
@@ -1800,12 +1798,15 @@ void showOfflineSaved(const OfflineAttendanceRecord& record) {
   feedbackLedOffAt = millis() + 350;
   // Only show this after an offline scan, a queue failure, or a request that
   // actually failed. A slow request keeps its Checking attendance screen.
-  showMessage(methodLabel + " saved " + String(timeText), "Syncing attendance...");
+  if (WiFi.status() == WL_CONNECTED) showMessage("Server not confirmed", "Retrying attendance...");
+  else showMessage("Saved offline", "Waiting for WiFi");
   Serial.println("Attendance retained for upload. Pending records: " +
                  String(pendingOfflineRecordCount()));
 }
 
 void sendAttendance(String identifier, String method) {
+  liveAttendanceEventId[0] = '\0';
+  liveAttendanceUploadPending = false;
   OfflineAttendanceRecord record = {};
   if (!createAttendanceRecord(identifier, method, record)) {
     errorSignal();
@@ -1814,21 +1815,24 @@ void sendAttendance(String identifier, String method) {
   }
 
   // Write first so a reset or slow connection cannot lose a scan.
+  attendanceBusy = true;
   if (!appendOfflineRecord(record)) {
+    attendanceBusy = false;
     errorSignal();
     showMessage(offlineStorageAvailable ? "Offline full" : "Storage error", "Not recorded");
     return;
   }
 
-  if (WiFi.status() != WL_CONNECTED || !attendanceUploadQueue) {
+  strncpy(liveAttendanceEventId, record.eventId, sizeof(liveAttendanceEventId) - 1);
+  liveAttendanceEventId[sizeof(liveAttendanceEventId) - 1] = '\0';
+  if (WiFi.status() != WL_CONNECTED || !attendanceUploadQueue || !attendanceResultQueue) {
+    attendanceBusy = false;
+    liveAttendanceUploadPending = false;
     showOfflineSaved(record);
     return;
   }
 
-  attendanceBusy = true;
   liveAttendanceUploadPending = true;
-  strncpy(liveAttendanceEventId, record.eventId, sizeof(liveAttendanceEventId) - 1);
-  liveAttendanceEventId[sizeof(liveAttendanceEventId) - 1] = '\0';
   digitalWrite(YELLOW_LED_PIN, HIGH);
   tone(BUZZER_PIN, 1100, 80);
   showMessage(method == "rfid" ? "Card detected" : "Fingerprint detected", "Checking attendance...");
@@ -1846,19 +1850,21 @@ void processAttendanceUploadResults() {
     bool isActive = strcmp(result.record.eventId, liveAttendanceEventId) == 0;
     Serial.println("Attendance upload " + String(result.record.eventId) + ": HTTP " +
                    String(result.code) + " in " + String(result.durationMs) + " ms");
-    // Background uploads intentionally never redraw the attendance screen.
-    // Only the currently scanned live record may replace its Checking screen.
+    // A confirmed retry may finish the latest scan's screen. Older queued taps
+    // cannot replace a newer scan, even when they upload successfully later.
     if (!isActive) continue;
     attendanceBusy = false;
     liveAttendanceUploadPending = false;
-    liveAttendanceEventId[0] = '\0';
     digitalWrite(YELLOW_LED_PIN, LOW);
     String response = String(result.response);
     // Keep Checking visible until this actual result arrives. A successful
     // reply goes directly to the faculty name and recorded IN/OUT time.
     if (shouldQueueAttendance(result.code)) {
+      // Keep this event selected so a later successful retry can show its name
+      // and time, until another scan replaces it.
       showOfflineSaved(result.record);
     } else {
+      liveAttendanceEventId[0] = '\0';
       showAttendanceResponse(result.code, response, String(result.record.method));
     }
   }
@@ -1874,7 +1880,18 @@ void attendanceNetworkTask(void* parameter) {
     if (attendanceUploadQueue && xQueueReceive(attendanceUploadQueue, &record, 0) == pdTRUE) {
       unsigned long startedAt = millis();
       String response;
-      int code = postAttendanceRecord(record, response);
+      int code = -1000;
+      for (int attempt = 0; attempt < 2; attempt++) {
+        code = postAttendanceRecord(record, response);
+        if (!shouldQueueAttendance(code) || code == 401 || code == 403 ||
+            WiFi.status() != WL_CONNECTED) break;
+        if (attempt == 0) {
+          // Retry the same event ID, identifier and timestamp. The API returns
+          // the original result if the first request was accepted already.
+          Serial.println("Attendance not confirmed (HTTP " + String(code) + "). Retrying the same tap...");
+          vTaskDelay(pdMS_TO_TICKS(500));
+        }
+      }
       if (!shouldQueueAttendance(code)) {
         OfflineAttendanceRecord next = {};
         if (readNextOfflineRecord(next) && strcmp(next.eventId, record.eventId) == 0) acknowledgeOfflineRecord();
@@ -1929,6 +1946,11 @@ void syncNextOfflineAttendance() {
     offlineSyncNoticeAt = millis();
     if (pendingOfflineRecordCount() == 0) offlineSyncProcessed = 0;
     Serial.println("Offline attendance synced. Remaining: " + String(pendingOfflineRecordCount()));
+    AttendanceUploadResult result = {};
+    result.record = record;
+    result.code = code;
+    response.toCharArray(result.response, sizeof(result.response));
+    if (attendanceResultQueue) xQueueSend(attendanceResultQueue, &result, pdMS_TO_TICKS(100));
   } else if (code == 404 && rejectionMessage ==
              "RFID/fingerprint is not registered to an active faculty member.") {
     // Only discard a confirmed credential rejection, never a proxy/API 404.

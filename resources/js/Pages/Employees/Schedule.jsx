@@ -37,6 +37,7 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
     const roomLabel = (id) => rooms.find((room) => String(room.id) === String(id))?.code || 'Room not assigned';
     const blockTypeLabel = (block) => block.schedule_type === 'class' ? (classModes[block.class_mode] || 'Class · Not specified') : types[block.schedule_type];
     const form = useForm({ blocks: scheduleBlocks(employee), term_id: selectedSemester?.id || '', reason: '' });
+    const saveErrors = useRef(null);
     const roomMove = useForm({ faculty_schedule_id: '', session_date: '', building_id: '', room_id: '' });
     const [day, setDay] = useState(() => {
         const requested = Number(new URLSearchParams(url.split('?')[1]).get('day'));
@@ -158,7 +159,9 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
         const intent = event.nativeEvent?.submitter?.value || 'draft';
         if (readOnly || form.processing || (intent === 'draft' && !form.isDirty) || (intent === 'publish' && !form.isDirty && !hasUnpublishedSchedule)) return;
         form.transform((data) => ({ ...data, intent }));
-        form.put(`/employees/${employee.id}/schedule`, { preserveScroll: true, onSuccess: (page) => {
+        form.put(`/employees/${employee.id}/schedule`, { preserveScroll: true, onError: () => {
+            requestAnimationFrame(() => saveErrors.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+        }, onSuccess: (page) => {
             const blocks = scheduleBlocks(page.props.employee);
             form.setDefaults({ ...form.data, blocks }); form.setData({ ...form.data, blocks }); reset();
         } });
@@ -238,7 +241,10 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
                 {dayBlocks.length ? <div className="sd-agenda-list">{dayBlocks.map((block) => <article className={`sd-agenda-item is-${block.schedule_type}${block.class_mode === 'laboratory' ? ' is-laboratory' : ''}${editing === block.index ? ' is-editing' : ''}`} key={block.index}><span className="sd-agenda-marker" /><div className="sd-agenda-time"><strong>{time12(block.start_time)}</strong><span>{time12(block.end_time)}</span></div><div className="sd-agenda-details"><small>{blockTypeLabel(block)}</small><h4>{block.subject || (block.schedule_type === 'class' ? 'Not specified' : types[block.schedule_type])}</h4><span>{block.schedule_type === 'class' ? `${block.section || 'Not specified'} · ${roomLabel(block.room_id)}` : block.schedule_type === 'consultation' ? 'DTR schedule basis' : 'Excluded from DTR hours'}</span></div>{!readOnly && <div className="sd-row-actions"><button className="sd-control sd-button sd-secondary" type="button" onClick={() => edit(block.index)} aria-label={`Edit ${block.subject || types[block.schedule_type]}`}><Edit3 size={15} />Edit</button><button className="sd-control sd-button sd-remove" type="button" onClick={() => remove(block)} aria-label={`Remove ${block.subject || types[block.schedule_type]}`}><Trash2 size={15} />Remove</button></div>}</article>)}</div> : <div className="sd-empty-state"><CalendarDays size={28} /><h4>No blocks on {days[day - 1]}</h4><p>{readOnly ? 'No classes or activities have been assigned for this day.' : 'Add your first class using the editor or select a time on the timetable.'}</p></div>}
             </section>
             </div>}
-            {Object.entries(form.errors).map(([key, message]) => <p className="sd-error" role="alert" key={key}>{message}</p>)}
+            {Object.keys(form.errors).length > 0 && <div ref={saveErrors} role="alert" aria-label="Schedule save errors">
+                <strong>Schedule could not be saved</strong>
+                {Object.entries(form.errors).map(([key, message]) => <p className="sd-error" key={key}>{message}</p>)}
+            </div>}
             {!readOnly && <footer className="sd-save-bar"><div className={form.isDirty || draftChanged ? 'has-changes' : ''} role="status" aria-live="polite"><span className="sd-save-indicator" /><strong>{draftChanged ? 'Block edits waiting to be applied' : form.isDirty ? 'Unsaved schedule changes' : 'Schedule is up to date'}</strong><small>{draftChanged ? 'Add or apply the block details first, then save the schedule.' : form.isDirty ? 'Save to apply your added, edited, or removed blocks.' : 'Changes will appear in the faculty’s schedule after saving.'}</small></div><button className="sd-control sd-button sd-primary" type="submit" value="draft" disabled={form.processing || !form.isDirty || draftChanged}><Save size={17} />{form.processing ? 'Saving…' : selectedSemester ? 'Save Draft' : 'Save Schedule'}</button></footer>}
         </form>
         {dialog}

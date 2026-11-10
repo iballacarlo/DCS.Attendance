@@ -218,6 +218,7 @@ class SemesterManagementService
                 $this->invalid('Reopen this semester before changing its schedules.');
             }
             $blocks = $this->validateBlocks($blocks, $term, $intent === 'publish');
+            $this->assertRoomConflicts($term, $employee, $blocks);
             $storedProfile = FacultyTermAssignment::where('academic_term_id', $term->id)->where('employee_id', $employee->id)->value('profile');
             $profile = array_merge($storedProfile ?? $this->profile($employee), Validator::make($profile, [
                 'position' => ['nullable', 'string', 'max:255'],
@@ -230,7 +231,6 @@ class SemesterManagementService
             $before = $assignment->toArray();
             $assignment->update(['draft_blocks' => $blocks, 'profile' => $profile]);
             if ($intent === 'publish') {
-                $this->assertRoomConflicts($term, $employee, $blocks);
                 if ($term->reopened && ! trim($reason)) {
                     $this->invalid('A reason is required for a historical correction.');
                 }
@@ -252,9 +252,18 @@ class SemesterManagementService
                     // Bring a previously postponed publication forward when
                     // it preserves every already-started published block.
                     if (! $term->reopened && $latest && $date->isToday() && $latest->effective_from->gt($date)) {
-                        $beforeVersion = $latest->toArray();
-                        $latest->update(['effective_from' => $date->toDateString()]);
-                        $this->event($term, $actor, 'schedule_effective_updated', 'Made published schedule effective today', $beforeVersion, $latest->fresh()->toArray(), $employee->id);
+                        // Older postponed revisions were superseded by this
+                        // publication. Bring their dates forward too so an
+                        // obsolete revision cannot replace it again tomorrow.
+                        $postponed = FacultyScheduleVersion::where('academic_term_id', $term->id)
+                            ->where('employee_id', $employee->id)->where('id', '<=', $latest->id)
+                            ->whereDate('effective_from', '>', $date->toDateString())
+                            ->whereDate('effective_from', '<=', $latest->effective_from->toDateString())->get();
+                        foreach ($postponed as $version) {
+                            $beforeVersion = $version->toArray();
+                            $version->update(['effective_from' => $date->toDateString()]);
+                            $this->event($term, $actor, 'schedule_effective_updated', 'Made published schedule effective today', $beforeVersion, $version->fresh()->toArray(), $employee->id);
+                        }
                         SemesterScheduleService::reset();
                     }
 
@@ -503,13 +512,26 @@ class SemesterManagementService
     {
         $versionIds = FacultyScheduleVersion::where('academic_term_id', $term->id)->where('employee_id', '!=', $employee->id)
             ->orderByDesc('effective_from')->orderByDesc('id')->get()->unique('employee_id')->pluck('id');
-        foreach (collect($blocks)->where('schedule_type', 'class')->whereNotNull('room_id') as $block) {
-            $conflict = FacultySchedule::withoutGlobalScopes()->whereIn('schedule_version_id', $versionIds)
+        $errors = [];
+        foreach (collect($blocks)->where('schedule_type', 'class')->whereNotNull('room_id') as $index => $block) {
+            $conflicts = FacultySchedule::withoutGlobalScopes()->with(['employee', 'room'])->whereIn('schedule_version_id', $versionIds)
                 ->where('room_id', $block['room_id'])->where('day_of_week', $block['day_of_week'])
-                ->where('start_time', '<', $block['end_time'])->where('end_time', '>', $block['start_time'])->exists();
-            if ($conflict) {
-                $this->invalid('A published class already uses the selected room during this time.');
+                ->whereTime('start_time', '<', substr($block['end_time'], 0, 5).':00')
+                ->whereTime('end_time', '>', substr($block['start_time'], 0, 5).':00')->orderBy('start_time')->get();
+            if ($conflicts->isNotEmpty()) {
+                $day = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][(int) $block['day_of_week'] - 1];
+                $errors['blocks.'.$index.'.room_id'] = $conflicts->map(function ($conflict) use ($day) {
+                    $room = $conflict->room?->code ?? 'Selected room';
+                    $teacher = $conflict->employee?->full_name ?? 'another faculty member';
+                    $start = Carbon::parse('2000-01-01 '.$conflict->start_time, 'Asia/Manila')->format('g:i A');
+                    $end = Carbon::parse('2000-01-01 '.$conflict->end_time, 'Asia/Manila')->format('g:i A');
+
+                    return "{$room} is already booked on {$day}, {$start}–{$end}, by {$teacher} ({$conflict->subject} / {$conflict->section}). Choose another room or time.";
+                })->unique()->implode(' ');
             }
+        }
+        if ($errors) {
+            throw ValidationException::withMessages($errors);
         }
     }
 
