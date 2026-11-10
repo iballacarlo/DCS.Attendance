@@ -38,6 +38,50 @@ Confirm the resulting records in Class Attendance and verify that School
 Attendance has not changed. Compile with the board and partition scheme
 already used by the device; do not erase flash when updating firmware.
 
+Online taps keep `Checking attendance...` visible until the server request
+finishes, then show the faculty name and IN/OUT time on success. A slow response
+does not switch to a saved/offline notice or the idle clock. Saved notices are
+reserved for offline scans, an unavailable upload queue, or failed requests;
+WiFi association alone does not guarantee that the API server is reachable.
+
+The header always shows `ROOM: A-301`, `ROOM: RM 1`, or the assigned room code.
+The terminal sends its `DEVICE_CODE` in the `X-Device-Code` header and reads
+`terminal_room` from the RFID-list sync response (at startup and about once per
+minute). Install the matching API change to show the room before the first tap.
+Successful IN/OUT responses also refresh the label with older API versions.
+The last confirmed room is cached across restarts, scoped to the terminal ID,
+and remains visible offline. Before the room is known, it shows `ROOM: NOT SET`.
+Room changes come from Settings > Rooms & Devices; no room is hard-coded.
+
+## Wireless firmware uploads (ArduinoOTA)
+
+The maintained TFT sketch supports password-protected ArduinoOTA. Set
+`OTA_HOSTNAME` (unique per terminal) and `OTA_PASSWORD` in your private
+`device_config.h`; see `device_config.example.h`. A missing, empty, or unchanged
+example password disables OTA. ArduinoOTA comes with the ESP32 board package.
+
+1. Open this folder's `DCSAttendanceTFT.ino` in Arduino IDE and upload through
+   USB once. Keep the existing board, partition scheme, and flash erase disabled.
+2. Connect the computer and terminal to the same WiFi network. At 115200 baud,
+   Serial Monitor prints `OTA ready`, the hostname, and IP address.
+3. Select the terminal under **Tools > Port > Network ports**, then **Upload**.
+   Enter the `OTA_PASSWORD` from your private configuration when prompted.
+4. Keep power connected. The TFT shows upload progress and the ESP32 restarts
+   automatically after success. Scanning pauses during the firmware transfer.
+
+Keep OTA support and your private configuration in every future firmware.
+OTA is serviced between scans/enrollments and server requests; finish an active
+enrollment before uploading. A failed upload displays an error and scanning
+resumes. The service starts again after WiFi reconnects.
+
+Only firmware uploads are supported. Filesystem uploads are rejected to preserve
+offline records and the RFID cache. If Serial Monitor reports no spare OTA app
+slot, use USB; do not change the partition layout while attendance is pending.
+The compiled firmware must fit both OTA app slots. If the network port is absent,
+check the same-network connection, guest WiFi/client isolation, and firewall
+access for Arduino IDE. With ESP32 core 3.3.12, use the uploader bundled with that
+core so its password authentication matches the device.
+
 ## Grouped wiring revision
 
 This pinout replaces the earlier TFT wiring. With the expansion-board power

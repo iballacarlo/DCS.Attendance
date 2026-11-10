@@ -181,7 +181,18 @@ class HardwareAttendanceController extends Controller
             ->filter(fn ($uid) => preg_match('/^(?:[0-9A-F]{8}|[0-9A-F]{14}|[0-9A-F]{20})$/', $uid))
             ->unique()->sort()->values()->implode(',');
 
-        return response()->json(['uids' => $uids, 'complete' => 'true'])
+        $payload = ['uids' => $uids, 'complete' => 'true'];
+        // Older terminals may omit their ID and still need the credential list.
+        if ($deviceCode = $request->header('X-Device-Code')) {
+            try {
+                [, $room] = app(RoomAttendanceService::class)->deviceRoom($deviceCode, now());
+                $payload['terminal_room'] = $room->code;
+            } catch (\DomainException) {
+                $payload['terminal_room'] = '';
+            }
+        }
+
+        return response()->json($payload)
             ->header('Cache-Control', 'no-store');
     }
 

@@ -8,6 +8,11 @@ const char* HARDWARE_API_KEY = "YOUR_RAILWAY_HARDWARE_API_KEY";
 // It identifies this physical terminal to the server; it is not the room name.
 const char* DEVICE_CODE = "TERM-EXAMPLE01";
 
+// First upload is through USB. Later, select this network port in Arduino IDE.
+// Use a unique hostname per terminal and a private password (required for OTA).
+#define OTA_HOSTNAME "dcs-attendance-tft"
+#define OTA_PASSWORD "CHANGE_ME_BEFORE_UPLOAD"
+
 // Set this to true for one upload only if Serial Monitor says LittleFS cannot
 // mount. Set it back to false immediately after the storage is initialized.
 #define FORMAT_OFFLINE_STORAGE_ONCE false

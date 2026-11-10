@@ -1,4 +1,6 @@
 #include <WiFi.h>
+#include <ArduinoOTA.h>
+#include <esp_ota_ops.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <SPI.h>
@@ -25,6 +27,13 @@
 
 #ifndef FORMAT_OFFLINE_STORAGE_ONCE
 #define FORMAT_OFFLINE_STORAGE_ONCE false
+#endif
+
+#ifndef OTA_HOSTNAME
+#define OTA_HOSTNAME "dcs-attendance-tft"
+#endif
+#ifndef OTA_PASSWORD
+#define OTA_PASSWORD ""
 #endif
 
 #define RFID_SS_PIN 5
@@ -152,7 +161,6 @@ const unsigned long ENROLLMENT_STATUS_POLL_MS = 750;
 const unsigned long FINGER_SCAN_INTERVAL_MS = 60;
 const uint8_t FINGER_CONFIRMATION_SAMPLES = 3;
 const unsigned long OFFLINE_SYNC_INTERVAL_MS = 1500;
-const unsigned long LIVE_ATTENDANCE_WAIT_MS = 4000;
 const uint32_t MAX_OFFLINE_ATTENDANCE = 2000;
 const time_t MINIMUM_VALID_TIME = 1700000000;
 const char* OFFLINE_QUEUE_PATH = "/attendance.bin";
@@ -179,10 +187,6 @@ struct AttendanceUploadResult {
   OfflineAttendanceRecord record;
   int code;
   uint32_t durationMs;
-  // True only for a record which was already in persistent storage and was
-  // uploaded by the background queue worker. Display updates still happen on
-  // the main loop, never from the network task.
-  bool backgroundSync;
   char response[768];
 };
 
@@ -192,8 +196,14 @@ QueueHandle_t attendanceResultQueue = nullptr;
 SemaphoreHandle_t offlineQueueMutex = nullptr;
 volatile bool enrollmentBusy = false;
 volatile bool attendanceBusy = false;
+volatile bool otaUpdating = false;
+bool otaStarted = false;
+bool otaEnabled = false;
+bool otaConfigurationChecked = false;
+unsigned int otaLastPercent = 101;
+String terminalRoom;
+QueueHandle_t terminalRoomQueue = nullptr;
 volatile bool liveAttendanceUploadPending = false;
-unsigned long liveAttendanceStartedAt = 0;
 char liveAttendanceEventId[48] = {};
 unsigned long feedbackLedOffAt = 0;
 volatile bool footerRefreshRequested = false;
@@ -286,7 +296,49 @@ void drawDisplayHeading(const String& heading) {
   lcd.setTextSize(1);
   lcd.setTextDatum(lgfx::middle_left);
   lcd.setTextColor(DISPLAY_BACKGROUND, DISPLAY_GREEN);
-  lcd.drawString(heading, 44, 20);
+  String roomLabel = terminalRoom.length() ? "ROOM: " + terminalRoom : "ROOM: NOT SET";
+  const int roomWidth = 170;
+  while (roomLabel.length() && lcd.textWidth(roomLabel) > roomWidth - 12) {
+    roomLabel.remove(roomLabel.length() - 1);
+  }
+  String title = heading;
+  int titleWidth = lcd.width() - roomWidth - 54;
+  if (lcd.textWidth(title) > titleWidth) {
+    while (title.length() && lcd.textWidth(title + "...") > titleWidth) title.remove(title.length() - 1);
+    title += "...";
+  }
+  lcd.drawString(title, 44, 20);
+  lcd.drawFastVLine(lcd.width() - roomWidth, 10, 20, DISPLAY_GOLD);
+  lcd.setTextDatum(lgfx::middle_right);
+  lcd.drawString(roomLabel, lcd.width() - 12, 20);
+}
+
+void initializeTerminalRoom() {
+  terminalRoomQueue = xQueueCreate(1, 65);
+  Preferences settings;
+  if (settings.begin("terminal-ui", true)) {
+    if (settings.getString("device", "") == String(DEVICE_CODE)) terminalRoom = settings.getString("room", "");
+    settings.end();
+  }
+}
+
+void setTerminalRoom(const String& room) {
+  if (room == terminalRoom) return;
+  terminalRoom = room;
+  Preferences settings;
+  if (settings.begin("terminal-ui", false)) {
+    settings.putString("device", DEVICE_CODE);
+    settings.putString("room", terminalRoom);
+    settings.end();
+  }
+  String heading = lastDisplayHeading;
+  lastDisplayHeading = "";
+  drawDisplayHeading(heading);
+}
+
+void processTerminalRoomUpdate() {
+  char room[65] = {};
+  if (terminalRoomQueue && xQueueReceive(terminalRoomQueue, room, 0) == pdTRUE) setTerminalRoom(String(room));
 }
 
 void printLine(int row, String text, int fixedTextSize = 0,
@@ -637,6 +689,13 @@ void syncRegisteredRfidCards() {
     return;
   }
   String uids = jsonValue(response, "uids");
+  // Publish metadata to the main loop; background workers never draw the TFT.
+  // An absent field means an older API, so retain the cached room in that case.
+  if (terminalRoomQueue && response.indexOf("\"terminal_room\":") >= 0) {
+    char room[65] = {};
+    jsonValue(response, "terminal_room").toCharArray(room, sizeof(room));
+    xQueueOverwrite(terminalRoomQueue, room);
+  }
   // Require the field itself even when a valid server list is empty.
   if (response.indexOf("\"uids\":\"") < 0 || !validRfidList(uids)) return;
   if (xSemaphoreTake(rfidCacheMutex, pdMS_TO_TICKS(1000)) != pdTRUE) return;
@@ -926,7 +985,77 @@ void maintainWiFi() {
   }
 }
 
+void maintainOTA() {
+  if (!otaConfigurationChecked) {
+    otaConfigurationChecked = true;
+    const esp_partition_t* next = esp_ota_get_next_update_partition(nullptr);
+    const esp_partition_t* running = esp_ota_get_running_partition();
+    if (strlen(OTA_PASSWORD) == 0 || strcmp(OTA_PASSWORD, "CHANGE_ME_BEFORE_UPLOAD") == 0) {
+      Serial.println("OTA disabled: set a private OTA_PASSWORD in device_config.h.");
+      return;
+    }
+    if (!next || !running || next->address == running->address) {
+      Serial.println("OTA disabled: this partition scheme has no spare OTA app slot. Use USB.");
+      return;
+    }
+    ArduinoOTA.setHostname(OTA_HOSTNAME);
+    ArduinoOTA.setPassword(OTA_PASSWORD);
+    ArduinoOTA.onStart([]() {
+      if (ArduinoOTA.getCommand() != U_FLASH) {
+        // onStart runs before any payload is written. Preserve attendance data.
+        Serial.println("OTA rejected: only firmware uploads are allowed.");
+        Update.abort();
+        return;
+      }
+      otaUpdating = true;
+      otaLastPercent = 101;
+      Serial.println("OTA firmware update started. Scanning paused.");
+      showMessage("UPDATING FIRMWARE", "Keep power connected");
+    });
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+      if (!otaUpdating || !total) return;
+      unsigned int percent = static_cast<unsigned int>((uint64_t(progress) * 100) / total);
+      if (percent == otaLastPercent) return;
+      otaLastPercent = percent;
+      Serial.printf("OTA: %u%%\n", percent);
+      printLine(1, "Uploading: " + String(percent) + "%", 2, true);
+    });
+    ArduinoOTA.onEnd([]() {
+      Serial.println("OTA complete. Rebooting...");
+      showMessage("UPDATE COMPLETE", "Restarting device...");
+    });
+    ArduinoOTA.onError([](ota_error_t error) {
+      if (Update.isRunning()) Update.abort();
+      otaUpdating = false;
+      Serial.printf("OTA failed (error %u). Attendance resumes; retry the upload.\n", error);
+      showMessage("OTA UPDATE FAILED", "Retry firmware upload");
+    });
+    otaEnabled = true;
+  }
+
+  // Configuration rejected above; do not start an unauthenticated service.
+  if (!otaEnabled) return;
+  if (WiFi.status() != WL_CONNECTED) {
+    if (otaStarted) ArduinoOTA.end();
+    otaStarted = false;
+    return;
+  }
+  if (!otaStarted) {
+    ArduinoOTA.begin();
+    otaStarted = true;
+    Serial.printf("OTA ready: %s at %s (port 3232, password required).\n",
+                  OTA_HOSTNAME, WiFi.localIP().toString().c_str());
+  }
+  // Handle updates only between scans/enrollments, with no TLS request active.
+  // handle() receives the complete firmware synchronously; it pauses this loop.
+  if (attendanceBusy || enrollmentBusy || !hardwareHttpMutex ||
+      xSemaphoreTake(hardwareHttpMutex, 0) != pdTRUE) return;
+  ArduinoOTA.handle();
+  xSemaphoreGive(hardwareHttpMutex);
+}
+
 void showClock() {
+  if (liveAttendanceUploadPending) return;
   if (fingerprintImageConfirmations > 0) return;
   if (!displayShowingClock && timeOutAvailableAt > time(nullptr)) return;
   if (!displayShowingClock && millis() - displayMessageStarted < 3000) return;
@@ -1026,6 +1155,7 @@ void addHardwareHeaders(HTTPClient& http) {
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Accept", "application/json");
   http.addHeader("X-Hardware-Key", HARDWARE_API_KEY);
+  http.addHeader("X-Device-Code", DEVICE_CODE);
 }
 
 void noteServerConnectionFailure() {
@@ -1459,6 +1589,10 @@ void enrollRfid(String id, String currentIdentifier) {
 
 void enrollmentPollTask(void* parameter) {
   while (true) {
+    if (otaUpdating) {
+      vTaskDelay(pdMS_TO_TICKS(100));
+      continue;
+    }
     syncRegisteredRfidCards();
     unsigned long pollDelay = ENROLLMENT_POLL_MS;
     uint32_t enrollmentId = activeEnrollmentId;
@@ -1592,6 +1726,7 @@ void showAttendanceResponse(int code, const String& response, const String& meth
     String displayTime = jsonValue(response, "display_time");
     String room = jsonValue(response, "room");
     String expectedRoom = jsonValue(response, "expected_room");
+    if ((action == "IN" || action == "OUT") && room.length()) setTerminalRoom(room);
     if (action == "WAIT") {
       showMessage(jsonValue(response, "display_name"), "OUT NOT RECORDED", true);
       drawDisplayHeading("WAIT / OUT NOT RECORDED");
@@ -1647,10 +1782,8 @@ void showOfflineSaved(const OfflineAttendanceRecord& record) {
   digitalWrite(YELLOW_LED_PIN, HIGH);
   tone(BUZZER_PIN, 900, 120);
   feedbackLedOffAt = millis() + 350;
-  // Do not present a queued tap as an error. The server is still authoritative
-  // for the faculty name and IN/OUT result, so this is deliberately a short
-  // holding message. Once the worker receives the reply, the normal response
-  // screen below replaces it with the teacher name and recorded time.
+  // Only show this after an offline scan, a queue failure, or a request that
+  // actually failed. A slow request keeps its Checking attendance screen.
   showMessage(methodLabel + " saved " + String(timeText), "Syncing attendance...");
   Serial.println("Attendance retained for upload. Pending records: " +
                  String(pendingOfflineRecordCount()));
@@ -1678,7 +1811,6 @@ void sendAttendance(String identifier, String method) {
 
   attendanceBusy = true;
   liveAttendanceUploadPending = true;
-  liveAttendanceStartedAt = millis();
   strncpy(liveAttendanceEventId, record.eventId, sizeof(liveAttendanceEventId) - 1);
   liveAttendanceEventId[sizeof(liveAttendanceEventId) - 1] = '\0';
   digitalWrite(YELLOW_LED_PIN, HIGH);
@@ -1698,45 +1830,30 @@ void processAttendanceUploadResults() {
     bool isActive = strcmp(result.record.eventId, liveAttendanceEventId) == 0;
     Serial.println("Attendance upload " + String(result.record.eventId) + ": HTTP " +
                    String(result.code) + " in " + String(result.durationMs) + " ms");
-    if (!isActive) {
-      // A previously pending record was accepted. Show its actual server
-      // result (faculty name plus IN/OUT time) without interrupting a new tap
-      // or a registration workflow.
-      if (result.backgroundSync && !attendanceBusy && !enrollmentBusy &&
-          result.code == 200 && jsonValue(String(result.response), "action").length()) {
-        showAttendanceResponse(result.code, String(result.response), String(result.record.method));
-      }
-      continue;
-    }
-    bool stillWaiting = liveAttendanceUploadPending;
+    // Background uploads intentionally never redraw the attendance screen.
+    // Only the currently scanned live record may replace its Checking screen.
+    if (!isActive) continue;
     attendanceBusy = false;
     liveAttendanceUploadPending = false;
     liveAttendanceEventId[0] = '\0';
     digitalWrite(YELLOW_LED_PIN, LOW);
     String response = String(result.response);
-    // A slow server response can arrive after the four-second Pending sync
-    // screen. If the faculty has not started another scan, replace that
-    // temporary screen with the real result (name, IN/OUT time, WAIT, etc.).
-    // The record remains queued only when the server did not confirm it.
+    // Keep Checking visible until this actual result arrives. A successful
+    // reply goes directly to the faculty name and recorded IN/OUT time.
     if (shouldQueueAttendance(result.code)) {
-      if (stillWaiting) showOfflineSaved(result.record);
+      showOfflineSaved(result.record);
     } else {
       showAttendanceResponse(result.code, response, String(result.record.method));
     }
   }
 }
 
-void refreshLiveAttendanceTimeout() {
-  if (!liveAttendanceUploadPending || millis() - liveAttendanceStartedAt < LIVE_ATTENDANCE_WAIT_MS) return;
-  liveAttendanceUploadPending = false;
-  attendanceBusy = false;
-  OfflineAttendanceRecord pending = {};
-  strncpy(pending.eventId, liveAttendanceEventId, sizeof(pending.eventId) - 1);
-  showOfflineSaved(pending);
-}
-
 void attendanceNetworkTask(void* parameter) {
   while (true) {
+    if (otaUpdating) {
+      vTaskDelay(pdMS_TO_TICKS(100));
+      continue;
+    }
     OfflineAttendanceRecord record = {};
     if (attendanceUploadQueue && xQueueReceive(attendanceUploadQueue, &record, 0) == pdTRUE) {
       unsigned long startedAt = millis();
@@ -1750,7 +1867,6 @@ void attendanceNetworkTask(void* parameter) {
       result.record = record;
       result.code = code;
       result.durationMs = millis() - startedAt;
-      result.backgroundSync = false;
       response.toCharArray(result.response, sizeof(result.response));
       if (attendanceResultQueue) xQueueSend(attendanceResultQueue, &result, pdMS_TO_TICKS(100));
       continue;
@@ -1771,7 +1887,7 @@ void syncNextOfflineAttendance() {
     Serial.println("Could not read the next offline attendance record.");
     offlineSyncRetryMs = 60000;
     offlineSyncStatus = "SYNC: STORAGE READ ERROR / RECORDS PRESERVED";
-    updateDisplayFooter();
+    footerRefreshRequested = true;
     return;
   }
 
@@ -1797,15 +1913,6 @@ void syncNextOfflineAttendance() {
     offlineSyncNoticeAt = millis();
     if (pendingOfflineRecordCount() == 0) offlineSyncProcessed = 0;
     Serial.println("Offline attendance synced. Remaining: " + String(pendingOfflineRecordCount()));
-    // Let the main loop render the confirmed response. Calling display code
-    // here (from the worker task) caused intermittent TFT resets/freezes.
-    AttendanceUploadResult result = {};
-    result.record = record;
-    result.code = code;
-    result.durationMs = 0;
-    result.backgroundSync = true;
-    response.toCharArray(result.response, sizeof(result.response));
-    if (attendanceResultQueue) xQueueSend(attendanceResultQueue, &result, 0);
   } else if (code == 404 && rejectionMessage ==
              "RFID/fingerprint is not registered to an active faculty member.") {
     // Only discard a confirmed credential rejection, never a proxy/API 404.
@@ -1833,7 +1940,9 @@ void syncNextOfflineAttendance() {
   }
   // Start the backoff after the request finishes, not before its timeout.
   lastOfflineSyncAttempt = millis();
-  updateDisplayFooter();
+  // The network worker must not write to the TFT. The main loop refreshes
+  // only the footer on its next pass, preserving whatever screen is visible.
+  footerRefreshRequested = true;
 }
 
 void processRfidAttendance() {
@@ -1947,6 +2056,7 @@ void setup() {
   // Halve the persistent sprite allocation to leave more heap for TLS.
   displayBuffer.setColorDepth(8);
   displayBufferReady = displayBuffer.createSprite(lcd.width(), 82) != nullptr;
+  initializeTerminalRoom();
   if (!displayBufferReady) Serial.println("Display buffer unavailable. Using opaque text updates.");
   drawDisplayFrame();
   drawDisplayHeading("STARTING UP");
@@ -1994,9 +2104,10 @@ void setup() {
 
 void loop() {
   maintainWiFi();
+  maintainOTA();
+  processTerminalRoomUpdate();
   syncRtcFromInternet();
   processAttendanceUploadResults();
-  refreshLiveAttendanceTimeout();
   if (footerRefreshRequested) {
     footerRefreshRequested = false;
     updateDisplayFooter();

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AttendanceDevice;
+use App\Models\Building;
 use App\Models\Employee;
 use App\Models\FacultyRank;
 use App\Models\Room;
@@ -30,6 +31,32 @@ class HardwareAttendanceTest extends TestCase
     {
         config(['services.hardware.api_key' => 'device-secret']);
         $this->getJson('/api/hardware/rfid-cards')->assertUnauthorized();
+    }
+
+    public function test_rfid_list_includes_the_current_terminal_room_and_follows_reassignment(): void
+    {
+        config(['services.hardware.api_key' => 'device-secret']);
+        $building = Building::create(['code' => 'ROOM-DISPLAY', 'name' => 'Room Display', 'is_active' => true]);
+        $this->room->update(['building_id' => $building->id, 'code' => 'A-301']);
+        $this->withHeader('X-Hardware-Key', 'device-secret')->getJson('/api/hardware/rfid-cards')
+            ->assertOk()->assertJsonPath('terminal_room', 'A-301')->assertJsonPath('complete', 'true');
+
+        $device = AttendanceDevice::where('code', 'TEST-DEVICE')->firstOrFail();
+        $room = Room::create(['building_id' => $building->id, 'code' => 'RM 1', 'name' => 'Room 1', 'is_active' => true]);
+        $device->assignments()->update(['effective_to' => now()->subMinute()]);
+        $device->assignments()->create(['room_id' => $room->id, 'effective_from' => now()->subMinute()]);
+        $this->getJson('/api/hardware/rfid-cards')->assertOk()->assertJsonPath('terminal_room', 'RM 1');
+
+        $room->update(['is_active' => false]);
+        $this->getJson('/api/hardware/rfid-cards')->assertOk()
+            ->assertJsonPath('terminal_room', '')->assertJsonPath('complete', 'true');
+    }
+
+    public function test_rfid_list_keeps_compatibility_with_terminals_without_a_device_header(): void
+    {
+        config(['services.hardware.api_key' => 'device-secret']);
+        $this->withoutHeader('X-Device-Code')->withHeader('X-Hardware-Key', 'device-secret')
+            ->getJson('/api/hardware/rfid-cards')->assertOk()->assertJsonMissingPath('terminal_room');
     }
 
     public function test_rfid_list_tracks_registration_replacement_unlink_and_inactive_faculty(): void

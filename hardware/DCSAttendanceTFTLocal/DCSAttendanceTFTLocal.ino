@@ -172,10 +172,6 @@ struct AttendanceUploadResult {
   OfflineAttendanceRecord record;
   int code;
   uint32_t durationMs;
-  // True only for a record which was already in persistent storage and was
-  // uploaded by the background queue worker. Display updates still happen on
-  // the main loop, never from the network task.
-  bool backgroundSync;
   char response[768];
 };
 
@@ -1688,16 +1684,9 @@ void processAttendanceUploadResults() {
     bool isActive = strcmp(result.record.eventId, liveAttendanceEventId) == 0;
     Serial.println("Attendance upload " + String(result.record.eventId) + ": HTTP " +
                    String(result.code) + " in " + String(result.durationMs) + " ms");
-    if (!isActive) {
-      // A previously pending record was accepted. Show its actual server
-      // result (faculty name plus IN/OUT time) without interrupting a new tap
-      // or a registration workflow.
-      if (result.backgroundSync && !attendanceBusy && !enrollmentBusy &&
-          result.code == 200 && jsonValue(String(result.response), "action").length()) {
-        showAttendanceResponse(result.code, String(result.response), String(result.record.method));
-      }
-      continue;
-    }
+    // Background uploads intentionally never redraw the attendance screen.
+    // Only the currently scanned live record may replace its Checking screen.
+    if (!isActive) continue;
     bool stillWaiting = liveAttendanceUploadPending;
     attendanceBusy = false;
     liveAttendanceUploadPending = false;
@@ -1740,7 +1729,6 @@ void attendanceNetworkTask(void* parameter) {
       result.record = record;
       result.code = code;
       result.durationMs = millis() - startedAt;
-      result.backgroundSync = false;
       response.toCharArray(result.response, sizeof(result.response));
       if (attendanceResultQueue) xQueueSend(attendanceResultQueue, &result, pdMS_TO_TICKS(100));
       continue;
@@ -1761,7 +1749,7 @@ void syncNextOfflineAttendance() {
     Serial.println("Could not read the next offline attendance record.");
     offlineSyncRetryMs = 60000;
     offlineSyncStatus = "SYNC: STORAGE READ ERROR / RECORDS PRESERVED";
-    updateDisplayFooter();
+    footerRefreshRequested = true;
     return;
   }
 
@@ -1787,15 +1775,6 @@ void syncNextOfflineAttendance() {
     offlineSyncNoticeAt = millis();
     if (pendingOfflineRecordCount() == 0) offlineSyncProcessed = 0;
     Serial.println("Offline attendance synced. Remaining: " + String(pendingOfflineRecordCount()));
-    // Let the main loop render the confirmed response. Calling display code
-    // here (from the worker task) caused intermittent TFT resets/freezes.
-    AttendanceUploadResult result = {};
-    result.record = record;
-    result.code = code;
-    result.durationMs = 0;
-    result.backgroundSync = true;
-    response.toCharArray(result.response, sizeof(result.response));
-    if (attendanceResultQueue) xQueueSend(attendanceResultQueue, &result, 0);
   } else if (code == 404 && rejectionMessage ==
              "RFID/fingerprint is not registered to an active faculty member.") {
     // Only discard a confirmed credential rejection, never a proxy/API 404.
@@ -1823,7 +1802,9 @@ void syncNextOfflineAttendance() {
   }
   // Start the backoff after the request finishes, not before its timeout.
   lastOfflineSyncAttempt = millis();
-  updateDisplayFooter();
+  // The network worker must not write to the TFT. The main loop refreshes
+  // only the footer on its next pass, preserving whatever screen is visible.
+  footerRefreshRequested = true;
 }
 
 void processRfidAttendance() {
