@@ -21,7 +21,7 @@ class RoomAwareClassAttendanceService
             $date = $now->toDateString();
             SemesterScheduleService::assertRecordable($now);
             $logs = AttendanceLog::where('employee_id', $employee->id)->where('attendance_date', $date)
-                ->where('is_legacy', false)->where('schedule_type', 'class')->lockForUpdate()->get();
+                ->where('is_legacy', false)->where('schedule_type', 'class')->whereNull('voided_at')->lockForUpdate()->get();
             $open = $logs->whereNotNull('time_in')->whereNull('time_out')->sortByDesc('scheduled_start')->first();
             if ($open) {
                 return $this->recordOut($open, $method, $now, $deviceRoom);
@@ -53,16 +53,70 @@ class RoomAwareClassAttendanceService
                     return $this->result('ROOM NOT ASSIGNED', 'Your scheduled class does not have a room assignment. Ask an administrator to update the schedule.', null, $deviceRoom);
                 }
 
+                // A late tap from an earlier room session must never be able to
+                // take back a room already in use by the next faculty member.
+                $expiredHere = SemesterScheduleService::schedules($employee, $now)->where('schedule_type', 'class')
+                    ->where('day_of_week', $now->dayOfWeek)
+                    ->filter(fn ($item) => $rooms->effectiveRoom($item, $date)?->id === $deviceRoom->id)
+                    ->filter(fn ($item) => $now->gte(Carbon::parse($date.' '.$item->end_time, 'Asia/Manila')))
+                    ->sortByDesc('end_time')->first();
+                $activeOccupant = $this->openRoomLogs($deviceRoom, $date)
+                    ->first(fn ($log) => $log->employee_id !== $employee->id);
+                if ($expiredHere && $activeOccupant) {
+                    return $this->result('ROOM OCCUPIED', 'This room is now in use by '.$activeOccupant->employee?->full_name.'. Your scheduled class has already ended.', null, $deviceRoom);
+                }
+
                 return $this->result('NO CLASS', 'No eligible class is scheduled for you in '.$deviceRoom->code.'.', null, $deviceRoom);
             }
             $start = Carbon::parse($date.' '.$schedule->start_time, 'Asia/Manila');
-            $occupants = AttendanceLog::where('room_id', $deviceRoom->id)->where('attendance_date', $date)
-                ->whereNotNull('time_in')->whereNull('time_out')->whereNull('room_released_at')->lockForUpdate()->get();
-            if ($occupants->isNotEmpty() && $now->lt($start)) {
-                return $this->result('ROOM OCCUPIED', 'The previous faculty must record OUT before your early IN.', null, $deviceRoom);
+            $roomSessions = $this->roomSessions($deviceRoom, $now);
+
+            // A room remains reserved for an earlier scheduled session even if
+            // its faculty has not tapped yet. This is what prevents a later
+            // faculty member from claiming the room during the early-IN window.
+            if ($now->lt($start)) {
+                $reservation = $roomSessions->filter(fn ($session) => $session['employee_id'] !== $employee->id
+                    && $session['start']->lt($start) && $session['end']->gt($now))
+                    ->sortBy(fn ($session) => $session['end']->timestamp)->first();
+                if ($reservation) {
+                    return [...$this->result('ROOM RESERVED', $reservation['employee']->full_name.' is scheduled in '.$deviceRoom->code
+                        .' until '.$reservation['end']->format('h:i A').'. Your IN is available at '.$start->format('h:i A').'.', null, $deviceRoom),
+                        'time' => $start->format('h:i A'), 'available_at' => $start->format('h:i A')];
+                }
             }
-            foreach ($occupants as $occupant) {
-                $occupant->update(['room_released_at' => $now, 'room_release_reason' => 'next_session_started']);
+
+            // A delayed tap from an earlier schedule must never displace a
+            // later faculty member who has already started using the room.
+            // The existing open-log check below covers the common case, while
+            // this schedule check also handles a previous faculty who forgot
+            // to tap IN but is still the scheduled occupant of the room.
+            $scheduledLater = $roomSessions
+                ->filter(fn ($session) => $session['employee_id'] !== $employee->id
+                    && $session['start']->lte($now)
+                    && $session['start']->gte($start)
+                    && $session['end']->gt($now))
+                ->sortBy('start')->first();
+            if ($scheduledLater) {
+                return $this->result('ROOM OCCUPIED', 'Room '.$deviceRoom->code.' is currently reserved for '.$scheduledLater['employee']->full_name.'.', null, $deviceRoom);
+            }
+
+            $occupants = $this->openRoomLogs($deviceRoom, $date);
+            // At the new session's start, only an earlier open session may be
+            // released. A later/equal session is an actual room conflict and
+            // must never be displaced by a delayed earlier tap.
+            $blocking = $occupants->first(function ($occupant) use ($start) {
+                return Carbon::parse($occupant->attendance_date.' '.$occupant->scheduled_start, 'Asia/Manila')->gte($start);
+            });
+            if ($blocking) {
+                return $this->result('ROOM OCCUPIED', 'Room '.$deviceRoom->code.' is currently in use by '.$blocking->employee?->full_name.'.', null, $deviceRoom);
+            }
+            if ($now->gte($start)) {
+                $occupants->filter(function ($occupant) use ($start) {
+                    return Carbon::parse($occupant->attendance_date.' '.$occupant->scheduled_start, 'Asia/Manila')->lt($start);
+                })->each(fn ($occupant) => $occupant->update([
+                    'room_released_at' => $now,
+                    'room_release_reason' => 'next_session_started',
+                ]));
             }
             $schoolIn = EntranceAttendance::where('employee_id', $employee->id)->whereDate('attendance_date', $date)
                 ->whereNotNull('time_in')->where('time_in', '<=', $now->format('H:i:s'))->exists();
@@ -92,7 +146,7 @@ class RoomAwareClassAttendanceService
                 'time_out_available_at' => (string) $available->timestamp];
         }
         $takenOver = AttendanceLog::where('room_id', $room->id)->where('attendance_date', $date)
-            ->whereNotNull('time_in')->where('id', '!=', $open->id)->where('scheduled_start', '>=', $open->scheduled_end)->exists();
+            ->whereNull('voided_at')->whereNotNull('time_in')->where('id', '!=', $open->id)->where('scheduled_start', '>=', $open->scheduled_end)->exists();
         if ($takenOver) {
             $open->update(['room_released_at' => $now, 'room_release_reason' => 'next_session_started']);
 
@@ -108,5 +162,32 @@ class RoomAwareClassAttendanceService
     {
         return ['action' => $action, 'message' => $message, 'time' => $time, 'log' => $log,
             'room' => $room->code, 'school_attendance_warning' => $warning];
+    }
+
+    private function openRoomLogs(Room $room, string $date)
+    {
+        return AttendanceLog::with('employee')->where('room_id', $room->id)->where('attendance_date', $date)
+            ->whereNull('voided_at')->whereNotNull('time_in')->whereNull('time_out')->whereNull('room_released_at')
+            ->lockForUpdate()->get();
+    }
+
+    private function roomSessions(Room $room, Carbon $now)
+    {
+        $date = $now->toDateString();
+        $rooms = app(RoomAttendanceService::class);
+
+        return Employee::withoutGlobalScopes()->where('status', 'active')->whereNull('archived_at')->get()
+            ->flatMap(function (Employee $faculty) use ($now, $date, $room, $rooms) {
+                return SemesterScheduleService::schedules($faculty, $now)->where('schedule_type', 'class')
+                    ->where('day_of_week', $now->dayOfWeek)
+                    ->filter(fn ($schedule) => $rooms->effectiveRoom($schedule, $date)?->id === $room->id)
+                    ->map(fn ($schedule) => [
+                        'employee_id' => $faculty->id,
+                        'employee' => $faculty,
+                        'schedule' => $schedule,
+                        'start' => Carbon::parse($date.' '.$schedule->start_time, 'Asia/Manila'),
+                        'end' => Carbon::parse($date.' '.$schedule->end_time, 'Asia/Manila'),
+                    ]);
+            });
     }
 }

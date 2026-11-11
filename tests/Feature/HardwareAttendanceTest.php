@@ -275,11 +275,32 @@ class HardwareAttendanceTest extends TestCase
 
         Carbon::setTestNow(Carbon::parse('2026-10-05 09:05:00', 'Asia/Manila'));
         $tap('ROOM-CARD-ONE', '08:00:00')->assertOk()->assertJsonPath('action', 'IN')->assertJsonPath('school_attendance_warning', true);
-        $tap('ROOM-CARD-TWO', '08:40:00')->assertOk()->assertJsonPath('action', 'ROOM OCCUPIED');
+        $tap('ROOM-CARD-TWO', '08:40:00')->assertOk()->assertJsonPath('action', 'ROOM RESERVED')
+            ->assertJsonPath('display_time', '09:00 AM');
         $tap('ROOM-CARD-TWO', '09:00:00')->assertOk()->assertJsonPath('action', 'IN');
 
         $this->assertDatabaseHas('attendance_logs', ['employee_id' => $faculty[0]->id, 'time_out' => null, 'room_release_reason' => 'next_session_started']);
         $this->assertDatabaseHas('attendance_logs', ['employee_id' => $faculty[1]->id, 'time_in' => '09:00:00', 'room_code' => 'TEST-ROOM']);
+        Carbon::setTestNow();
+    }
+
+    public function test_next_faculty_can_start_on_time_when_previous_faculty_never_tapped_but_not_early(): void
+    {
+        config(['services.hardware.api_key' => 'device-secret']);
+        $rank = FacultyRank::where('is_active', true)->firstOrFail();
+        $first = Employee::create(['employee_no' => 'ROOM-RESERVE-1', 'first_name' => 'Acibar', 'last_name' => 'Faculty', 'faculty_rank_id' => $rank->id, 'rate_type' => 'hourly', 'rate_amount' => $rank->rate_amount, 'status' => 'active']);
+        $next = Employee::create(['employee_no' => 'ROOM-RESERVE-2', 'first_name' => 'Morata', 'last_name' => 'Faculty', 'faculty_rank_id' => $rank->id, 'rate_type' => 'hourly', 'rate_amount' => $rank->rate_amount, 'status' => 'active']);
+        $first->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'subject' => 'ITEC 100', 'section' => 'BSIT 1A', 'class_mode' => 'lecture', 'start_time' => '13:00', 'end_time' => '13:10', 'break_minutes' => 0, 'room_id' => $this->room->id]);
+        $next->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'subject' => 'ITEC 101', 'section' => 'BSIT 1B', 'class_mode' => 'lecture', 'start_time' => '13:10', 'end_time' => '13:20', 'break_minutes' => 0, 'room_id' => $this->room->id]);
+        $first->rfidCards()->create(['rfid_uid' => 'RESERVE-FIRST', 'status' => 'active']);
+        $next->rfidCards()->create(['rfid_uid' => 'RESERVE-NEXT', 'status' => 'active']);
+        $tap = fn (string $card, string $time) => $this->withHeader('X-Hardware-Key', 'device-secret')->postJson('/api/hardware/tap', ['identifier' => $card, 'method' => 'rfid', 'occurred_at' => '2026-10-05 '.$time]);
+
+        Carbon::setTestNow(Carbon::parse('2026-10-05 13:20:00', 'Asia/Manila'));
+        $tap('RESERVE-NEXT', '13:05:00')->assertOk()->assertJsonPath('action', 'ROOM RESERVED');
+        $tap('RESERVE-NEXT', '13:10:00')->assertOk()->assertJsonPath('action', 'IN');
+        $tap('RESERVE-FIRST', '13:10:01')->assertOk()->assertJsonPath('action', 'ROOM OCCUPIED');
+        $this->assertDatabaseCount('attendance_logs', 1);
         Carbon::setTestNow();
     }
 

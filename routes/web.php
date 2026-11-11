@@ -126,6 +126,7 @@ Route::middleware(['auth', 'auth.session', SemesterWriteLock::class])->group(fun
     Route::get('class-reports', [ClassReportController::class, 'index'])->name('class-reports.index')->middleware('role:admin');
     Route::get('attendance', [AttendanceController::class, 'index'])->name('attendance.index');
     Route::put('attendance/{attendanceLog}/correction', [AttendanceController::class, 'correct'])->name('attendance.correct')->middleware('role:admin');
+    Route::put('attendance/{attendanceLog}/resolve-room-conflict', [AttendanceController::class, 'resolveRoomConflict'])->name('attendance.resolve-room-conflict')->middleware('role:admin');
     Route::get('attendance/dtr', [DtrController::class, 'show'])->name('attendance.dtr');
 
     Route::get('school-calendar', [CalendarController::class, 'index'])->name('calendar.index');

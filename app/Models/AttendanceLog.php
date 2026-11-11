@@ -12,7 +12,7 @@ class AttendanceLog extends Model
     use HidesArchivedFaculty;
 
     protected $fillable = ['academic_term_id',
-        'faculty_schedule_id', 'schedule_type', 'class_mode', 'subject', 'section', 'room_id', 'room_code', 'school_attendance_warning', 'room_released_at', 'room_release_reason', 'scheduled_start', 'scheduled_end',
+        'faculty_schedule_id', 'schedule_type', 'class_mode', 'subject', 'section', 'room_id', 'room_code', 'school_attendance_warning', 'room_released_at', 'room_release_reason', 'voided_at', 'voided_by', 'void_reason', 'resolved_against_log_id', 'scheduled_start', 'scheduled_end',
         'worked_seconds', 'legacy_source_id', 'is_legacy',
         'employee_id',
         'attendance_date',
@@ -27,7 +27,7 @@ class AttendanceLog extends Model
         'remarks',
     ];
 
-    protected $casts = ['is_legacy' => 'boolean', 'worked_seconds' => 'integer', 'school_attendance_warning' => 'boolean', 'room_released_at' => 'datetime'];
+    protected $casts = ['is_legacy' => 'boolean', 'worked_seconds' => 'integer', 'school_attendance_warning' => 'boolean', 'room_released_at' => 'datetime', 'voided_at' => 'datetime'];
 
     protected $appends = ['display_status'];
 
@@ -64,5 +64,15 @@ class AttendanceLog extends Model
     public function room()
     {
         return $this->belongsTo(Room::class);
+    }
+
+    public function voidedBy()
+    {
+        return $this->belongsTo(User::class, 'voided_by');
+    }
+
+    public function resolvedAgainst()
+    {
+        return $this->belongsTo(self::class, 'resolved_against_log_id');
     }
 }

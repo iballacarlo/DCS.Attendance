@@ -24,7 +24,7 @@ class ClassReportService
         $this->calendar = CalendarEvent::with('employees:id')->whereDate('start_date', '<=', $end->toDateString())->whereDate('end_date', '>=', $start->toDateString())->get();
         $this->leaves = LeaveRequest::whereIn('employee_id', $employees->pluck('id'))->where('status', 'approved')
             ->whereDate('start_date', '<=', $end->toDateString())->whereDate('end_date', '>=', $start->toDateString())->get();
-        $logs = AttendanceLog::withoutGlobalScopes()->where('is_legacy', false)->where('schedule_type', 'class')
+        $logs = AttendanceLog::withoutGlobalScopes()->where('is_legacy', false)->where('schedule_type', 'class')->whereNull('voided_at')
             ->whereIn('employee_id', $employees->pluck('id'))->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()])->get()
             ->groupBy(fn ($l) => $l->employee_id.'|'.Carbon::parse($l->attendance_date)->toDateString());
         $rows = collect();

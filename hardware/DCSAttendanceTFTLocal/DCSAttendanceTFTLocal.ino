@@ -1599,6 +1599,11 @@ void showAttendanceResponse(int code, const String& response, const String& meth
       showMessage(jsonValue(response, "display_name"), expectedRoom.length() ? "Go to " + expectedRoom : "Wrong scheduled room", true);
       drawDisplayHeading("WRONG ROOM");
     }
+    else if (action == "ROOM RESERVED" || action == "ROOM OCCUPIED") {
+      errorSignal();
+      showMessage(jsonValue(response, "display_name"), displayTime.length() ? "IN available " + displayTime : action, true);
+      drawDisplayHeading(action);
+    }
     else if (action == "ALREADY OUT") doneSignal();
     else {
       errorSignal();

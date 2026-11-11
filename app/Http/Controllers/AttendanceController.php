@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AttendanceConflictResolution;
 use App\Models\AttendanceCorrection;
 use App\Models\AttendanceLog;
 use App\Models\Employee;
@@ -50,10 +51,18 @@ class AttendanceController extends Controller
         }
         $people = $people->get()->keyBy('id');
         $query = AttendanceLog::withoutGlobalScopes()->with('employee')->whereIn('employee_id', $people->keys())
-            ->where('is_legacy', false)->where('schedule_type', 'class')
+            ->where('is_legacy', false)->where('schedule_type', 'class')->whereNull('voided_at')
             ->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()])
             ->when($filters['method'], fn ($q, $method) => $q->where(fn ($q) => $q->where('method_in', $method)->orWhere('method_out', $method)));
-        $rows = $records->classRows($query->get(), $people, $start, $end, ! $filters['method']);
+        $activeLogs = $query->get();
+        $rows = $records->classRows($activeLogs, $people, $start, $end, ! $filters['method']);
+        $conflicts = $this->roomConflicts($activeLogs);
+        $rows = $rows->map(function (array $row) use ($conflicts) {
+            $row['room_conflicts'] = $row['has_record'] ?? false
+                ? ($conflicts[$row['id']] ?? []) : [];
+
+            return $row;
+        });
         if ($filters['room_id']) {
             $rows = $rows->where('room_id', (int) $filters['room_id'])->values();
         }
@@ -83,10 +92,13 @@ class AttendanceController extends Controller
         if (! $attendanceLog->time_in || $attendanceLog->time_in >= $data['time_out'].':00') {
             throw ValidationException::withMessages(['time_out' => 'Corrected OUT must be later than the recorded IN.']);
         }
-        $next = AttendanceLog::where('room_id', $attendanceLog->room_id)->whereDate('attendance_date', $attendanceLog->attendance_date)
+        $next = AttendanceLog::with('employee')->where('room_id', $attendanceLog->room_id)->whereDate('attendance_date', $attendanceLog->attendance_date)
+            ->whereNull('voided_at')
             ->where('id', '!=', $attendanceLog->id)->whereNotNull('time_in')->where('scheduled_start', '>', $attendanceLog->scheduled_start)->orderBy('scheduled_start')->first();
         if ($next && $next->time_in < $data['time_out'].':00') {
-            throw ValidationException::withMessages(['time_out' => 'Corrected OUT cannot overlap the next recorded room user.']);
+            $nextName = $next->employee?->full_name ?: 'the next faculty';
+            $nextTime = Carbon::parse($next->attendance_date.' '.$next->time_in, 'Asia/Manila')->format('h:i A');
+            throw ValidationException::withMessages(['time_out' => "Corrected OUT must be before {$nextName}'s recorded IN at {$nextTime}. If both records are duplicates, use Resolve room conflict instead."]);
         }
         DB::transaction(function () use ($request, $attendanceLog, $data) {
             AttendanceCorrection::create(['attendance_log_id' => $attendanceLog->id, 'corrected_by' => $request->user()->id,
@@ -97,5 +109,91 @@ class AttendanceController extends Controller
         });
 
         return back()->with('success', 'Class attendance OUT corrected with an audit record.');
+    }
+
+    public function resolveRoomConflict(Request $request, AttendanceLog $attendanceLog)
+    {
+        $data = $request->validate([
+            'valid_attendance_log_id' => ['required', 'integer', 'different:attendanceLog', 'exists:attendance_logs,id'],
+            'reason' => ['required', 'string', 'min:5', 'max:1000'],
+        ]);
+
+        DB::transaction(function () use ($request, $attendanceLog, $data) {
+            $invalid = AttendanceLog::withoutGlobalScopes()->lockForUpdate()->findOrFail($attendanceLog->id);
+            $valid = AttendanceLog::withoutGlobalScopes()->lockForUpdate()->findOrFail($data['valid_attendance_log_id']);
+            if ($invalid->voided_at || $valid->voided_at || $valid->schedule_type !== 'class'
+                || $invalid->schedule_type !== 'class' || ! $this->logsConflict($invalid, $valid)) {
+                throw ValidationException::withMessages(['valid_attendance_log_id' => 'Choose a valid overlapping class attendance record in the same room and date.']);
+            }
+
+            $invalidSnapshot = $this->conflictSnapshot($invalid);
+            $validSnapshot = $this->conflictSnapshot($valid);
+            $invalid->update([
+                'voided_at' => now(),
+                'voided_by' => $request->user()->id,
+                'void_reason' => $data['reason'],
+                'resolved_against_log_id' => $valid->id,
+                'room_released_at' => null,
+                'room_release_reason' => 'resolved_room_conflict',
+            ]);
+            AttendanceConflictResolution::create([
+                'room_id' => $invalid->room_id,
+                'attendance_date' => $invalid->attendance_date,
+                'kept_attendance_log_id' => $valid->id,
+                'voided_attendance_log_id' => $invalid->id,
+                'resolved_by' => $request->user()->id,
+                'reason' => $data['reason'],
+                'kept_snapshot' => $validSnapshot,
+                'voided_snapshot' => $invalidSnapshot,
+            ]);
+        });
+
+        return back()->with('success', 'Room conflict resolved. The invalid duplicate is retained in the audit trail and excluded from attendance results.');
+    }
+
+    private function roomConflicts($logs): array
+    {
+        $byLog = [];
+        foreach ($logs->filter(fn ($log) => $log->room_id && $log->time_in)->groupBy(fn ($log) => $log->room_id.'|'.$log->attendance_date) as $roomLogs) {
+            foreach ($roomLogs as $log) {
+                $matches = $roomLogs->filter(fn ($other) => $other->id !== $log->id && $this->logsConflict($log, $other))
+                    ->map(fn ($other) => $this->conflictSnapshot($other))->values()->all();
+                if ($matches) {
+                    $byLog[$log->id] = $matches;
+                }
+            }
+        }
+
+        return $byLog;
+    }
+
+    private function logsConflict(AttendanceLog $first, AttendanceLog $second): bool
+    {
+        if (! $first->room_id || $first->room_id !== $second->room_id || $first->voided_at || $second->voided_at
+            || $first->schedule_type !== 'class' || $second->schedule_type !== 'class'
+            || Carbon::parse($first->attendance_date)->toDateString() !== Carbon::parse($second->attendance_date)->toDateString()
+            || ! $first->time_in || ! $second->time_in || ! $first->scheduled_end || ! $second->scheduled_end) {
+            return false;
+        }
+        $date = Carbon::parse($first->attendance_date)->toDateString();
+        $start = fn (AttendanceLog $log) => Carbon::parse($date.' '.$log->time_in, 'Asia/Manila');
+        $end = fn (AttendanceLog $log) => Carbon::parse($date.' '.($log->time_out ?: $log->scheduled_end), 'Asia/Manila');
+
+        return $start($first)->lt($end($second)) && $start($second)->lt($end($first));
+    }
+
+    private function conflictSnapshot(AttendanceLog $log): array
+    {
+        return [
+            'id' => $log->id,
+            'faculty' => $log->employee?->full_name ?? Employee::withoutGlobalScopes()->find($log->employee_id)?->full_name,
+            'subject' => $log->subject,
+            'section' => $log->section,
+            'room' => $log->room_code,
+            'scheduled_start' => $log->scheduled_start,
+            'scheduled_end' => $log->scheduled_end,
+            'time_in' => $log->time_in,
+            'time_out' => $log->time_out,
+        ];
     }
 }
