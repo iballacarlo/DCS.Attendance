@@ -135,8 +135,8 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
             setError('Select the subject, section, and lecture/laboratory type for this class.'); subjectInput.current?.focus(); return;
         }
         if (draft.schedule_type === 'class' && !draft.room_id) { setError('Select the room for this class.'); return; }
-        if (form.data.blocks.some((block, index) => index !== editing && Number(block.day_of_week) === Number(draft.day_of_week) && draft.start_time < block.end_time && draft.end_time > block.start_time)) {
-            setError('This time overlaps another class, consultation, or break.'); return;
+        if (draft.schedule_type === 'class' && form.data.blocks.some((block, index) => index !== editing && block.schedule_type === 'class' && Number(block.day_of_week) === Number(draft.day_of_week) && draft.start_time < block.end_time && draft.end_time > block.start_time)) {
+            setError('This time overlaps another class for this faculty member.'); return;
         }
         const block = cleanDraft(draft);
         if (editing !== null && (existing.schedule_type === 'lunch_break') !== (draft.schedule_type === 'lunch_break')) delete block.id;

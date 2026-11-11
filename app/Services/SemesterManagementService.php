@@ -217,6 +217,13 @@ class SemesterManagementService
             if ($term->status === 'closed' && ! $term->reopened) {
                 $this->invalid('Reopen this semester before changing its schedules.');
             }
+
+            $latest = null;
+            if ($intent === 'publish') {
+                $latest = FacultyScheduleVersion::where('academic_term_id', $term->id)
+                    ->where('employee_id', $employee->id)
+                    ->orderByDesc('effective_from')->orderByDesc('id')->first();
+            }
             $blocks = $this->validateBlocks($blocks, $term, $intent === 'publish');
             $this->assertRoomConflicts($term, $employee, $blocks);
             $storedProfile = FacultyTermAssignment::where('academic_term_id', $term->id)->where('employee_id', $employee->id)->value('profile');
@@ -234,8 +241,6 @@ class SemesterManagementService
                 if ($term->reopened && ! trim($reason)) {
                     $this->invalid('A reason is required for a historical correction.');
                 }
-                $latest = FacultyScheduleVersion::where('academic_term_id', $term->id)->where('employee_id', $employee->id)
-                    ->orderByDesc('effective_from')->orderByDesc('id')->first();
                 $date = $effective ? Carbon::parse($effective, 'Asia/Manila')->startOfDay() : $this->automaticEffectiveDate($term, $latest, $blocks);
                 if (! $date->betweenIncluded($term->start_date, $term->end_date)) {
                     $this->invalid('The effective date must fall within this semester.');
@@ -280,6 +285,11 @@ class SemesterManagementService
                         $employee->schedules()->create($values);
                     }
                 }
+
+                // A long-running worker may keep the semester context in
+                // memory. Clear it as soon as the new version is stored so the
+                // next weekly-view or hardware request reads this publication.
+                SemesterScheduleService::reset();
             }
             $this->event($term, $actor, $intent === 'publish' ? 'schedule_published' : 'draft_saved', $reason ?: 'Saved faculty schedule', $before, $assignment->fresh()->toArray(), $employee->id);
         });
@@ -499,8 +509,9 @@ class SemesterManagementService
                 }
             }
             foreach (array_slice($blocks, 0, $i) as $other) {
-                if ($block['day_of_week'] == $other['day_of_week'] && $block['start_time'] < $other['end_time'] && $block['end_time'] > $other['start_time']) {
-                    $this->invalid('Class, consultation, and lunch blocks cannot overlap.');
+                if ($block['schedule_type'] === 'class' && $other['schedule_type'] === 'class'
+                    && $block['day_of_week'] == $other['day_of_week'] && $block['start_time'] < $other['end_time'] && $block['end_time'] > $other['start_time']) {
+                    $this->invalid('A faculty member cannot have overlapping class blocks.');
                 }
             }
         }

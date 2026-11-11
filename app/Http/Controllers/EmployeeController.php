@@ -276,7 +276,19 @@ class EmployeeController extends Controller
         $employee = Employee::withoutGlobalScopes()->findOrFail($employee);
         $this->saveSchedules($request, $employee);
 
-        return redirect()->route('employees.schedule.edit', ['employee' => $employee->id, 'term_id' => $request->input('term_id')])->with('success', 'Faculty schedule updated.');
+        $message = 'Faculty schedule updated.';
+        if ($request->input('intent') === 'publish' && $request->filled('term_id')) {
+            $today = Carbon::today('Asia/Manila');
+            $effectiveToday = FacultyScheduleVersion::where('academic_term_id', $request->integer('term_id'))
+                ->where('employee_id', $employee->id)
+                ->whereDate('effective_from', $today->toDateString())
+                ->exists();
+            $message = $effectiveToday
+                ? 'Schedule published for today. Classes later today are now visible in Class Attendance and ready for room-terminal taps.'
+                : 'Schedule published. It will appear on its effective date.';
+        }
+
+        return redirect()->route('employees.schedule.edit', ['employee' => $employee->id, 'term_id' => $request->input('term_id')])->with('success', $message);
     }
 
     public function destroy(Employee $employee)
@@ -444,8 +456,9 @@ class EmployeeController extends Controller
                 }
             }
             foreach (array_slice($blocks, 0, $i) as $other) {
-                if ($block['day_of_week'] == $other['day_of_week'] && $block['start_time'] < $other['end_time'] && $block['end_time'] > $other['start_time']) {
-                    throw ValidationException::withMessages(["blocks.$i.start_time" => 'Class, consultation, and break blocks cannot overlap.']);
+                if ($block['schedule_type'] === 'class' && $other['schedule_type'] === 'class'
+                    && $block['day_of_week'] == $other['day_of_week'] && $block['start_time'] < $other['end_time'] && $block['end_time'] > $other['start_time']) {
+                    throw ValidationException::withMessages(["blocks.$i.start_time" => 'A faculty member cannot have overlapping class blocks.']);
                 }
             }
         }
