@@ -1959,7 +1959,7 @@ void setup() {
   } else {
     Serial.println("Could not create the enrollment request queue.");
   }
-  showMessage("DCS Attendance & DTR", "LOCAL TEST MODE");
+  showMessage("DCS Class Attendance System", "LOCAL TEST MODE");
   tone(BUZZER_PIN, 1400, 180);
   digitalWrite(YELLOW_LED_PIN, LOW);
   delay(1000);

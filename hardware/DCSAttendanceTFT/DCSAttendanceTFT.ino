@@ -2134,7 +2134,7 @@ void setup() {
   } else {
     Serial.println("Could not create the enrollment request queue.");
   }
-  showMessage("DCS Attendance & DTR", "Ready to tap");
+  showMessage("DCS Class Attendance System", "Ready to tap");
   tone(BUZZER_PIN, 1400, 180);
   digitalWrite(YELLOW_LED_PIN, LOW);
   delay(1000);

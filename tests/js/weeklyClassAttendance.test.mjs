@@ -16,6 +16,12 @@ const render = (rows) => renderToStaticMarkup(React.createElement(WeeklyClassAtt
     rows, weekStart: '2026-11-09', moveWeek: (value) => value, onWeekChange: () => {},
 }));
 
+const renderAdminWithoutFaculty = () => renderToStaticMarkup(React.createElement(WeeklyClassAttendance, {
+    rows: [], weekStart: '2026-11-09', moveWeek: (value) => value, onWeekChange: () => {},
+    admin: true, employees: [{ id: 1, first_name: 'Faculty', last_name: 'One' }],
+    selectedEmployeeId: '', onFacultySelect: () => {}, facultySelectionRequired: true,
+}));
+
 test('weekly attendance shows continuous full-color status blocks with no time columns', () => {
     const html = render([row(), row({ key: 'row-2', date: '2026-11-12', subject: 'DCIT 24' })]);
     assert.match(html, /<table class="weekly-plot-attendance">/);
@@ -50,6 +56,13 @@ test('weekly attendance has honest empty state and accessible expandable rows', 
     assert.match(source, /weekly-plot-day-blocks/);
     assert.match(source, /status-\$\{visualStatus\}/);
     assert.match(source, /Correct missing OUT/);
+});
+
+test('admin weekly attendance waits for a faculty selection instead of mixing schedules', () => {
+    const html = renderAdminWithoutFaculty();
+    assert.match(html, /Faculty/);
+    assert.match(html, /Select a faculty member to view weekly class attendance\./);
+    assert.equal(html.includes('weekly-plot-attendance">'), false);
 });
 
 test('weekly attendance excludes consultation and lunch rows defensively', () => {

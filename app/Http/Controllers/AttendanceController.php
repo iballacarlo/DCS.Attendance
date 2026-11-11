@@ -58,8 +58,14 @@ class AttendanceController extends Controller
             $rows = $rows->where('room_id', (int) $filters['room_id'])->values();
         }
         $logs = $records->paginate($rows, $request, $filters);
-        $weekly = $reports->build(['start_date' => $weekStart->toDateString(), 'end_date' => $weekStart->copy()->addDays(5)->toDateString(),
-            'employee_id' => $faculty ? $request->user()->employee_id : ($filters['employee_id'] ?: null), 'room_id' => $filters['room_id'] ?: null]);
+        // The weekly plot is intentionally scoped to one faculty member for admins.
+        // Rendering every faculty member in the same Monday-Saturday grid makes the
+        // monitoring view unreadable; the attendance list below may still show all.
+        $weeklyFacultyRequired = ! $faculty && ! $filters['employee_id'];
+        $weekly = $weeklyFacultyRequired
+            ? ['rows' => []]
+            : $reports->build(['start_date' => $weekStart->toDateString(), 'end_date' => $weekStart->copy()->addDays(5)->toDateString(),
+                'employee_id' => $faculty ? $request->user()->employee_id : $filters['employee_id'], 'room_id' => $filters['room_id'] ?: null]);
 
         return Inertia::render('Attendance/Index', [
             'employees' => $faculty ? [] : Employee::with('schedules')->where('status', 'active')->orderBy('last_name')->get(),
@@ -67,6 +73,7 @@ class AttendanceController extends Controller
             'filters' => $filters,
             'rooms' => Room::where('is_active', true)->orderBy('code')->get(['id', 'code']),
             'weekly' => $weekly,
+            'weeklyFacultyRequired' => $weeklyFacultyRequired,
         ]);
     }
 

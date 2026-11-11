@@ -5789,6 +5789,12 @@ html[data-theme='dark'] .main .weekly-plot-attendance thead th>strong,
 html[data-theme='dark'] .main .weekly-plot-attendance thead th>span{color:#143f2c!important}
 html[data-theme='dark'] .main .weekly-plot-attendance thead th>small{color:#536250!important}
 
+/* Admin weekly plotting is intentionally one faculty at a time. */
+.weekly-faculty-filter{display:flex;align-items:flex-end;margin:-.25rem 0 1.1rem}
+.weekly-faculty-filter .faculty-combobox{width:min(100%,25rem)}
+.weekly-faculty-prompt{border-style:dashed}
+@media(max-width:650px){.weekly-faculty-filter,.weekly-faculty-filter .faculty-combobox{width:100%}}
+
 /* Dedicated day-header cells avoid generic table-header overrides. */
 .main table.weekly-plot-attendance thead th.weekly-day-header-cell,
 html[data-theme='dark'] .main table.weekly-plot-attendance thead th.weekly-day-header-cell{

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDate, time12 } from '../lib/format';
 import { plottingDays } from '../lib/weeklyPlotting';
+import FacultyCombobox from './FacultyCombobox';
 
 export const weeklyStatusKey = (row) => row.status === 'missed'
     ? 'absent'
@@ -30,7 +31,7 @@ const labels = {
 const dayIndex = (date, weekStart) => Math.round((new Date(`${date}T00:00:00`) - new Date(`${weekStart}T00:00:00`)) / 86400000);
 const attendanceTime = (value) => value ? time12(value) : '—';
 
-export default function WeeklyClassAttendance({ rows = [], weekStart, moveWeek, onWeekChange, admin = false, onCorrect }) {
+export default function WeeklyClassAttendance({ rows = [], weekStart, moveWeek, onWeekChange, admin = false, employees = [], selectedEmployeeId = '', onFacultySelect, facultySelectionRequired = false, onCorrect }) {
     const [selectedKey, setSelectedKey] = useState(null);
     const classRows = useMemo(() => rows.filter((row) => !row.schedule_type || row.schedule_type === 'class'), [rows]);
     const selected = classRows.find((row) => row.key === selectedKey) || null;
@@ -58,7 +59,10 @@ export default function WeeklyClassAttendance({ rows = [], weekStart, moveWeek, 
                 <button className="week-nav-icon" type="button" aria-label="Next week" title="Next week" onClick={() => onWeekChange(moveWeek(weekStart, 7))}><ChevronRight size={20} /></button>
             </div>
         </div>
-        {days.length ? <div className="weekly-plot-attendance-scroll" tabIndex="0" aria-label="Weekly class attendance plotting; scroll horizontally on smaller screens">
+        {admin && <div className="weekly-faculty-filter">
+            <FacultyCombobox employees={employees} selectedId={selectedEmployeeId} label="Faculty" allowClear clearLabel="Select faculty" onSelect={onFacultySelect} />
+        </div>}
+        {facultySelectionRequired ? <div className="weekly-empty-state weekly-faculty-prompt"><strong>Select a faculty member to view weekly class attendance.</strong><p>Choose a faculty member above. The attendance records below can still show all faculty.</p></div> : days.length ? <div className="weekly-plot-attendance-scroll" tabIndex="0" aria-label="Weekly class attendance plotting; scroll horizontally on smaller screens">
             <table className="weekly-plot-attendance">
                 <colgroup>{days.map((day) => <col key={day.name} />)}</colgroup>
                 <thead><tr>{days.map((day) => <th className="weekly-day-header-cell" key={day.name}><strong>{day.name}</strong><small>{formatDate(day.rows[0].date)}</small><span>{time12(day.rangeStart)} – {time12(day.rangeEnd)}</span></th>)}</tr></thead>
