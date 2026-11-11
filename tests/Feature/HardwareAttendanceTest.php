@@ -304,6 +304,29 @@ class HardwareAttendanceTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_next_faculty_can_start_early_after_previous_faculty_records_out(): void
+    {
+        config(['services.hardware.api_key' => 'device-secret']);
+        $rank = FacultyRank::where('is_active', true)->firstOrFail();
+        $first = Employee::create(['employee_no' => 'ROOM-EARLY-1', 'first_name' => 'Acibar', 'last_name' => 'Faculty', 'faculty_rank_id' => $rank->id, 'rate_type' => 'hourly', 'rate_amount' => $rank->rate_amount, 'status' => 'active']);
+        $next = Employee::create(['employee_no' => 'ROOM-EARLY-2', 'first_name' => 'Morata', 'last_name' => 'Faculty', 'faculty_rank_id' => $rank->id, 'rate_type' => 'hourly', 'rate_amount' => $rank->rate_amount, 'status' => 'active']);
+        $first->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'subject' => 'ITEC 100', 'section' => 'BSIT 1A', 'class_mode' => 'lecture', 'start_time' => '13:00', 'end_time' => '13:10', 'break_minutes' => 0, 'room_id' => $this->room->id]);
+        $next->schedules()->create(['day_of_week' => 1, 'schedule_type' => 'class', 'subject' => 'ITEC 101', 'section' => 'BSIT 1B', 'class_mode' => 'lecture', 'start_time' => '13:10', 'end_time' => '13:20', 'break_minutes' => 0, 'room_id' => $this->room->id]);
+        $first->rfidCards()->create(['rfid_uid' => 'EARLY-FIRST', 'status' => 'active']);
+        $next->rfidCards()->create(['rfid_uid' => 'EARLY-NEXT', 'status' => 'active']);
+        $tap = fn (string $card, string $time) => $this->withHeader('X-Hardware-Key', 'device-secret')->postJson('/api/hardware/tap', ['identifier' => $card, 'method' => 'rfid', 'occurred_at' => '2026-10-05 '.$time]);
+
+        Carbon::setTestNow(Carbon::parse('2026-10-05 13:05:00', 'Asia/Manila'));
+        $tap('EARLY-FIRST', '13:00:00')->assertOk()->assertJsonPath('action', 'IN');
+        $tap('EARLY-FIRST', '13:00:01')->assertOk()->assertJsonPath('action', 'OUT');
+        // The room is free after the valid OUT, so the next faculty may use
+        // the existing 30-minute early-IN window before 13:10.
+        $tap('EARLY-NEXT', '13:05:00')->assertOk()->assertJsonPath('action', 'IN');
+        $this->assertDatabaseHas('attendance_logs', ['employee_id' => $first->id, 'time_out' => '13:00:01']);
+        $this->assertDatabaseHas('attendance_logs', ['employee_id' => $next->id, 'time_in' => '13:05:00']);
+        Carbon::setTestNow();
+    }
+
     public function test_faculty_cannot_tap_in_from_a_device_assigned_to_the_wrong_room(): void
     {
         config(['services.hardware.api_key' => 'device-secret']);

@@ -22,6 +22,13 @@ class RoomAwareClassAttendanceService
             SemesterScheduleService::assertRecordable($now);
             $logs = AttendanceLog::where('employee_id', $employee->id)->where('attendance_date', $date)
                 ->where('is_legacy', false)->where('schedule_type', 'class')->whereNull('voided_at')->lockForUpdate()->get();
+            // Include the room's existing class logs when evaluating schedule
+            // reservations. A prior faculty who has already recorded a valid
+            // OUT no longer reserves the room, even if the next class has not
+            // reached its scheduled start yet.
+            $roomLogs = AttendanceLog::where('room_id', $deviceRoom->id)->where('attendance_date', $date)
+                ->where('is_legacy', false)->where('schedule_type', 'class')->whereNull('voided_at')
+                ->lockForUpdate()->get();
             $open = $logs->whereNotNull('time_in')->whereNull('time_out')->sortByDesc('scheduled_start')->first();
             if ($open) {
                 return $this->recordOut($open, $method, $now, $deviceRoom);
@@ -76,7 +83,12 @@ class RoomAwareClassAttendanceService
             // faculty member from claiming the room during the early-IN window.
             if ($now->lt($start)) {
                 $reservation = $roomSessions->filter(fn ($session) => $session['employee_id'] !== $employee->id
-                    && $session['start']->lt($start) && $session['end']->gt($now))
+                    && $session['start']->lt($start) && $session['end']->gt($now)
+                    && ! $roomLogs->contains(function ($log) use ($session) {
+                        return (int) $log->employee_id === (int) $session['employee_id']
+                            && (int) $log->faculty_schedule_id === (int) $session['schedule']->id
+                            && ($log->time_out !== null || $log->room_released_at !== null);
+                    }))
                     ->sortBy(fn ($session) => $session['end']->timestamp)->first();
                 if ($reservation) {
                     return [...$this->result('ROOM RESERVED', $reservation['employee']->full_name.' is scheduled in '.$deviceRoom->code
