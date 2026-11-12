@@ -37,6 +37,7 @@ return [
 
     'hardware' => [
         'api_key' => env('HARDWARE_API_KEY'),
+        'enrollment_expiry_minutes' => max(1, min(60, (int) env('HARDWARE_ENROLLMENT_EXPIRY_MINUTES', 15))),
     ],
 
     'google_mail' => [

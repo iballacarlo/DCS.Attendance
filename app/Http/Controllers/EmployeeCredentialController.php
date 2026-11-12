@@ -173,11 +173,12 @@ class EmployeeCredentialController extends Controller
     {
         // Use the database clock for the expiry value. This prevents local and
         // Railway MySQL timezone differences from expiring a fresh request.
-        $attributes['expires_at'] = now()->addMinutes(5);
+        $minutes = (int) config('services.hardware.enrollment_expiry_minutes', 15);
+        $attributes['expires_at'] = now()->addMinutes($minutes);
         $enrollment = HardwareEnrollment::create($attributes);
         if (DB::connection()->getDriverName() === 'mysql') {
             DB::table('hardware_enrollments')->where('id', $enrollment->id)->update([
-                'expires_at' => DB::raw('DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 5 MINUTE)'),
+                'expires_at' => DB::raw("DATE_ADD(CURRENT_TIMESTAMP, INTERVAL {$minutes} MINUTE)"),
             ]);
             $enrollment->refresh();
         }
