@@ -240,13 +240,14 @@ class HardwareAttendanceController extends Controller
             return response()->json(['ok' => false, 'message' => 'This enrollment is assigned to another terminal.'], 409);
         }
 
-        $expired = DB::table('hardware_enrollments')
-            ->where('id', $enrollment->id)
-            ->where('expires_at', '<=', DB::raw('CURRENT_TIMESTAMP'))
-            ->exists() || $enrollment->expires_at?->isPast();
+        $expired = $this->enrollmentHasExpired($enrollment);
         if (in_array($enrollment->status, ['pending', 'processing'], true) && $expired) {
             $enrollment->update(['status' => 'expired', 'message' => 'The registration request expired.']);
         }
+
+        // Return the current row after any expiry transition.  This prevents a
+        // stale model instance from making the terminal act on an old status.
+        $enrollment->refresh();
 
         return response()->json([
             'id' => (string) $enrollment->id,
@@ -254,6 +255,8 @@ class HardwareAttendanceController extends Controller
             'status' => $enrollment->status,
             'identifier' => $enrollment->identifier ?? '',
             'message' => $enrollment->message ?? '',
+            'expires_at' => $enrollment->expires_at?->toIso8601String(),
+            'server_time' => now()->toIso8601String(),
         ]);
     }
 
@@ -288,10 +291,7 @@ class HardwareAttendanceController extends Controller
             ]);
         }
 
-        $expired = DB::table('hardware_enrollments')
-            ->where('id', $enrollment->id)
-            ->where('expires_at', '<=', DB::raw('CURRENT_TIMESTAMP'))
-            ->exists() || $enrollment->expires_at?->isPast();
+        $expired = $this->enrollmentHasExpired($enrollment);
         if (! in_array($enrollment->status, ['pending', 'processing'], true) || $expired) {
             return response()->json(['ok' => false, 'message' => 'Enrollment is no longer active.'], 409);
         }
@@ -437,6 +437,18 @@ class HardwareAttendanceController extends Controller
 
         $device = AttendanceDevice::where('code', $code)->where('is_active', true)->first();
         return ! $device || ! $enrollment->attendance_device_id || (int) $enrollment->attendance_device_id !== (int) $device->id;
+    }
+
+    private function enrollmentHasExpired(HardwareEnrollment $enrollment): bool
+    {
+        if (DB::connection()->getDriverName() === 'mysql') {
+            return DB::table('hardware_enrollments')
+                ->where('id', $enrollment->id)
+                ->where('expires_at', '<=', DB::raw('CURRENT_TIMESTAMP'))
+                ->exists();
+        }
+
+        return $enrollment->expires_at?->isPast() ?? true;
     }
 
     private function auditCredential(HardwareEnrollment $enrollment, string $action, string $description): void

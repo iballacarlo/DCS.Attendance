@@ -17,7 +17,8 @@ return new class extends Migration
             $table->string('identifier', 100)->nullable();
             $table->enum('status', ['pending', 'processing', 'completed', 'failed', 'cancelled', 'expired'])->default('pending');
             $table->string('message')->nullable();
-            $table->timestamp('expires_at');
+            // DATETIME avoids MySQL's implicit ON UPDATE CURRENT_TIMESTAMP.
+            $table->dateTime('expires_at');
             $table->timestamp('completed_at')->nullable();
             $table->timestamps();
 

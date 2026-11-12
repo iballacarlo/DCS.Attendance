@@ -151,22 +151,45 @@ class EmployeeCredentialController extends Controller
     {
         abort_unless($enrollment->employee_id === $employee->id, 404);
 
-        if (in_array($enrollment->status, ['pending', 'processing'], true)) {
-            $enrollment->update(['status' => 'cancelled', 'message' => 'Cancelled by administrator.']);
-        }
+        // Cancel in a short transaction so the terminal cannot claim the same
+        // request between the browser click and the status update. The row lock
+        // also makes cancellation idempotent when the browser retries.
+        DB::transaction(function () use ($enrollment): void {
+            $current = HardwareEnrollment::query()->lockForUpdate()->find($enrollment->id);
+            if ($current && in_array($current->status, ['pending', 'processing'], true)) {
+                $current->forceFill([
+                    'status' => 'cancelled',
+                    'message' => 'Cancelled by administrator.',
+                ])->save();
+            }
+        });
 
         return response()->json($this->payload($enrollment->fresh()));
     }
 
     private function expireIfNeeded(HardwareEnrollment $enrollment): void
     {
-        $expired = DB::table('hardware_enrollments')
-            ->where('id', $enrollment->id)
-            ->where('expires_at', '<=', DB::raw('CURRENT_TIMESTAMP'))
-            ->exists() || $enrollment->expires_at?->isPast();
+        $expired = $this->enrollmentHasExpired($enrollment);
         if (in_array($enrollment->status, ['pending', 'processing'], true) && $expired) {
             $enrollment->update(['status' => 'expired', 'message' => 'The registration request expired.']);
         }
+    }
+
+    /**
+     * MySQL is the source of truth for expiry in production.  Comparing the
+     * Eloquent-cast timestamp with PHP's timezone can make a fresh request
+     * look expired when the app and database use different timezones.
+     */
+    private function enrollmentHasExpired(HardwareEnrollment $enrollment): bool
+    {
+        if (DB::connection()->getDriverName() === 'mysql') {
+            return DB::table('hardware_enrollments')
+                ->where('id', $enrollment->id)
+                ->where('expires_at', '<=', DB::raw('CURRENT_TIMESTAMP'))
+                ->exists();
+        }
+
+        return $enrollment->expires_at?->isPast() ?? true;
     }
 
     private function createEnrollment(array $attributes): HardwareEnrollment

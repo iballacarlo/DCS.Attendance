@@ -58,6 +58,8 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber, atte
     const fingerprintInput = useRef(null);
     const [enrollment, setEnrollment] = useState(null);
     const [enrollmentError, setEnrollmentError] = useState('');
+    const [enrollmentCancelling, setEnrollmentCancelling] = useState(false);
+    const enrollmentStatusRequest = useRef(0);
     const [registrationDeviceId, setRegistrationDeviceId] = useState('');
     const [nfcPhase, setNfcPhase] = useState('idle');
     const [nfcMessage, setNfcMessage] = useState('');
@@ -95,11 +97,13 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber, atte
         employee.id ? form.put(`/employees/${employee.id}`) : form.post('/employees');
     };
     useEffect(() => {
-        if (!enrollment?.id || !['pending', 'processing'].includes(enrollment.status)) return undefined;
+        if (!enrollment?.id || !['pending', 'processing'].includes(enrollment.status) || enrollmentCancelling) return undefined;
 
         const checkStatus = async () => {
+            const requestId = ++enrollmentStatusRequest.current;
             try {
                 const { data } = await axios.get(`/employees/${employee.id}/credentials/enrollments/${enrollment.id}`);
+                if (requestId !== enrollmentStatusRequest.current) return;
                 setEnrollment(data);
                 if (data.status === 'completed') {
                     if (data.operation === 'unlink') {
@@ -115,9 +119,13 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber, atte
             }
         };
 
-        const timer = window.setInterval(checkStatus, 750);
+        // Poll quickly while a terminal is waiting, but do not keep polling after
+        // the administrator has pressed Cancel. This makes cancellation visible
+        // immediately and prevents an in-flight refresh from restoring the old UI.
+        checkStatus();
+        const timer = window.setInterval(checkStatus, 350);
         return () => window.clearInterval(timer);
-    }, [enrollment?.id, enrollment?.status]);
+    }, [enrollment?.id, enrollment?.status, enrollmentCancelling]);
 
     const startHardwareRegistration = async (method) => {
         if (isNew || nfcBusy || form.processing || hardwareRegistrationBlocked) return;
@@ -130,6 +138,7 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber, atte
             tone: 'warning',
         })) return;
         setEnrollmentError('');
+        setEnrollmentCancelling(false);
         setEnrollment({ method, status: 'starting' });
         try {
             const { data } = await axios.post(`/employees/${employee.id}/credentials/enrollments`, {
@@ -145,8 +154,18 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber, atte
     };
     const cancelHardwareRegistration = async () => {
         if (!enrollment?.id) return;
-        const { data } = await axios.delete(`/employees/${employee.id}/credentials/enrollments/${enrollment.id}`);
-        setEnrollment(data);
+        // Invalidate any slower poll that is still in flight so it cannot
+        // overwrite the immediate cancelling state after the button is pressed.
+        enrollmentStatusRequest.current += 1;
+        setEnrollmentCancelling(true);
+        setEnrollment((current) => current ? { ...current, status: 'cancelling', message: 'Cancelling registration…' } : current);
+        try {
+            const { data } = await axios.delete(`/employees/${employee.id}/credentials/enrollments/${enrollment.id}`, { timeout: 5000 });
+            setEnrollment(data);
+        } catch (error) {
+            setEnrollmentError(error.response?.data?.message || 'Could not cancel the device registration.');
+            setEnrollmentCancelling(false);
+        }
     };
     const unlinkCredential = async (method) => {
         if (nfcBusy || form.processing) return;
@@ -272,8 +291,8 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber, atte
                 <small>{attendanceDevices.length === 1 ? `Requests will be sent to ${selectedRegistrationDevice?.code || 'the active terminal'}.` : attendanceDevices.length ? 'Select the terminal where the card or finger will be registered.' : 'Add and activate a terminal in Settings → Rooms & Devices first.'}</small>
             </div>}
             {enrollment && <div className={`credential-enrollment-status is-${enrollment.status}`}>
-                {['starting', 'pending', 'processing'].includes(enrollment.status) ? <LoaderCircle className="spin" size={18} /> : <CircleCheck size={18} />}
-                <span><strong>{enrollment.status === 'completed' ? (enrollment.operation === 'unlink' ? 'Credential unlinked' : 'Registration complete') : enrollment.status === 'failed' ? (enrollment.operation === 'unlink' ? 'Unlink failed' : 'Registration failed') : enrollment.status === 'expired' ? 'Registration expired' : enrollment.status === 'cancelled' ? 'Registration cancelled' : enrollment.operation === 'unlink' ? 'Waiting for fingerprint sensor' : 'Waiting for attendance device'}</strong><small>{enrollment.message || (enrollment.operation === 'unlink' ? 'The fingerprint will be removed from the sensor before it is unlinked.' : enrollment.method === 'rfid' ? 'Tap the RFID card on the RC522.' : 'Follow the fingerprint scanner prompts.')}</small></span>
+                {['starting', 'pending', 'processing', 'cancelling'].includes(enrollment.status) ? <LoaderCircle className="spin" size={18} /> : <CircleCheck size={18} />}
+                <span><strong>{enrollment.status === 'completed' ? (enrollment.operation === 'unlink' ? 'Credential unlinked' : 'Registration complete') : enrollment.status === 'failed' ? (enrollment.operation === 'unlink' ? 'Unlink failed' : 'Registration failed') : enrollment.status === 'expired' ? 'Registration expired' : enrollment.status === 'cancelled' ? 'Registration cancelled' : enrollment.status === 'cancelling' ? 'Cancelling registration' : enrollment.operation === 'unlink' ? 'Waiting for fingerprint sensor' : 'Waiting for attendance device'}</strong><small>{enrollment.message || (enrollment.operation === 'unlink' ? 'The fingerprint will be removed from the sensor before it is unlinked.' : enrollment.method === 'rfid' ? 'Tap the RFID card on the RC522.' : 'Follow the fingerprint scanner prompts.')}</small></span>
                 {['pending', 'processing'].includes(enrollment.status) && enrollment.operation !== 'unlink' && <button className="ui-control ui-action ui-secondary" type="button" onClick={cancelHardwareRegistration} aria-label="Cancel registration"><X size={16} /></button>}
             </div>}
             {enrollmentError && <div className="credential-enrollment-error">{enrollmentError}</div>}

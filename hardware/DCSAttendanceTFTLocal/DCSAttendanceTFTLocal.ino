@@ -151,6 +151,12 @@ const uint32_t MAX_OFFLINE_ATTENDANCE = 2000;
 const time_t MINIMUM_VALID_TIME = 1700000000;
 const char* OFFLINE_QUEUE_PATH = "/attendance-local.bin";
 
+// Recover an RC522 that is left in an unfinished anti-collision state without
+// resetting the terminal or interrupting the network queue.
+unsigned long lastRfidReaderRecovery = 0;
+unsigned long lastRfidReaderProbe = 0;
+uint8_t rfidReadFailures = 0;
+
 // Keep enrollment connected so requests from the faculty form reach the device.
 const bool ENABLE_REMOTE_ENROLLMENT = true;
 
@@ -190,6 +196,7 @@ volatile bool footerRefreshRequested = false;
 volatile bool enrollmentCancelled = false;
 volatile bool enrollmentExpired = false;
 volatile uint32_t activeEnrollmentId = 0;
+volatile unsigned long enrollmentStartedAt = 0;
 
 const uint16_t DISPLAY_BACKGROUND = 0xFFFF;
 const uint16_t DISPLAY_GREEN = 0x0266;
@@ -1016,6 +1023,35 @@ void addHardwareHeaders(HTTPClient& http) {
   http.addHeader("X-Device-Code", DEVICE_CODE);
 }
 
+bool recoverRfidReader(bool force = false) {
+  if (!force && millis() - lastRfidReaderRecovery < 1500) return false;
+  lastRfidReaderRecovery = millis();
+  digitalWrite(TFT_CS_PIN, HIGH);
+  digitalWrite(RFID_RST_PIN, LOW);
+  delay(3);
+  digitalWrite(RFID_RST_PIN, HIGH);
+  delay(25);
+  rfid.PCD_Init();
+  rfid.PCD_SetAntennaGain(MFRC522::RxGain_max);
+  byte version = rfid.PCD_ReadRegister(rfid.VersionReg);
+  rfidReadFailures = 0;
+  Serial.print("RC522 recovery version: 0x");
+  Serial.println(version, HEX);
+  return version != 0x00 && version != 0xFF;
+}
+
+bool rfidReaderResponding() {
+  if (millis() - lastRfidReaderProbe < 5000) return true;
+  lastRfidReaderProbe = millis();
+  digitalWrite(TFT_CS_PIN, HIGH);
+  byte version = rfid.PCD_ReadRegister(rfid.VersionReg);
+  if (version == 0x00 || version == 0xFF) {
+    Serial.println("RC522 did not answer; recovering reader.");
+    return recoverRfidReader(true);
+  }
+  return true;
+}
+
 void noteServerConnectionFailure() {
   if (serverTransportFailures < 3) serverTransportFailures++;
   if (serverTransportFailures >= 3) serverReconnectRequested = true;
@@ -1070,8 +1106,9 @@ int requestHardwareServer(String path, String payload, String& response, bool ba
     }
     http.setReuse(false);
     http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
-    http.setConnectTimeout(monitorEnrollment ? 2500 : 4000);
-    http.setTimeout(monitorEnrollment ? 2500 : 4000);
+    const int transportTimeout = monitorEnrollment ? 1200 : (background ? 2500 : 4000);
+    http.setConnectTimeout(transportTimeout);
+    http.setTimeout(transportTimeout);
     addHardwareHeaders(http);
     code = payload.length() ? http.POST(payload) : http.GET();
     response = http.getString();
@@ -1414,6 +1451,7 @@ void enrollRfid(String id, String currentIdentifier) {
     if (enrollmentCancelled || enrollmentExpired) return;
     updateRegistrationIndicator();
     if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
+      rfidReadFailures = 0;
       String uid = rfidUid();
       rfid.PICC_HaltA();
       rfid.PCD_StopCrypto1();
@@ -1436,6 +1474,7 @@ void enrollRfid(String id, String currentIdentifier) {
       registrationFeedbackDelay(2500);
       return;
     }
+    if (++rfidReadFailures >= 40) recoverRfidReader();
     delay(60);
   }
   if (enrollmentCancelled || enrollmentExpired) return;
@@ -1458,9 +1497,15 @@ void enrollmentPollTask(void* parameter) {
       if (code == 200 && enrollmentBusy && activeEnrollmentId == enrollmentId) {
         String status = jsonValue(response, "status");
         if (status == "cancelled" || status == "expired") {
-          enrollmentExpired = status == "expired";
+          // A just-claimed request can briefly race with the status endpoint
+          // while the server transaction is being committed. Do not abort a
+          // live registration on one stale expired response.
+          bool freshRequest = enrollmentStartedAt != 0 &&
+                              millis() - enrollmentStartedAt < 5000;
+          enrollmentExpired = status == "expired" && !freshRequest;
           enrollmentCancelled = status == "cancelled";
-          Serial.println("Enrollment " + String(enrollmentId) + " " + status + " on server.");
+          Serial.println("Enrollment " + String(enrollmentId) + " " + status +
+                         (freshRequest ? " (ignored during startup grace)" : "") + " on server.");
         }
       }
       pollDelay = ENROLLMENT_ACTIVE_POLL_MS;
@@ -1529,6 +1574,7 @@ bool processEnrollmentRequest() {
   enrollmentCancelled = false;
   enrollmentExpired = false;
   activeEnrollmentId = strtoul(request.id, nullptr, 10);
+  enrollmentStartedAt = millis();
   enrollmentBusy = true;
   startRegistrationIndicator();
   String method = String(request.method);
@@ -1546,6 +1592,7 @@ bool processEnrollmentRequest() {
   bool wasCancelled = enrollmentCancelled;
   bool wasExpired = enrollmentExpired;
   activeEnrollmentId = 0;
+  enrollmentStartedAt = 0;
   enrollmentBusy = false;
   if (wasCancelled || wasExpired) {
     showMessage(wasCancelled ? "Registration cancelled" : "Registration expired",
@@ -1831,7 +1878,15 @@ void syncNextOfflineAttendance() {
 
 void processRfidAttendance() {
   if (attendanceBusy) return;
-  if (!rfid.PICC_IsNewCardPresent() || !rfid.PICC_ReadCardSerial()) return;
+  if (!rfidReaderResponding()) return;
+  if (!rfid.PICC_IsNewCardPresent()) return;
+  if (!rfid.PICC_ReadCardSerial()) {
+    rfid.PICC_HaltA();
+    rfid.PCD_StopCrypto1();
+    if (++rfidReadFailures >= 3) recoverRfidReader();
+    return;
+  }
+  rfidReadFailures = 0;
   String uid = rfidUid();
   Serial.println("RFID UID: " + uid);
   rfid.PICC_HaltA();
