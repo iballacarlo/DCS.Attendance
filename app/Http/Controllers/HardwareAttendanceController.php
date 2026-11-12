@@ -147,14 +147,14 @@ class HardwareAttendanceController extends Controller
         }
 
         HardwareEnrollment::whereIn('status', ['pending', 'processing'])
-            ->where('expires_at', '<=', now())
+            ->where('expires_at', '<=', DB::raw('CURRENT_TIMESTAMP'))
             ->update(['status' => 'expired', 'message' => 'The registration request expired.']);
 
         $enrollment = DB::transaction(function () use ($device) {
             $enrollment = HardwareEnrollment::with('employee')
                 ->whereIn('status', ['pending', 'processing'])
                 ->where('attendance_device_id', $device->id)
-                ->where('expires_at', '>', now())
+                ->where('expires_at', '>', DB::raw('CURRENT_TIMESTAMP'))
                 ->lockForUpdate()
                 ->oldest()
                 ->first();
@@ -240,7 +240,11 @@ class HardwareAttendanceController extends Controller
             return response()->json(['ok' => false, 'message' => 'This enrollment is assigned to another terminal.'], 409);
         }
 
-        if (in_array($enrollment->status, ['pending', 'processing'], true) && $enrollment->expires_at->isPast()) {
+        $expired = DB::table('hardware_enrollments')
+            ->where('id', $enrollment->id)
+            ->where('expires_at', '<=', DB::raw('CURRENT_TIMESTAMP'))
+            ->exists() || $enrollment->expires_at?->isPast();
+        if (in_array($enrollment->status, ['pending', 'processing'], true) && $expired) {
             $enrollment->update(['status' => 'expired', 'message' => 'The registration request expired.']);
         }
 
@@ -284,7 +288,11 @@ class HardwareAttendanceController extends Controller
             ]);
         }
 
-        if (! in_array($enrollment->status, ['pending', 'processing'], true) || $enrollment->expires_at->isPast()) {
+        $expired = DB::table('hardware_enrollments')
+            ->where('id', $enrollment->id)
+            ->where('expires_at', '<=', DB::raw('CURRENT_TIMESTAMP'))
+            ->exists() || $enrollment->expires_at?->isPast();
+        if (! in_array($enrollment->status, ['pending', 'processing'], true) || $expired) {
             return response()->json(['ok' => false, 'message' => 'Enrollment is no longer active.'], 409);
         }
 

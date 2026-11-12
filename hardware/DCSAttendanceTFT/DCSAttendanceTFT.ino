@@ -160,6 +160,7 @@ unsigned long lastServerReconnect = 0;
 const unsigned long WIFI_RETRY_MS = 10000;
 const unsigned long DISPLAY_CLOCK_REFRESH_MS = 200;
 const unsigned long ENROLLMENT_POLL_MS = 1000;
+const unsigned long ENROLLMENT_ACTIVE_POLL_MS = 250;
 const unsigned long ENROLLMENT_STATUS_POLL_MS = 750;
 const unsigned long FINGER_SCAN_INTERVAL_MS = 60;
 const uint8_t FINGER_CONFIRMATION_SAMPLES = 3;
@@ -1604,12 +1605,12 @@ void enrollRfid(String id, String currentIdentifier) {
 }
 
 void enrollmentPollTask(void* parameter) {
+  Serial.println("Enrollment polling terminal: " + String(DEVICE_CODE));
   while (true) {
     if (otaUpdating) {
       vTaskDelay(pdMS_TO_TICKS(100));
       continue;
     }
-    syncRegisteredRfidCards();
     unsigned long pollDelay = ENROLLMENT_POLL_MS;
     uint32_t enrollmentId = activeEnrollmentId;
     if (enrollmentBusy && enrollmentId != 0 && !enrollmentCancelled && !enrollmentExpired &&
@@ -1625,7 +1626,7 @@ void enrollmentPollTask(void* parameter) {
           Serial.println("Enrollment " + String(enrollmentId) + " " + status + " on server.");
         }
       }
-      pollDelay = ENROLLMENT_STATUS_POLL_MS;
+      pollDelay = ENROLLMENT_ACTIVE_POLL_MS;
     }
     bool queueIsEmpty = enrollmentQueue && uxQueueMessagesWaiting(enrollmentQueue) == 0;
     if (ENABLE_REMOTE_ENROLLMENT &&
@@ -1658,15 +1659,24 @@ void enrollmentPollTask(void* parameter) {
             operation.toCharArray(request.operation, sizeof(request.operation));
             currentIdentifier.toCharArray(request.currentIdentifier, sizeof(request.currentIdentifier));
             if (xQueueSend(enrollmentQueue, &request, 0) == pdTRUE) {
-              pollDelay = ENROLLMENT_STATUS_POLL_MS;
+              pollDelay = ENROLLMENT_ACTIVE_POLL_MS;
             }
           }
         }
 
         if (code < 0) {
-          if (code != -1002) pollDelay = 20000;
+          if (code != -1002) pollDelay = ENROLLMENT_POLL_MS;
         }
       }
+    }
+
+    // Enrollment polling has priority. Refresh the global credential cache only
+    // while the terminal is idle so a slow cache request cannot delay a new
+    // RFID/fingerprint registration command.
+    queueIsEmpty = enrollmentQueue && uxQueueMessagesWaiting(enrollmentQueue) == 0;
+    if (!enrollmentBusy && !attendanceBusy && queueIsEmpty &&
+        WiFi.status() == WL_CONNECTED) {
+      syncRegisteredRfidCards();
     }
 
     vTaskDelay(pdMS_TO_TICKS(pollDelay));
@@ -1883,6 +1893,11 @@ void attendanceNetworkTask(void* parameter) {
     }
     OfflineAttendanceRecord record = {};
     if (attendanceUploadQueue && xQueueReceive(attendanceUploadQueue, &record, 0) == pdTRUE) {
+      if (enrollmentQueue && uxQueueMessagesWaiting(enrollmentQueue) > 0) {
+        xQueueSendToFront(attendanceUploadQueue, &record, 0);
+        vTaskDelay(pdMS_TO_TICKS(50));
+        continue;
+      }
       unsigned long startedAt = millis();
       String response;
       int code = -1000;
@@ -1916,6 +1931,7 @@ void attendanceNetworkTask(void* parameter) {
 
 void syncNextOfflineAttendance() {
   if (!offlineStorageAvailable || attendanceBusy || enrollmentBusy ||
+      (enrollmentQueue && uxQueueMessagesWaiting(enrollmentQueue) > 0) ||
       WiFi.status() != WL_CONNECTED || pendingOfflineRecordCount() == 0 ||
       millis() - lastOfflineSyncAttempt < offlineSyncRetryMs) return;
 

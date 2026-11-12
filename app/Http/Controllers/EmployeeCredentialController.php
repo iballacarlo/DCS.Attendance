@@ -31,7 +31,8 @@ class EmployeeCredentialController extends Controller
                 abort_unless(strtoupper($previous ?? '') === strtoupper($data['current_identifier'] ?? ''), 409,
                     'The RFID registration has changed. Reload the faculty profile before trying again.');
                 abort_if(HardwareEnrollment::where('employee_id', $employee->id)->where('method', 'rfid')
-                    ->whereIn('status', ['pending', 'processing'])->where('expires_at', '>', now())->exists(), 409,
+                    ->whereIn('status', ['pending', 'processing'])
+                    ->where('expires_at', '>', DB::raw('CURRENT_TIMESTAMP'))->exists(), 409,
                     'Finish or cancel the RFID hardware registration before registering through NFC.');
                 // Include archived assignments; their cards must not be reassigned.
                 if (DB::table('rfid_cards')->whereRaw('UPPER(rfid_uid) = ?', [$data['identifier']])
@@ -70,7 +71,7 @@ class EmployeeCredentialController extends Controller
                 ? $employee->rfidCards()->value('rfid_uid')
                 : $employee->fingerprintTemplates()->value('fingerprint_code');
 
-            return HardwareEnrollment::create([
+            return $this->createEnrollment([
                 'employee_id' => $employee->id,
                 'requested_by' => $request->user()->id,
                 'attendance_device_id' => $data['attendance_device_id'],
@@ -79,7 +80,6 @@ class EmployeeCredentialController extends Controller
                 'finger_label' => $data['finger_label'] ?? null,
                 'current_identifier' => $currentIdentifier,
                 'status' => 'pending',
-                'expires_at' => now()->addMinutes(5),
             ]);
         });
 
@@ -118,7 +118,7 @@ class EmployeeCredentialController extends Controller
                 ->whereIn('status', ['pending', 'processing'])
                 ->update(['status' => 'cancelled', 'message' => 'Replaced by an unlink request.']);
 
-            return ['immediate' => false, 'enrollment' => HardwareEnrollment::create([
+            return ['immediate' => false, 'enrollment' => $this->createEnrollment([
                 'employee_id' => $employee->id,
                 'requested_by' => $request->user()->id,
                 'attendance_device_id' => $data['attendance_device_id'],
@@ -126,7 +126,6 @@ class EmployeeCredentialController extends Controller
                 'operation' => 'unlink',
                 'current_identifier' => $identifier,
                 'status' => 'pending',
-                'expires_at' => now()->addMinutes(5),
             ])];
         });
 
@@ -161,9 +160,28 @@ class EmployeeCredentialController extends Controller
 
     private function expireIfNeeded(HardwareEnrollment $enrollment): void
     {
-        if (in_array($enrollment->status, ['pending', 'processing'], true) && $enrollment->expires_at->isPast()) {
+        $expired = DB::table('hardware_enrollments')
+            ->where('id', $enrollment->id)
+            ->where('expires_at', '<=', DB::raw('CURRENT_TIMESTAMP'))
+            ->exists() || $enrollment->expires_at?->isPast();
+        if (in_array($enrollment->status, ['pending', 'processing'], true) && $expired) {
             $enrollment->update(['status' => 'expired', 'message' => 'The registration request expired.']);
         }
+    }
+
+    private function createEnrollment(array $attributes): HardwareEnrollment
+    {
+        // Use the database clock for the expiry value. This prevents local and
+        // Railway MySQL timezone differences from expiring a fresh request.
+        $attributes['expires_at'] = now()->addMinutes(5);
+        $enrollment = HardwareEnrollment::create($attributes);
+        if (DB::connection()->getDriverName() === 'mysql') {
+            DB::table('hardware_enrollments')->where('id', $enrollment->id)->update([
+                'expires_at' => DB::raw('DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 5 MINUTE)'),
+            ]);
+            $enrollment->refresh();
+        }
+        return $enrollment;
     }
 
     private function payload(HardwareEnrollment $enrollment): array
