@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AcademicTerm;
+use App\Models\AttendanceDevice;
 use App\Models\Building;
 use App\Models\ClassSessionRoomChange;
 use App\Models\Employee;
@@ -151,10 +152,17 @@ class EmployeeController extends Controller
     {
         $employee->load(['rfidCards', 'fingerprintTemplates', 'employmentHistories']);
 
+        $attendanceDevices = AttendanceDevice::with(['assignments' => fn ($query) => $query->with('room')->whereNull('effective_to')->latest('effective_from')])
+            ->where('is_active', true)->orderBy('code')->get()->map(function (AttendanceDevice $device) {
+                $assignment = $device->assignments->first();
+                return ['id' => $device->id, 'code' => $device->code, 'room' => $assignment?->room?->code];
+            })->values();
+
         return Inertia::render('Employees/Form', [
             'employee' => $employee,
             'ranks' => $this->standardRanks(),
             'nextEmployeeNumber' => null,
+            'attendanceDevices' => $attendanceDevices,
         ]);
     }
 

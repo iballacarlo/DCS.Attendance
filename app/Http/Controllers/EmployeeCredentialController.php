@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
 
 class EmployeeCredentialController extends Controller
 {
@@ -55,10 +56,14 @@ class EmployeeCredentialController extends Controller
         $data = $request->validate([
             'method' => ['required', 'in:rfid,fingerprint'],
             'finger_label' => ['nullable', 'required_if:method,fingerprint', 'string', 'max:50'],
+            'attendance_device_id' => ['required', 'integer', Rule::exists('attendance_devices', 'id')->where(fn ($query) => $query->where('is_active', true))],
         ]);
 
         $enrollment = DB::transaction(function () use ($request, $employee, $data) {
-            HardwareEnrollment::whereIn('status', ['pending', 'processing'])
+            HardwareEnrollment::where('employee_id', $employee->id)
+                ->where('method', $data['method'])
+                ->where('attendance_device_id', $data['attendance_device_id'])
+                ->whereIn('status', ['pending', 'processing'])
                 ->update(['status' => 'cancelled', 'message' => 'Replaced by a new enrollment request.']);
 
             $currentIdentifier = $data['method'] === 'rfid'
@@ -68,6 +73,7 @@ class EmployeeCredentialController extends Controller
             return HardwareEnrollment::create([
                 'employee_id' => $employee->id,
                 'requested_by' => $request->user()->id,
+                'attendance_device_id' => $data['attendance_device_id'],
                 'method' => $data['method'],
                 'operation' => 'replace',
                 'finger_label' => $data['finger_label'] ?? null,
@@ -87,6 +93,7 @@ class EmployeeCredentialController extends Controller
         $data = $request->validate([
             'confirmation' => ['required', 'in:UNLINK'],
             'current_identifier' => ['required', 'string', 'max:100'],
+            'attendance_device_id' => [$method === 'fingerprint' ? 'required' : 'nullable', 'integer', Rule::exists('attendance_devices', 'id')->where(fn ($query) => $query->where('is_active', true))],
         ]);
 
         $result = DB::transaction(function () use ($request, $employee, $method, $data) {
@@ -105,12 +112,16 @@ class EmployeeCredentialController extends Controller
                 return ['immediate' => true, 'identifier' => $identifier];
             }
 
-            HardwareEnrollment::whereIn('status', ['pending', 'processing'])
+            HardwareEnrollment::where('employee_id', $employee->id)
+                ->where('method', 'fingerprint')
+                ->where('attendance_device_id', $data['attendance_device_id'])
+                ->whereIn('status', ['pending', 'processing'])
                 ->update(['status' => 'cancelled', 'message' => 'Replaced by an unlink request.']);
 
             return ['immediate' => false, 'enrollment' => HardwareEnrollment::create([
                 'employee_id' => $employee->id,
                 'requested_by' => $request->user()->id,
+                'attendance_device_id' => $data['attendance_device_id'],
                 'method' => 'fingerprint',
                 'operation' => 'unlink',
                 'current_identifier' => $identifier,
@@ -165,6 +176,7 @@ class EmployeeCredentialController extends Controller
             'identifier' => $enrollment->identifier,
             'message' => $enrollment->message,
             'expires_at' => $enrollment->expires_at?->toIso8601String(),
+            'attendance_device_id' => $enrollment->attendance_device_id,
         ];
     }
 

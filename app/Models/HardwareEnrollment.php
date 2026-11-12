@@ -12,6 +12,7 @@ class HardwareEnrollment extends Model
     protected $fillable = [
         'employee_id',
         'requested_by',
+        'attendance_device_id',
         'method',
         'operation',
         'finger_label',
@@ -34,5 +35,10 @@ class HardwareEnrollment extends Model
     public function employee()
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    public function attendanceDevice()
+    {
+        return $this->belongsTo(AttendanceDevice::class);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Employee;
+use App\Models\AttendanceDevice;
 use App\Models\FingerprintTemplate;
 use App\Models\HardwareAttendanceEvent;
 use App\Models\HardwareEnrollment;
@@ -140,22 +141,33 @@ class HardwareAttendanceController extends Controller
             return $unauthorized;
         }
 
+        $device = $this->registrationDevice($request);
+        if ($device instanceof \Illuminate\Http\JsonResponse) {
+            return $device;
+        }
+
         HardwareEnrollment::whereIn('status', ['pending', 'processing'])
             ->where('expires_at', '<=', now())
             ->update(['status' => 'expired', 'message' => 'The registration request expired.']);
 
-        $enrollment = HardwareEnrollment::with('employee')
-            ->whereIn('status', ['pending', 'processing'])
-            ->where('expires_at', '>', now())
-            ->oldest()
-            ->first();
+        $enrollment = DB::transaction(function () use ($device) {
+            $enrollment = HardwareEnrollment::with('employee')
+                ->whereIn('status', ['pending', 'processing'])
+                ->where('attendance_device_id', $device->id)
+                ->where('expires_at', '>', now())
+                ->lockForUpdate()
+                ->oldest()
+                ->first();
+
+            if ($enrollment && $enrollment->status === 'pending') {
+                $enrollment->update(['status' => 'processing']);
+            }
+
+            return $enrollment;
+        });
 
         if (! $enrollment) {
             return response()->noContent();
-        }
-
-        if ($enrollment->status === 'pending') {
-            $enrollment->update(['status' => 'processing']);
         }
 
         return response()->json([
@@ -224,6 +236,10 @@ class HardwareAttendanceController extends Controller
             return $unauthorized;
         }
 
+        if ($request->hasHeader('X-Device-Code') && $this->enrollmentDeviceMismatch($request, $enrollment)) {
+            return response()->json(['ok' => false, 'message' => 'This enrollment is assigned to another terminal.'], 409);
+        }
+
         if (in_array($enrollment->status, ['pending', 'processing'], true) && $enrollment->expires_at->isPast()) {
             $enrollment->update(['status' => 'expired', 'message' => 'The registration request expired.']);
         }
@@ -241,6 +257,10 @@ class HardwareAttendanceController extends Controller
     {
         if ($unauthorized = $this->authorizeHardware($request)) {
             return $unauthorized;
+        }
+
+        if ($this->enrollmentDeviceMismatch($request, $enrollment)) {
+            return response()->json(['ok' => false, 'message' => 'This enrollment is assigned to another terminal.'], 409);
         }
 
         $data = $request->validate([
@@ -383,6 +403,32 @@ class HardwareAttendanceController extends Controller
             'ok' => false,
             'message' => 'Invalid hardware API key.',
         ], 401);
+    }
+
+    private function registrationDevice(Request $request)
+    {
+        $code = trim((string) $request->header('X-Device-Code'));
+        if ($code === '') {
+            return response()->json(['ok' => false, 'message' => 'Terminal ID is required for enrollment polling.'], 422);
+        }
+
+        $device = AttendanceDevice::where('code', $code)->where('is_active', true)->first();
+        if (! $device) {
+            return response()->json(['ok' => false, 'message' => 'Unknown or inactive terminal.'], 403);
+        }
+
+        return $device;
+    }
+
+    private function enrollmentDeviceMismatch(Request $request, HardwareEnrollment $enrollment): bool
+    {
+        $code = trim((string) $request->header('X-Device-Code'));
+        if ($code === '') {
+            return in_array($enrollment->status, ['pending', 'processing'], true);
+        }
+
+        $device = AttendanceDevice::where('code', $code)->where('is_active', true)->first();
+        return ! $device || ! $enrollment->attendance_device_id || (int) $enrollment->attendance_device_id !== (int) $device->id;
     }
 
     private function auditCredential(HardwareEnrollment $enrollment, string $action, string $description): void
