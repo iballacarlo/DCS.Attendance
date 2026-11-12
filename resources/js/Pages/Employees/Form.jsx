@@ -109,7 +109,10 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber, atte
             enrollmentStatusInFlight.current = true;
             const requestId = ++enrollmentStatusRequest.current;
             try {
-                const { data } = await axios.get(`/employees/${employee.id}/credentials/enrollments/${enrollment.id}`);
+                const { data } = await axios.get(
+                    `/employees/${employee.id}/credentials/enrollments/${enrollment.id}?_status=${Date.now()}`,
+                    { headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } },
+                );
                 if (requestId !== enrollmentStatusRequest.current) return;
                 setEnrollment(data);
                 if (data.status === 'completed') {

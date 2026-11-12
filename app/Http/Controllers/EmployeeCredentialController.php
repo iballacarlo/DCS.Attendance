@@ -144,7 +144,9 @@ class EmployeeCredentialController extends Controller
         abort_unless($enrollment->employee_id === $employee->id, 404);
         $this->expireIfNeeded($enrollment);
 
-        return response()->json($this->payload($enrollment->fresh()));
+        return response()->json($this->payload($enrollment->fresh()))
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache');
     }
 
     public function destroy(Employee $employee, HardwareEnrollment $enrollment): JsonResponse

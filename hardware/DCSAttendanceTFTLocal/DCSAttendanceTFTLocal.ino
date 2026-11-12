@@ -860,6 +860,10 @@ void connectWiFi() {
   WiFi.disconnect();
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
+  if (USE_STATIC_IP) {
+    WiFi.config(IPAddress(STATIC_IP_ADDRESS), IPAddress(STATIC_GATEWAY_ADDRESS),
+                IPAddress(STATIC_SUBNET_ADDRESS), IPAddress(STATIC_DNS_ADDRESS));
+  }
   WiFi.begin(WIFI_NAME, WIFI_PASSWORD);
   for (int attempt = 0; WiFi.status() != WL_CONNECTED && attempt < 20; attempt++) delay(500);
   if (WiFi.status() == WL_CONNECTED) {
@@ -884,6 +888,10 @@ void startWiFiInBackground() {
   WiFi.disconnect();
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
+  if (USE_STATIC_IP) {
+    WiFi.config(IPAddress(STATIC_IP_ADDRESS), IPAddress(STATIC_GATEWAY_ADDRESS),
+                IPAddress(STATIC_SUBNET_ADDRESS), IPAddress(STATIC_DNS_ADDRESS));
+  }
   WiFi.begin(WIFI_NAME, WIFI_PASSWORD);
   Serial.println("Connecting WiFi in the background.");
 }
@@ -900,6 +908,10 @@ void maintainWiFi() {
     lastWiFiAttempt = millis();
     Serial.println("Repeated server connection failures. Refreshing WiFi; queued records preserved.");
     WiFi.disconnect(false, false);
+    if (USE_STATIC_IP) {
+      WiFi.config(IPAddress(STATIC_IP_ADDRESS), IPAddress(STATIC_GATEWAY_ADDRESS),
+                  IPAddress(STATIC_SUBNET_ADDRESS), IPAddress(STATIC_DNS_ADDRESS));
+    }
     WiFi.begin(WIFI_NAME, WIFI_PASSWORD);
     xSemaphoreGive(hardwareHttpMutex);
   }
@@ -1107,7 +1119,9 @@ int requestHardwareServer(String path, String payload, String& response, bool ba
     }
     http.setReuse(false);
     http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
-    const int transportTimeout = monitorEnrollment ? 1200 : (background ? 2500 : 4000);
+    // Keep local and hosted enrollment behavior consistent and tolerate a
+    // cold server without dropping the registration poll prematurely.
+    const int transportTimeout = monitorEnrollment ? 10000 : (background ? 2500 : 4000);
     http.setConnectTimeout(transportTimeout);
     http.setTimeout(transportTimeout);
     addHardwareHeaders(http);
@@ -1524,7 +1538,9 @@ void enrollmentPollTask(void* parameter) {
       {
         unsigned long pollStarted = millis();
         String response;
-        int code = requestHardwareServer("/enrollment", "", response, true);
+        // Enrollment polling is latency-sensitive even though it runs in the
+        // background. Keep the longer timeout for a slow local server too.
+        int code = requestHardwareServer("/enrollment", "", response, true, true);
         unsigned long pollDuration = millis() - pollStarted;
 
         if (code != 204 && code != 200 && code != -1002) {

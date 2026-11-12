@@ -3,6 +3,12 @@
 // Copy as device_config.h and keep the real values out of Git.
 const char* WIFI_NAME = "YOUR_WIFI_NAME";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
+// Set true only when the router reserves this address for the terminal.
+#define USE_STATIC_IP false
+#define STATIC_IP_ADDRESS 192,168,1,13
+#define STATIC_GATEWAY_ADDRESS 192,168,1,1
+#define STATIC_SUBNET_ADDRESS 255,255,255,0
+#define STATIC_DNS_ADDRESS 192,168,1,1
 const char* HARDWARE_API_KEY = "YOUR_RAILWAY_HARDWARE_API_KEY";
 // Copy the Terminal ID generated in Settings > Rooms & Devices exactly as shown.
 // It identifies this physical terminal to the server; it is not the room name.

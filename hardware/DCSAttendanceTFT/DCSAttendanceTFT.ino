@@ -946,6 +946,10 @@ void connectWiFi() {
   WiFi.disconnect();
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
+  if (USE_STATIC_IP) {
+    WiFi.config(IPAddress(STATIC_IP_ADDRESS), IPAddress(STATIC_GATEWAY_ADDRESS),
+                IPAddress(STATIC_SUBNET_ADDRESS), IPAddress(STATIC_DNS_ADDRESS));
+  }
   WiFi.begin(WIFI_NAME, WIFI_PASSWORD);
   for (int attempt = 0; WiFi.status() != WL_CONNECTED && attempt < 20; attempt++) delay(500);
   if (WiFi.status() == WL_CONNECTED) {
@@ -970,6 +974,10 @@ void startWiFiInBackground() {
   WiFi.disconnect();
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
+  if (USE_STATIC_IP) {
+    WiFi.config(IPAddress(STATIC_IP_ADDRESS), IPAddress(STATIC_GATEWAY_ADDRESS),
+                IPAddress(STATIC_SUBNET_ADDRESS), IPAddress(STATIC_DNS_ADDRESS));
+  }
   WiFi.begin(WIFI_NAME, WIFI_PASSWORD);
   Serial.println("Connecting WiFi in the background.");
 }
@@ -986,6 +994,10 @@ void maintainWiFi() {
     lastWiFiAttempt = millis();
     Serial.println("Repeated server connection failures. Refreshing WiFi; queued records preserved.");
     WiFi.disconnect(false, false);
+    if (USE_STATIC_IP) {
+      WiFi.config(IPAddress(STATIC_IP_ADDRESS), IPAddress(STATIC_GATEWAY_ADDRESS),
+                  IPAddress(STATIC_SUBNET_ADDRESS), IPAddress(STATIC_DNS_ADDRESS));
+    }
     WiFi.begin(WIFI_NAME, WIFI_PASSWORD);
     xSemaphoreGive(hardwareHttpMutex);
   }
@@ -1246,7 +1258,10 @@ int requestHardwareServer(String path, String payload, String& response, bool ba
     // Both clients are destroyed at the end of each attempt, before retrying.
     WiFiClientSecure secureClient;
     secureClient.setCACert(HARDWARE_ROOT_CA);
-    secureClient.setHandshakeTimeout(background ? 2 : 15);
+    // Hosted enrollment polling runs as a background task, but its first
+    // Railway TLS handshake can still need several seconds.  Do not apply
+    // the short cache-sync handshake limit to this request.
+    secureClient.setHandshakeTimeout(monitorEnrollment ? 10 : (background ? 2 : 15));
     IPAddress serverIp;
     if (WiFi.hostByName(API_HOST, serverIp) != 1) {
       Serial.println("Server DNS lookup failed. Check WiFi internet access and DNS.");
@@ -1266,7 +1281,9 @@ int requestHardwareServer(String path, String payload, String& response, bool ba
     // Enrollment status is only a cancellation/expiry signal. A short,
     // non-blocking timeout keeps the scanner responsive when the network is
     // slow; the next poll reuses the same enrollment id.
-    const int transportTimeout = monitorEnrollment ? 1200 : (background ? 2500 : 10000);
+    // Railway HTTPS may need more than one second for DNS/TLS on an idle
+    // connection. Do not abort enrollment polling before its response arrives.
+    const int transportTimeout = monitorEnrollment ? 10000 : (background ? 2500 : 10000);
     http.setConnectTimeout(transportTimeout);
     http.setTimeout(transportTimeout);
     addHardwareHeaders(http);
@@ -1693,7 +1710,10 @@ void enrollmentPollTask(void* parameter) {
       {
         unsigned long pollStarted = millis();
         String response;
-        int code = requestHardwareServer("/enrollment", "", response, true);
+        // Enrollment polling is latency-sensitive even though it runs in the
+        // background.  Mark it explicitly so hosted HTTPS gets the longer
+        // transport timeout instead of the short cache-sync timeout.
+        int code = requestHardwareServer("/enrollment", "", response, true, true);
         unsigned long pollDuration = millis() - pollStarted;
 
         if (code != 204 && code != 200 && code != -1002) {

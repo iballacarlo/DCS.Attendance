@@ -257,7 +257,7 @@ class HardwareAttendanceController extends Controller
             'message' => $enrollment->message ?? '',
             'expires_at' => $enrollment->expires_at?->toIso8601String(),
             'server_time' => now()->toIso8601String(),
-        ]);
+        ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     }
 
     public function completeEnrollment(Request $request, HardwareEnrollment $enrollment)
