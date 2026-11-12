@@ -60,6 +60,7 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber, atte
     const [enrollmentError, setEnrollmentError] = useState('');
     const [enrollmentCancelling, setEnrollmentCancelling] = useState(false);
     const enrollmentStatusRequest = useRef(0);
+    const enrollmentStatusInFlight = useRef(false);
     const [registrationDeviceId, setRegistrationDeviceId] = useState('');
     const [nfcPhase, setNfcPhase] = useState('idle');
     const [nfcMessage, setNfcMessage] = useState('');
@@ -100,6 +101,12 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber, atte
         if (!enrollment?.id || !['pending', 'processing'].includes(enrollment.status) || enrollmentCancelling) return undefined;
 
         const checkStatus = async () => {
+            // Do not overlap status requests. A slow hosted response used to
+            // be discarded as stale by the next 350ms poll, leaving the form
+            // stuck on “Waiting for attendance device” even after the terminal
+            // had completed the registration.
+            if (enrollmentStatusInFlight.current) return;
+            enrollmentStatusInFlight.current = true;
             const requestId = ++enrollmentStatusRequest.current;
             try {
                 const { data } = await axios.get(`/employees/${employee.id}/credentials/enrollments/${enrollment.id}`);
@@ -116,6 +123,8 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber, atte
                 }
             } catch (error) {
                 setEnrollmentError(error.response?.data?.message || 'Could not check the device registration status.');
+            } finally {
+                enrollmentStatusInFlight.current = false;
             }
         };
 
