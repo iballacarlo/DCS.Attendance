@@ -191,6 +191,7 @@ volatile bool attendanceBusy = false;
 volatile bool liveAttendanceUploadPending = false;
 unsigned long liveAttendanceStartedAt = 0;
 char liveAttendanceEventId[48] = {};
+OfflineAttendanceRecord liveAttendanceRecord = {};
 unsigned long feedbackLedOffAt = 0;
 volatile bool footerRefreshRequested = false;
 volatile bool enrollmentCancelled = false;
@@ -1301,6 +1302,10 @@ bool captureFingerprintModel() {
 }
 
 void registrationFeedbackDelay(unsigned long durationMs) {
+  // Keep success/rejection feedback visible briefly, but do not leave the
+  // terminal unavailable for the old multi-second hold. The next enrollment
+  // poll can then finish promptly after a completed or rejected scan.
+  durationMs = min(durationMs, 800UL);
   unsigned long started = millis();
   while (!enrollmentCancelled && !enrollmentExpired && millis() - started < durationMs) {
     delay(50);
@@ -1689,8 +1694,6 @@ void showOfflineSaved(const OfflineAttendanceRecord& record) {
   localtime_r(&timestamp, &info);
   char timeText[9];
   strftime(timeText, sizeof(timeText), "%I:%M %p", &info);
-  String methodLabel = String(record.method) == "rfid" ? "RFID" : "FINGER";
-
   digitalWrite(GREEN_LED_PIN, LOW);
   digitalWrite(RED_LED_PIN, LOW);
   digitalWrite(YELLOW_LED_PIN, HIGH);
@@ -1700,7 +1703,10 @@ void showOfflineSaved(const OfflineAttendanceRecord& record) {
   // for the faculty name and IN/OUT result, so this is deliberately a short
   // holding message. Once the worker receives the reply, the normal response
   // screen below replaces it with the teacher name and recorded time.
-  showMessage(methodLabel + " saved " + String(timeText), "Syncing attendance...");
+  // This is an attendance event saved locally, not a fingerprint enrollment.
+  // Keep the method out of the main message so users do not mistake it for
+  // a credential-registration result while the queue is synchronizing.
+  showMessage("Attendance saved", String(timeText) + " / Sync pending");
   Serial.println("Attendance retained for upload. Pending records: " +
                  String(pendingOfflineRecordCount()));
 }
@@ -1728,6 +1734,7 @@ void sendAttendance(String identifier, String method) {
   attendanceBusy = true;
   liveAttendanceUploadPending = true;
   liveAttendanceStartedAt = millis();
+  liveAttendanceRecord = record;
   strncpy(liveAttendanceEventId, record.eventId, sizeof(liveAttendanceEventId) - 1);
   liveAttendanceEventId[sizeof(liveAttendanceEventId) - 1] = '\0';
   digitalWrite(YELLOW_LED_PIN, HIGH);
@@ -1772,9 +1779,10 @@ void refreshLiveAttendanceTimeout() {
   if (!liveAttendanceUploadPending || millis() - liveAttendanceStartedAt < LIVE_ATTENDANCE_WAIT_MS) return;
   liveAttendanceUploadPending = false;
   attendanceBusy = false;
-  OfflineAttendanceRecord pending = {};
-  strncpy(pending.eventId, liveAttendanceEventId, sizeof(pending.eventId) - 1);
-  showOfflineSaved(pending);
+  // Keep the original timestamp and method. Do not construct a zero-valued
+  // record here: epoch zero renders as 08:00 AM in Philippine time and makes
+  // a current tap look like it happened at 8:00 AM.
+  showOfflineSaved(liveAttendanceRecord);
 }
 
 void attendanceNetworkTask(void* parameter) {

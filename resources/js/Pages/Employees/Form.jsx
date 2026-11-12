@@ -154,16 +154,34 @@ export default function EmployeeForm({ employee, ranks, nextEmployeeNumber, atte
     };
     const cancelHardwareRegistration = async () => {
         if (!enrollment?.id) return;
+        const previousStatus = enrollment.status;
         // Invalidate any slower poll that is still in flight so it cannot
         // overwrite the immediate cancelling state after the button is pressed.
         enrollmentStatusRequest.current += 1;
         setEnrollmentCancelling(true);
         setEnrollment((current) => current ? { ...current, status: 'cancelling', message: 'Cancelling registration…' } : current);
         try {
-            const { data } = await axios.delete(`/employees/${employee.id}/credentials/enrollments/${enrollment.id}`, { timeout: 5000 });
+            const { data } = await axios.delete(`/employees/${employee.id}/credentials/enrollments/${enrollment.id}`, { timeout: 15000 });
             setEnrollment(data);
         } catch (error) {
-            setEnrollmentError(error.response?.data?.message || 'Could not cancel the device registration.');
+            // The DELETE may have reached the server even when its response was
+            // lost. Reconcile once before reporting failure so cancellation is
+            // not shown as failed merely because of a slow network.
+            try {
+                const { data } = await axios.get(`/employees/${employee.id}/credentials/enrollments/${enrollment.id}`, { timeout: 5000 });
+                if (['cancelled', 'completed', 'expired', 'failed'].includes(data.status)) {
+                    setEnrollment(data);
+                    setEnrollmentCancelling(false);
+                    return;
+                }
+            } catch {
+                // Keep the original error below; the server may be unreachable.
+            }
+            const status = error.response?.status ? ` (HTTP ${error.response.status})` : '';
+            setEnrollment((current) => current && current.status === 'cancelling'
+                ? { ...current, status: previousStatus, message: '' }
+                : current);
+            setEnrollmentError(error.response?.data?.message || `Could not cancel the device registration${status}.`);
             setEnrollmentCancelling(false);
         }
     };

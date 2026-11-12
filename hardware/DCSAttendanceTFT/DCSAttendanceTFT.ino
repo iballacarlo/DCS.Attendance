@@ -1464,6 +1464,10 @@ bool captureFingerprintModel() {
 }
 
 void registrationFeedbackDelay(unsigned long durationMs) {
+  // Keep success/rejection feedback visible briefly, but do not leave the
+  // terminal unavailable for the old multi-second hold. The next enrollment
+  // poll can then finish promptly after a completed or rejected scan.
+  durationMs = min(durationMs, 800UL);
   unsigned long started = millis();
   while (!enrollmentCancelled && !enrollmentExpired && millis() - started < durationMs) {
     delay(50);

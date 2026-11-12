@@ -151,18 +151,16 @@ class EmployeeCredentialController extends Controller
     {
         abort_unless($enrollment->employee_id === $employee->id, 404);
 
-        // Cancel in a short transaction so the terminal cannot claim the same
-        // request between the browser click and the status update. The row lock
-        // also makes cancellation idempotent when the browser retries.
-        DB::transaction(function () use ($enrollment): void {
-            $current = HardwareEnrollment::query()->lockForUpdate()->find($enrollment->id);
-            if ($current && in_array($current->status, ['pending', 'processing'], true)) {
-                $current->forceFill([
-                    'status' => 'cancelled',
-                    'message' => 'Cancelled by administrator.',
-                ])->save();
-            }
-        });
+        // Use one conditional update instead of waiting on a separate row-lock
+        // transaction. It is idempotent and also prevents a terminal from
+        // completing a request after it has already been cancelled.
+        HardwareEnrollment::query()
+            ->whereKey($enrollment->id)
+            ->whereIn('status', ['pending', 'processing'])
+            ->update([
+                'status' => 'cancelled',
+                'message' => 'Cancelled by administrator.',
+            ]);
 
         return response()->json($this->payload($enrollment->fresh()));
     }
