@@ -246,7 +246,7 @@ class SemesterManagementService
                     $this->invalid('The effective date must fall within this semester.');
                 }
                 $today = Carbon::today('Asia/Manila');
-                if ($this->hasEffectivePublicationToday($latest) && ! $term->reopened && ($date->lt($today)
+                if ($this->hasEffectivePublicationToday($latest) && ! config('demo.enabled') && ! $term->reopened && ($date->lt($today)
                     || ($date->isToday() && $this->changesStartedPublishedBlocks($latest, $blocks)))) {
                     $this->invalid('Publish changes from tomorrow or later. Reopen a closed semester for historical corrections.');
                 }
@@ -482,8 +482,12 @@ class SemesterManagementService
             'blocks.*.section' => ['nullable', 'string', 'max:100'], 'blocks.*.class_mode' => ['nullable', 'in:lecture,laboratory'],
             'blocks.*.room_id' => ['nullable', 'integer', 'exists:rooms,id']])->validate();
         foreach ($blocks as $i => $block) {
-            if ($block['start_time'] < '07:00' || $block['end_time'] > '19:00' || $block['end_time'] <= $block['start_time']) {
-                $this->invalid('Choose valid schedule times from 7:00 AM to 7:00 PM.');
+            $minTime = config('demo.allow_any_time') ? '00:00' : '07:00';
+            $maxTime = config('demo.allow_any_time') ? '23:59' : '19:00';
+            if ($block['start_time'] < $minTime || $block['end_time'] > $maxTime || $block['end_time'] <= $block['start_time']) {
+                $this->invalid(config('demo.allow_any_time')
+                    ? 'Choose valid schedule times between 12:00 AM and 11:59 PM.'
+                    : 'Choose valid schedule times from 7:00 AM to 7:00 PM.');
             }
             if ($publishing && $block['schedule_type'] === 'class') {
                 $classLabel = trim(($block['subject'] ?? 'Class').' · '.($block['section'] ?? 'no section'));

@@ -1446,18 +1446,6 @@ void enrollFingerprint(String id, String currentIdentifier) {
     }
     successSignal();
     showMessage("Fingerprint", "Registered");
-  } else if (code >= 200 && code < 500 && code != 408 && code != 429) {
-    // The server evaluated the event and returned a business response (wrong
-    // room, no class, conflict, validation rejection, etc.). Do not replay it
-    // forever as a pending record.
-    acknowledgeOfflineRecord();
-    offlineSyncProcessed++;
-    offlineSyncRetryMs = OFFLINE_SYNC_INTERVAL_MS;
-    offlineSyncStatus = "SYNC: SERVER RESPONSE " + String(code) + " / RECORD CLOSED";
-    offlineSyncNoticeAt = millis();
-    if (pendingOfflineRecordCount() == 0) offlineSyncProcessed = 0;
-    Serial.println("Queued attendance closed after server response HTTP " + String(code) +
-                   ". Remaining: " + String(pendingOfflineRecordCount()));
   } else {
     if (enrollmentCancelled || enrollmentExpired || enrollmentResultRejected) {
       finger.deleteModel(newSlot);

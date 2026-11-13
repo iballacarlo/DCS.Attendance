@@ -3,8 +3,8 @@ import { plottingDays, plottingTime, weeklyPlotting } from '../lib/weeklyPlottin
 
 const typeLabel = (block) => block.schedule_type === 'consultation' ? 'Consultation' : block.schedule_type === 'lunch_break' ? 'Lunch break' : block.class_mode === 'laboratory' ? 'Laboratory' : block.class_mode === 'lecture' ? 'Lecture' : 'Class';
 
-export default function WeeklyPlotting({ blocks, subjectNames = {} }) {
-    const model = weeklyPlotting(blocks);
+export default function WeeklyPlotting({ blocks, subjectNames = {}, allowAnyTime = false }) {
+    const model = weeklyPlotting(blocks, { allowAnyTime });
     const subjectRows = new Map();
     model.courses.forEach((course) => subjectRows.set(course.subject, (subjectRows.get(course.subject) || 0) + 1));
     const mobileDays = plottingDays.map((name, index) => ({

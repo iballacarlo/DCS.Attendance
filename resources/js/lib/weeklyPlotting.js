@@ -5,10 +5,12 @@ export const minutesOf = (value) => {
 };
 export const plottingTime = (minute) => `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
 
-export function weeklyPlotting(blocks) {
+export function weeklyPlotting(blocks, { allowAnyTime = false } = {}) {
     const valid = blocks.map((block, index) => ({ ...block, key: index, start: minutesOf(block.start_time), end: minutesOf(block.end_time) }))
         .filter((block) => block.day_of_week >= 1 && block.day_of_week <= 6 && block.end > block.start);
-    const first = 7 * 60, last = 19 * 60;
+    // Keep the final label valid for the time formatter; 23:59 is the last
+    // selectable minute, avoiding an invalid-looking 24:00 label.
+    const first = allowAnyTime ? 0 : 7 * 60, last = allowAnyTime ? (24 * 60 - 1) : 19 * 60;
     const visible = valid.filter((b) => b.end > first && b.start < last).map((b) => ({ ...b, start: Math.max(first, b.start), end: Math.min(last, b.end) }));
     const boundaries = [...new Set([...Array.from({ length: (last - first) / 30 + 1 }, (_, i) => first + i * 30), ...visible.flatMap((b) => [b.start, b.end])])].sort((a, b) => a - b);
     const rows = boundaries.slice(0, -1).map((start, index) => ({ start, end: boundaries[index + 1],

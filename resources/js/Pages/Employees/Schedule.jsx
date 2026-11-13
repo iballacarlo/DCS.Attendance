@@ -21,7 +21,7 @@ const sectionParts = (section = '') => {
 };
 const withSectionParts = (block) => ({ ...block, ...sectionParts(block.section) });
 const cleanDraft = ({ course, year_level, section_letter, building_id, ...block }) => block;
-const blank = (day) => withSectionParts({ day_of_week: day, schedule_type: 'class', start_time: '07:00', end_time: '19:00', subject: '', section: '', building_id: '', room_id: '', class_mode: 'lecture' });
+const blank = (day, allowAnyTime = false) => withSectionParts({ day_of_week: day, schedule_type: 'class', start_time: allowAnyTime ? '00:00' : '07:00', end_time: allowAnyTime ? '01:00' : '19:00', subject: '', section: '', building_id: '', room_id: '', class_mode: 'lecture' });
 const scheduleBlocks = (employee) => [...(employee.schedules || []), ...(employee.schedule_breaks || [])].map((block) => ({
     ...block, start_time: block.start_time.slice(0, 5), end_time: block.end_time.slice(0, 5), subject: block.subject || '', section: block.section || '', class_mode: block.class_mode || '',
 }));
@@ -30,7 +30,7 @@ const hoursLabel = (blocks) => {
     return `${Number(hours.toFixed(2))} ${hours === 1 ? 'hour' : 'hours'}`;
 };
 
-export default function EmployeeSchedule({ hasUnpublishedSchedule = false, employee, readOnly = false, scheduleOptions, facultyOptions = [], selectedSemester = null, scheduleVersions = [], facultyView = false, buildings = [], rooms = [], roomChanges = [] }) {
+export default function EmployeeSchedule({ hasUnpublishedSchedule = false, employee, readOnly = false, scheduleOptions, facultyOptions = [], selectedSemester = null, scheduleVersions = [], facultyView = false, buildings = [], rooms = [], roomChanges = [], demoMode = false, demoAllowAnyTime = false }) {
     const { url } = usePage();
     const [view, setView] = useState(() => new URLSearchParams(url.split('?')[1]).get('view') === 'daily' ? 'daily' : 'weekly');
     const { subjectsBySection, subjectNames, sections, courses, yearLevels, sectionLetters, classModes, lectureOnlySubjects } = scheduleOptions;
@@ -50,7 +50,7 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
         const nextUrl = `${current.pathname}${current.search}${current.hash}`;
         if (nextUrl !== url) router.replace({ url: nextUrl, preserveState: true, preserveScroll: true });
     }, [view, day, url]);
-    const [draft, setDraft] = useState(() => blank(day));
+    const [draft, setDraft] = useState(() => blank(day, demoAllowAnyTime));
     const subjects = (subjectsBySection[draft.section] || []).filter((subject) => draft.class_mode !== 'laboratory' || !lectureOnlySubjects.includes(subject));
     const [editing, setEditing] = useState(null);
     const [anchor, setAnchor] = useState(null);
@@ -59,7 +59,7 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
     const editor = useRef(null);
     const subjectInput = useRef(null);
     const { ask, dialog } = useConfirmDialog();
-    const draftChanged = JSON.stringify(cleanDraft(draft)) !== JSON.stringify(editing === null ? cleanDraft(blank(day)) : form.data.blocks[editing]);
+    const draftChanged = JSON.stringify(cleanDraft(draft)) !== JSON.stringify(editing === null ? cleanDraft(blank(day, demoAllowAnyTime)) : form.data.blocks[editing]);
     const facultyIndex = facultyOptions.findIndex((item) => item.id === employee.id);
     const switchFaculty = async (id) => {
         if (readOnly || switchingFaculty || !id || Number(id) === employee.id) return;
@@ -71,10 +71,10 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
     const respondRoom = (id, action) => router.patch(`/my-schedule/room-changes/${id}/respond`, { action }, { preserveScroll: true });
     const cancelRoom = (id) => router.patch(`/my-schedule/room-changes/${id}/cancel`, {}, { preserveScroll: true });
     const dayBlocks = form.data.blocks.map((block, index) => ({ ...block, index })).filter((block) => Number(block.day_of_week) === day).sort((a, b) => a.start_time.localeCompare(b.start_time));
-    const firstMinute = 7 * 60;
-    const lastMinute = 19 * 60;
+    const firstMinute = demoAllowAnyTime ? 0 : 7 * 60;
+    const lastMinute = demoAllowAnyTime ? 24 * 60 : 19 * 60;
     const slots = Array.from({ length: (lastMinute - firstMinute) / 30 }, (_, i) => clock(firstMinute + i * 30));
-    const reset = (nextDay = day) => { setEditing(null); setDraft(blank(nextDay)); setAnchor(null); setError(''); };
+    const reset = (nextDay = day) => { setEditing(null); setDraft(blank(nextDay, demoAllowAnyTime)); setAnchor(null); setError(''); };
     const focusEditor = () => { editor.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); (subjectInput.current && !subjectInput.current.disabled ? subjectInput.current : editor.current)?.focus({ preventScroll: true }); };
     const copyClassDetails = (event) => {
         if (readOnly || editing === null || event.target.closest('input, textarea, [contenteditable="true"]') || window.getSelection()?.toString()) return;
@@ -119,11 +119,11 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
         }
         if (!await discardDraft()) return;
         setEditing(null); setAnchor(slot); setError('');
-        setDraft({ ...blank(day), start_time: slot, end_time: clock(minutes(slot) + 30) });
+        setDraft({ ...blank(day, demoAllowAnyTime), start_time: slot, end_time: clock(Math.min(minutes(slot) + 30, lastMinute)) });
     };
     const add = () => {
         if (!draft.start_time || !draft.end_time || draft.end_time <= draft.start_time) { setError('Choose an end time after the start time.'); return; }
-        if (draft.start_time < '07:00' || draft.end_time > '19:00') { setError('Schedule blocks must be within 7:00 AM and 7:00 PM.'); return; }
+        if (draft.start_time < (demoAllowAnyTime ? '00:00' : '07:00') || draft.end_time > (demoAllowAnyTime ? '23:59' : '19:00')) { setError(demoAllowAnyTime ? 'Schedule blocks must be within 12:00 AM and 11:59 PM.' : 'Schedule blocks must be within 7:00 AM and 7:00 PM.'); return; }
         const existing = editing !== null ? form.data.blocks[editing] : null;
         if (draft.schedule_type === 'class' && draft.class_mode === 'laboratory' && lectureOnlySubjects.includes(draft.subject)) {
             setError('This subject is available for Lecture only.'); return;
@@ -195,9 +195,10 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
             </>}
             </div>
             {facultyView && !scheduleVersions.length && <p>No published schedule is available for this semester yet.</p>}
-            <div className="sd-overview"><span><GraduationCap size={18} /><strong>{form.data.blocks.filter((block) => block.schedule_type === 'class').length}</strong> classes / week</span><span><Clock3 size={18} /><strong>{Number(weeklyPlotting(form.data.blocks).payableHours.toFixed(2))}</strong> contact hours / week</span><span><CalendarDays size={18} /><strong>{new Set(form.data.blocks.map((block) => Number(block.day_of_week))).size}</strong> scheduled days</span><span>Consultation: <strong>{Number(weeklyPlotting(form.data.blocks).consultationHours.toFixed(2))} hours / week</strong></span></div>
+            <div className="sd-overview"><span><GraduationCap size={18} /><strong>{form.data.blocks.filter((block) => block.schedule_type === 'class').length}</strong> classes / week</span><span><Clock3 size={18} /><strong>{Number(weeklyPlotting(form.data.blocks, { allowAnyTime: demoAllowAnyTime }).payableHours.toFixed(2))}</strong> contact hours / week</span><span><CalendarDays size={18} /><strong>{new Set(form.data.blocks.map((block) => Number(block.day_of_week))).size}</strong> scheduled days</span><span>Consultation: <strong>{Number(weeklyPlotting(form.data.blocks, { allowAnyTime: demoAllowAnyTime }).consultationHours.toFixed(2))} hours / week</strong></span></div>
             <div className="sd-view-toolbar"><nav className="sd-view-tabs" aria-label="Schedule view"><button type="button" className={`sd-control sd-button ${view === 'weekly' ? 'sd-primary' : 'sd-secondary'}`} aria-pressed={view === 'weekly'} onClick={() => setView('weekly')}>Weekly Plotting</button><button type="button" className={`sd-control sd-button ${view === 'daily' ? 'sd-primary' : 'sd-secondary'}`} aria-pressed={view === 'daily'} onClick={() => setView('daily')}>{readOnly ? 'Daily View' : 'Manage by Day'}</button></nav><div className="wp-legend" aria-label="Schedule block colors"><span className="wp-lecture">Lecture</span><span className="wp-laboratory">Laboratory</span><span className="wp-consultation">Consultation</span><span className="wp-lunch_break">Break</span></div>{!readOnly && <div className="sd-faculty-switcher"><FacultyCombobox employees={facultyOptions} selectedId={employee.id} disabled={switchingFaculty || form.processing} label={null} onSelect={switchFaculty} /><div className="sd-faculty-arrows"><button type="button" className="sd-control sd-icon-button" aria-label="Previous faculty" disabled={facultyIndex <= 0 || switchingFaculty || form.processing} onClick={() => switchFaculty(facultyOptions[facultyIndex - 1]?.id)}><ChevronLeft size={18} /></button><button type="button" className="sd-control sd-icon-button" aria-label="Next faculty" disabled={facultyIndex < 0 || facultyIndex >= facultyOptions.length - 1 || switchingFaculty || form.processing} onClick={() => switchFaculty(facultyOptions[facultyIndex + 1]?.id)}><ChevronRight size={18} /></button></div></div>}</div>
-            {view === 'weekly' ? <WeeklyPlotting blocks={form.data.blocks} subjectNames={subjectNames} /> : <div className="sd-daily-view">
+            {demoMode && <div className="sd-demo-banner" role="status">Demo mode enabled — local testing only</div>}
+            {view === 'weekly' ? <WeeklyPlotting blocks={form.data.blocks} subjectNames={subjectNames} allowAnyTime={demoAllowAnyTime} /> : <div className="sd-daily-view">
             <nav className="sd-day-tabs" aria-label="Schedule days">{days.map((name, index) => <button className={`sd-control sd-day-tab${day === index + 1 ? ' is-active' : ''}`} type="button" key={name} aria-current={day === index + 1 ? 'true' : undefined} onClick={() => selectDay(index + 1)}><span>{name}</span><small>{form.data.blocks.filter((block) => Number(block.day_of_week) === index + 1).length} blocks</small></button>)}</nav>
             <div className="sd-workspace">
                 <section className="sd-calendar" aria-label={`${days[day - 1]} timetable`}>
@@ -220,7 +221,7 @@ export default function EmployeeSchedule({ hasUnpublishedSchedule = false, emplo
                     <div className="sd-editor-fields">
                         <label>Day<select value={draft.day_of_week} onChange={(e) => setDraft({ ...draft, day_of_week: Number(e.target.value) })}>{days.map((name, index) => <option key={name} value={index + 1}>{name}</option>)}</select></label>
                         <label>Block type<select value={draft.schedule_type} onChange={(e) => setDraft({ ...draft, schedule_type: e.target.value, class_mode: e.target.value === 'class' ? 'lecture' : '' })}>{Object.entries(types).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-                        <div className="sd-time-inputs"><label>Start time<input type="time" min="07:00" max="19:00" value={draft.start_time} onChange={(e) => setDraft({ ...draft, start_time: e.target.value })} /></label><span>to</span><label>End time<input type="time" min="07:00" max="19:00" value={draft.end_time} onChange={(e) => setDraft({ ...draft, end_time: e.target.value })} /></label></div>
+                        <div className="sd-time-inputs"><label>Start time<input type="time" min={demoAllowAnyTime ? '00:00' : '07:00'} max={demoAllowAnyTime ? '23:59' : '19:00'} value={draft.start_time} onChange={(e) => setDraft({ ...draft, start_time: e.target.value })} /></label><span>to</span><label>End time<input type="time" min={demoAllowAnyTime ? '00:00' : '07:00'} max={demoAllowAnyTime ? '23:59' : '19:00'} value={draft.end_time} onChange={(e) => setDraft({ ...draft, end_time: e.target.value })} /></label></div>
                         {draft.schedule_type === 'class' ? <>
                             <label>Course<select value={draft.course} onChange={(e) => updateSectionPart('course', e.target.value)}><option value="">Select course</option>{Object.entries(courses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                             <label>Year level<select disabled={!draft.course} value={draft.year_level} onChange={(e) => updateSectionPart('year_level', e.target.value)}><option value="">Select year</option>{yearLevels.map((year) => <option key={year} value={year}>Year {year}</option>)}</select></label>

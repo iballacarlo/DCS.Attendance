@@ -5549,6 +5549,7 @@ html[data-theme='dark'] .leave-rejection-field span { color: #d7e4dd; }
 @media print { .class-session-report { break-before: page; } .class-session-report tr { break-inside: avoid; } }
 
 /* Schedule designer: scoped colors keep each action distinct in both themes. */
+.sd-demo-banner { margin: 12px 0 16px; padding: 9px 12px; border: 1px solid #e2c36a; border-radius: 8px; background: #fff8df; color: #765a00; font-size: 12px; font-weight: 700; }
 .schedule-designer {
     --sd-paper: #fff; --sd-surface: #f3f7f4; --sd-line: #cbd9cf; --sd-ink: #183a27;
     --sd-muted: #4f6558; --sd-green: #176b46; --sd-green-soft: #eaf5ee;

@@ -269,6 +269,7 @@ class EmployeeController extends Controller
             'facultyView' => $faculty,
             ...($faculty ? [] : ['facultyOptions' => Employee::orderBy('last_name')->get(['id', 'employee_no', 'first_name', 'middle_name', 'last_name', 'suffix'])]),
             'selectedSemester' => $term, 'scheduleVersions' => $versions, 'selectedVersion' => $data['version_id'] ?? '',
+            'demoMode' => config('demo.enabled'), 'demoAllowAnyTime' => config('demo.allow_any_time'),
             'hasUnpublishedSchedule' => ! $faculty && $term && $assignment && (
                 app(SemesterManagementService::class)->publicationPending($term, $employee, $assignment->draft_blocks ?? [], $assignment->profile)
                 || app(SemesterManagementService::class)->publicationNeedsActivationToday($term, $employee)
@@ -433,8 +434,13 @@ class EmployeeController extends Controller
         $ids = [];
         foreach ($blocks as $i => $block) {
             foreach (['start_time', 'end_time'] as $field) {
-                if ($block[$field] < '07:00' || $block[$field] > '19:00') {
-                    throw ValidationException::withMessages(["blocks.$i.$field" => 'Schedule blocks must be within 7:00 AM and 7:00 PM.']);
+                $minTime = config('demo.allow_any_time') ? '00:00' : '07:00';
+                $maxTime = config('demo.allow_any_time') ? '23:59' : '19:00';
+                if ($block[$field] < $minTime || $block[$field] > $maxTime) {
+                    $message = config('demo.allow_any_time')
+                        ? 'Schedule blocks must be between 12:00 AM and 11:59 PM.'
+                        : 'Schedule blocks must be within 7:00 AM and 7:00 PM.';
+                    throw ValidationException::withMessages(["blocks.$i.$field" => $message]);
                 }
             }
             if ($block['end_time'] <= $block['start_time']) {
