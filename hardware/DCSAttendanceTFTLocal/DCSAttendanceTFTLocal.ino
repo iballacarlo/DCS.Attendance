@@ -199,6 +199,7 @@ QueueHandle_t attendanceUploadQueue = nullptr;
 QueueHandle_t attendanceResultQueue = nullptr;
 SemaphoreHandle_t offlineQueueMutex = nullptr;
 volatile bool enrollmentBusy = false;
+volatile bool enrollmentPollInFlight = false;
 volatile bool enrollmentResultUploading = false;
 volatile bool attendanceBusy = false;
 volatile bool liveAttendanceUploadPending = false;
@@ -874,10 +875,6 @@ void connectWiFi() {
   WiFi.disconnect();
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
-  if (USE_STATIC_IP) {
-    WiFi.config(IPAddress(STATIC_IP_ADDRESS), IPAddress(STATIC_GATEWAY_ADDRESS),
-                IPAddress(STATIC_SUBNET_ADDRESS), IPAddress(STATIC_DNS_ADDRESS));
-  }
   WiFi.begin(WIFI_NAME, WIFI_PASSWORD);
   for (int attempt = 0; WiFi.status() != WL_CONNECTED && attempt < 20; attempt++) delay(500);
   if (WiFi.status() == WL_CONNECTED) {
@@ -902,10 +899,6 @@ void startWiFiInBackground() {
   WiFi.disconnect();
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
-  if (USE_STATIC_IP) {
-    WiFi.config(IPAddress(STATIC_IP_ADDRESS), IPAddress(STATIC_GATEWAY_ADDRESS),
-                IPAddress(STATIC_SUBNET_ADDRESS), IPAddress(STATIC_DNS_ADDRESS));
-  }
   WiFi.begin(WIFI_NAME, WIFI_PASSWORD);
   Serial.println("Connecting WiFi in the background.");
 }
@@ -922,10 +915,6 @@ void maintainWiFi() {
     lastWiFiAttempt = millis();
     Serial.println("Repeated server connection failures. Refreshing WiFi; queued records preserved.");
     WiFi.disconnect(false, false);
-    if (USE_STATIC_IP) {
-      WiFi.config(IPAddress(STATIC_IP_ADDRESS), IPAddress(STATIC_GATEWAY_ADDRESS),
-                  IPAddress(STATIC_SUBNET_ADDRESS), IPAddress(STATIC_DNS_ADDRESS));
-    }
     WiFi.begin(WIFI_NAME, WIFI_PASSWORD);
     xSemaphoreGive(hardwareHttpMutex);
   }
@@ -1581,8 +1570,10 @@ void enrollmentPollTask(void* parameter) {
         (lastActiveStatusPollAt == 0 || millis() - lastActiveStatusPollAt >= ENROLLMENT_STATUS_POLL_MS)) {
       lastActiveStatusPollAt = millis();
       String response;
+      enrollmentPollInFlight = true;
       int code = requestHardwareServer("/enrollments/" + String(enrollmentId) + "/status",
                                        "", response, true, true);
+      enrollmentPollInFlight = false;
       if (code == 200 && enrollmentBusy && activeEnrollmentId == enrollmentId) {
         String status = jsonValue(response, "status");
         if (status == "cancelled" || status == "expired") {
@@ -1612,7 +1603,9 @@ void enrollmentPollTask(void* parameter) {
         String response;
         // Enrollment polling is latency-sensitive even though it runs in the
         // background. Keep the longer timeout for a slow local server too.
+        enrollmentPollInFlight = true;
         int code = requestHardwareServer("/enrollment", "", response, true, true);
+        enrollmentPollInFlight = false;
         unsigned long pollDuration = millis() - pollStarted;
 
         if (code != 204 && code != 200 && code != -1002) {
@@ -1650,6 +1643,7 @@ void enrollmentPollTask(void* parameter) {
     // RFID/fingerprint registration command.
     queueIsEmpty = enrollmentQueue && uxQueueMessagesWaiting(enrollmentQueue) == 0;
     if (!enrollmentBusy && !attendanceBusy && queueIsEmpty &&
+        pendingOfflineRecordCount() == 0 &&
         WiFi.status() == WL_CONNECTED) {
       syncRegisteredRfidCards();
     }
@@ -1701,12 +1695,10 @@ bool processEnrollmentRequest() {
 }
 
 int postAttendanceRecord(const OfflineAttendanceRecord& record, String& response) {
-  int code = requestHardwareServer("/tap", attendancePayload(record), response, false);
-  if (code == 200 && jsonValue(response, "action").isEmpty()) {
-    Serial.println("Attendance response has no action; keeping the tap for retry.");
-    return -1004;
-  }
-  return code;
+  // Any HTTP response means the local server received and evaluated the tap.
+  // Keep valid business responses (IN, OUT, no class, wrong room, etc.) out
+  // of the pending queue even if an optional action field is absent.
+  return requestHardwareServer("/tap", attendancePayload(record), response, false);
 }
 
 bool shouldQueueAttendance(int code) {
@@ -1731,21 +1723,26 @@ void refreshTimeOutCountdown() {
 void showAttendanceResponse(int code, const String& response, const String& method) {
   if (code == 200) {
     String action = jsonValue(response, "action");
+    String message = jsonValue(response, "message");
     String displayTime = jsonValue(response, "display_time");
     String room = jsonValue(response, "room");
     String expectedRoom = jsonValue(response, "expected_room");
     if (action == "WAIT") {
       showMessage(jsonValue(response, "display_name"), "OUT NOT RECORDED", true);
       drawDisplayHeading("WAIT / OUT NOT RECORDED");
-      // WAIT is only a result notice. Keeping its countdown active here used
-      // to prevent the terminal from returning to Ready to scan until another
-      // card was tapped. The server still enforces the OUT time on the next
-      // tap, so show the allowed time briefly then return to the idle screen.
-      showTimeOutWait(displayTime.length() ? "OUT available " + displayTime : "Please scan again later");
+      // WAIT is only a result notice. Do not arm the OUT countdown here: that
+      // state intentionally blocks the idle clock until the allowed time and
+      // made the terminal appear stuck after a rejected early OUT. The server
+      // remains authoritative on the next tap.
+      if (displayTime.length()) printLine(1, "OUT available " + displayTime, 2, true);
       waitSignal();
       return;
     }
-    showMessage(jsonValue(response, "display_name"), (action == "IN" || action == "OUT") ? action + " " + displayTime + " / " + room : action, true);
+    String resultLine = action;
+    if (action == "IN" || action == "OUT") resultLine += " " + displayTime + (room.length() ? " / " + room : "");
+    else if (!resultLine.length()) resultLine = message;
+    if (!resultLine.length()) resultLine = "Processed";
+    showMessage(jsonValue(response, "display_name"), resultLine, true);
     if (action == "IN" || action == "OUT") {
       if (jsonValue(response, "school_attendance_warning") == "true") waitSignal();
       else successSignal();
@@ -1763,7 +1760,7 @@ void showAttendanceResponse(int code, const String& response, const String& meth
     else if (action == "ALREADY OUT") doneSignal();
     else {
       errorSignal();
-      showMessage(jsonValue(response, "display_name"), action, true);
+      showMessage(jsonValue(response, "display_name"), resultLine, true);
     }
   } else if (code == 409) {
     errorSignal();
@@ -1774,10 +1771,11 @@ void showAttendanceResponse(int code, const String& response, const String& meth
                 "See administrator");
   } else if (code == 422) {
     errorSignal();
-    showMessage("Attendance rejected", jsonValue(response, "message"));
+    String message = jsonValue(response, "message");
+    showMessage("Attendance rejected", message.length() ? message : "Invalid request");
   } else {
     errorSignal();
-    showMessage("Server error", "Please try again");
+    showMessage("Server error", "Try again");
   }
 }
 
@@ -1887,7 +1885,7 @@ void refreshLiveAttendanceTimeout() {
 void attendanceNetworkTask(void* parameter) {
   while (true) {
     OfflineAttendanceRecord record = {};
-    if (attendanceUploadQueue && xQueueReceive(attendanceUploadQueue, &record, 0) == pdTRUE) {
+    if (!enrollmentPollInFlight && attendanceUploadQueue && xQueueReceive(attendanceUploadQueue, &record, 0) == pdTRUE) {
       if (enrollmentQueue && uxQueueMessagesWaiting(enrollmentQueue) > 0) {
         xQueueSendToFront(attendanceUploadQueue, &record, 0);
         vTaskDelay(pdMS_TO_TICKS(50));
@@ -1911,7 +1909,7 @@ void attendanceNetworkTask(void* parameter) {
       }
       continue;
     }
-    syncNextOfflineAttendance();
+    if (!enrollmentPollInFlight) syncNextOfflineAttendance();
     vTaskDelay(pdMS_TO_TICKS(25));
   }
 }

@@ -153,9 +153,17 @@ class EmployeeController extends Controller
         $employee->load(['rfidCards', 'fingerprintTemplates', 'employmentHistories']);
 
         $attendanceDevices = AttendanceDevice::with(['assignments' => fn ($query) => $query->with('room')->whereNull('effective_to')->latest('effective_from')])
-            ->where('is_active', true)->orderBy('code')->get()->map(function (AttendanceDevice $device) {
+            ->where('is_active', true)->get()->map(function (AttendanceDevice $device) {
                 $assignment = $device->assignments->first();
                 return ['id' => $device->id, 'code' => $device->code, 'room' => $assignment?->room?->code];
+            })->sortBy(function (array $device) {
+                // Assigned rooms first, alphabetically by room code; unassigned
+                // terminals remain available but are listed at the end.
+                return [
+                    $device['room'] ? 0 : 1,
+                    strtoupper((string) ($device['room'] ?? '')),
+                    strtoupper((string) $device['code']),
+                ];
             })->values();
 
         return Inertia::render('Employees/Form', [
