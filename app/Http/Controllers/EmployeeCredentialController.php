@@ -162,9 +162,12 @@ class EmployeeCredentialController extends Controller
             ->update([
                 'status' => 'cancelled',
                 'message' => 'Cancelled by administrator.',
+                'updated_at' => now(),
             ]);
 
-        return response()->json($this->payload($enrollment->fresh()));
+        return response()->json($this->payload($enrollment->fresh()))
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache');
     }
 
     private function expireIfNeeded(HardwareEnrollment $enrollment): void

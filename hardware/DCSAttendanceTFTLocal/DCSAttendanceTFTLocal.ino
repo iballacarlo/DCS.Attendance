@@ -140,9 +140,21 @@ unsigned long lastServerReconnect = 0;
 
 const unsigned long WIFI_RETRY_MS = 10000;
 const unsigned long DISPLAY_CLOCK_REFRESH_MS = 200;
-const unsigned long ENROLLMENT_POLL_MS = 1000;
-const unsigned long ENROLLMENT_ACTIVE_POLL_MS = 250;
-const unsigned long ENROLLMENT_STATUS_POLL_MS = 750;
+// Registration is latency-sensitive. Poll frequently enough that a newly
+// created request is picked up within a few hundred milliseconds, while the
+// worker still serializes all HTTP requests to protect the ESP32.
+// The API limits enrollment polling to 120 requests/minute.  Keep the idle
+// poll comfortably below that limit so a terminal cannot spend the rest of a
+// minute receiving 429 responses after a long idle period.
+const unsigned long ENROLLMENT_POLL_MS = 700;
+const unsigned long ENROLLMENT_ACTIVE_POLL_MS = 150;
+// Cancellation/status checks stay responsive without continuously competing
+// with the RFID/fingerprint result upload for the single HTTP client.
+// Cancellation must reach an active terminal quickly, without waiting for
+// the normal one-second enrollment poll cycle.
+// Status polling is also rate-limited.  ~85 requests/minute still detects an
+// administrator cancellation in under a second without exhausting the limit.
+const unsigned long ENROLLMENT_STATUS_POLL_MS = 700;
 const unsigned long FINGER_SCAN_INTERVAL_MS = 60;
 const uint8_t FINGER_CONFIRMATION_SAMPLES = 3;
 const unsigned long OFFLINE_SYNC_INTERVAL_MS = 1500;
@@ -187,9 +199,11 @@ QueueHandle_t attendanceUploadQueue = nullptr;
 QueueHandle_t attendanceResultQueue = nullptr;
 SemaphoreHandle_t offlineQueueMutex = nullptr;
 volatile bool enrollmentBusy = false;
+volatile bool enrollmentResultUploading = false;
 volatile bool attendanceBusy = false;
 volatile bool liveAttendanceUploadPending = false;
 unsigned long liveAttendanceStartedAt = 0;
+bool liveAttendanceSlowNoticeShown = false;
 char liveAttendanceEventId[48] = {};
 OfflineAttendanceRecord liveAttendanceRecord = {};
 unsigned long feedbackLedOffAt = 0;
@@ -1079,13 +1093,22 @@ int requestHardwareServer(String path, String payload, String& response, bool ba
     return -1004;
   }
   if (WiFi.status() != WL_CONNECTED) return -1000;
-  if (!hardwareHttpMutex || xSemaphoreTake(hardwareHttpMutex,
-      background ? 0 : pdMS_TO_TICKS(4500)) != pdTRUE) return -1002;
+  const bool enrollmentStatusRequest = monitorEnrollment && path.indexOf("/status") >= 0;
+  // Status checks only observe cancellation/expiry. Keep them short so they
+  // cannot delay the result POST after a card/finger has been captured.
+  const TickType_t mutexWait = enrollmentStatusRequest
+      ? pdMS_TO_TICKS(500)
+      : (background ? 0 : pdMS_TO_TICKS(15000));
+  if (!hardwareHttpMutex || xSemaphoreTake(hardwareHttpMutex, mutexWait) != pdTRUE) return -1002;
   unsigned long requestStartedAt = millis();
   unsigned long queueWaitMs = requestStartedAt - requestQueuedAt;
 
   // One local HTTP request at a time: serialize attendance and enrollment.
-  if (background && (attendanceBusy || (enrollmentBusy && !monitorEnrollment))) {
+  // Enrollment status/cancellation is control traffic and must still pass
+  // while an attendance upload is finishing. Only ordinary background sync
+  // yields to a live attendance request.
+  if (background && !monitorEnrollment &&
+      (attendanceBusy || enrollmentBusy)) {
     xSemaphoreGive(hardwareHttpMutex);
     return -1002;
   }
@@ -1121,9 +1144,16 @@ int requestHardwareServer(String path, String payload, String& response, bool ba
     http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
     // Keep local and hosted enrollment behavior consistent and tolerate a
     // cold server without dropping the registration poll prematurely.
-    const int transportTimeout = monitorEnrollment ? 10000 : (background ? 2500 : 4000);
-    http.setConnectTimeout(transportTimeout);
-    http.setTimeout(transportTimeout);
+    // Keep live taps bounded and responsive. A received HTTP response is
+    // authoritative; only transport failures are sent to pending sync.
+    const int connectTimeout = enrollmentStatusRequest ? 1200 :
+      (monitorEnrollment ? 5000 : (background ? 3500 : 5000));
+    // A reachable local server may be busy processing the tap. Allow a longer
+    // response window without making a dead LAN host block the scanner.
+    const int responseTimeout = enrollmentStatusRequest ? 1200 :
+      (monitorEnrollment ? 10000 : (background ? 3500 : 12000));
+    http.setConnectTimeout(connectTimeout);
+    http.setTimeout(responseTimeout);
     addHardwareHeaders(http);
     code = payload.length() ? http.POST(payload) : http.GET();
     response = http.getString();
@@ -1163,22 +1193,40 @@ bool sendEnrollmentResult(String id, String status, String identifier, String me
   String response;
   enrollmentResultRejected = false;
   lastEnrollmentError = "Server unconfirmed";
+  enrollmentResultUploading = true;
   for (int attempt = 0; attempt < 2; attempt++) {
-    if (enrollmentCancelled || enrollmentExpired) return false;
-    int code = requestHardwareServer("/enrollments/" + id + "/result", payload, response, false);
+    if (enrollmentCancelled || enrollmentExpired) {
+      enrollmentResultUploading = false;
+      return false;
+    }
+    // Do not let the active cancellation poll compete with the single local
+    // HTTP client while the RFID/fingerprint result is being submitted.
+    int code = requestHardwareServer("/enrollments/" + id + "/result", payload, response, false, true);
     lastEnrollmentHttpCode = code;
     Serial.println("Enrollment result HTTP " + String(code) + ": " + response);
-    if (code == 200 && jsonValue(response, "status") == status &&
-        (status != "completed" || jsonValue(response, "identifier") == identifier)) return true;
+    if (code == 200 && jsonValue(response, "status") == status) {
+      enrollmentResultUploading = false;
+      return true;
+    }
     String error = jsonValue(response, "message");
     if (error.length()) lastEnrollmentError = error;
 
+    if (code >= 400 && code < 500 && code != 408 && code != 409 && code != 429) {
+      enrollmentResultRejected = true;
+      enrollmentResultUploading = false;
+      return false;
+    }
+
     // Reconcile a lost POST reply before retrying or removing a local template.
     String stateResponse;
-    int stateCode = requestHardwareServer("/enrollments/" + id + "/status", "", stateResponse, false);
+    // Mark reconciliation as an enrollment status request so its short
+    // timeout cannot hold the HTTP mutex behind a slow local poll.
+    int stateCode = requestHardwareServer("/enrollments/" + id + "/status", "", stateResponse, false, true);
     String state = jsonValue(stateResponse, "status");
-    if (stateCode == 200 && state == status &&
-        (status != "completed" || jsonValue(stateResponse, "identifier") == identifier)) return true;
+    if (stateCode == 200 && state == status) {
+      enrollmentResultUploading = false;
+      return true;
+    }
     if (stateCode == 200 && state == "cancelled") enrollmentCancelled = true;
     if (stateCode == 200 && state == "expired") enrollmentExpired = true;
     if (stateCode == 200 && (state == "failed" || state == "cancelled" ||
@@ -1186,14 +1234,12 @@ bool sendEnrollmentResult(String id, String status, String identifier, String me
       enrollmentResultRejected = true;
       error = jsonValue(stateResponse, "message");
       if (error.length()) lastEnrollmentError = error;
-      return false;
-    }
-    if (code >= 400 && code < 500 && code != 408 && code != 429 && code != 409) {
-      enrollmentResultRejected = true;
+      enrollmentResultUploading = false;
       return false;
     }
     delay(500);
   }
+  enrollmentResultUploading = false;
   return false;
 }
 
@@ -1411,6 +1457,18 @@ void enrollFingerprint(String id, String currentIdentifier) {
     }
     successSignal();
     showMessage("Fingerprint", "Registered");
+  } else if (code >= 200 && code < 500 && code != 408 && code != 429) {
+    // The server evaluated the event and returned a business response (wrong
+    // room, no class, conflict, validation rejection, etc.). Do not replay it
+    // forever as a pending record.
+    acknowledgeOfflineRecord();
+    offlineSyncProcessed++;
+    offlineSyncRetryMs = OFFLINE_SYNC_INTERVAL_MS;
+    offlineSyncStatus = "SYNC: SERVER RESPONSE " + String(code) + " / RECORD CLOSED";
+    offlineSyncNoticeAt = millis();
+    if (pendingOfflineRecordCount() == 0) offlineSyncProcessed = 0;
+    Serial.println("Queued attendance closed after server response HTTP " + String(code) +
+                   ". Remaining: " + String(pendingOfflineRecordCount()));
   } else {
     if (enrollmentCancelled || enrollmentExpired || enrollmentResultRejected) {
       finger.deleteModel(newSlot);
@@ -1418,8 +1476,14 @@ void enrollFingerprint(String id, String currentIdentifier) {
     }
     if (enrollmentCancelled || enrollmentExpired) return;
     errorSignal();
-    showMessage((enrollmentResultRejected ? "Server rejected " : "Unconfirmed HTTP ") +
-                String(lastEnrollmentHttpCode), lastEnrollmentError);
+    if (lastEnrollmentHttpCode == 422 || lastEnrollmentError.indexOf("already assigned") >= 0)
+      showMessage("Already registered", "Use another finger");
+    else if (lastEnrollmentHttpCode < 0 || lastEnrollmentError == "Server unconfirmed")
+      showMessage("Server timeout", "Try again");
+    else if (lastEnrollmentError.length())
+      showMessage("Registration failed", lastEnrollmentError);
+    else
+      showMessage("Registration failed", "Try again");
   }
   registrationFeedbackDelay(2500);
 }
@@ -1458,7 +1522,7 @@ void unlinkFingerprint(String id, String currentIdentifier) {
     showMessage("Fingerprint", "Unlinked");
   } else {
     errorSignal();
-    showMessage("Server unconfirmed", lastEnrollmentError);
+    showMessage("Unlink failed", lastEnrollmentError);
   }
   registrationFeedbackDelay(2500);
 }
@@ -1482,13 +1546,16 @@ void enrollRfid(String id, String currentIdentifier) {
       } else {
         if (enrollmentCancelled || enrollmentExpired) return;
         errorSignal();
-        if (lastEnrollmentError.indexOf("already assigned") >= 0) {
-          showMessage("RFID already used", "By another faculty");
-        } else if (lastEnrollmentError.length() && lastEnrollmentError != "Server unconfirmed") {
-          showMessage("RFID registration", lastEnrollmentError);
-        } else {
-          showMessage("Server rejected", "RFID registration");
-        }
+        if (lastEnrollmentHttpCode == 422 || lastEnrollmentError.indexOf("already assigned") >= 0)
+          showMessage("Already registered", "Use another card");
+        else if (lastEnrollmentHttpCode == 409)
+          showMessage("Wrong terminal", "Register again");
+        else if (lastEnrollmentHttpCode < 0 || lastEnrollmentError == "Server unconfirmed")
+          showMessage("Server timeout", "Try again");
+        else if (lastEnrollmentError.length())
+          showMessage("Registration failed", lastEnrollmentError);
+        else
+          showMessage("Registration failed", "Try again");
       }
       registrationFeedbackDelay(2500);
       return;
@@ -1505,11 +1572,14 @@ void enrollRfid(String id, String currentIdentifier) {
 
 void enrollmentPollTask(void* parameter) {
   Serial.println("Enrollment polling terminal: " + String(DEVICE_CODE));
+  unsigned long lastActiveStatusPollAt = 0;
   while (true) {
     unsigned long pollDelay = ENROLLMENT_POLL_MS;
     uint32_t enrollmentId = activeEnrollmentId;
     if (enrollmentBusy && enrollmentId != 0 && !enrollmentCancelled && !enrollmentExpired &&
-        WiFi.status() == WL_CONNECTED) {
+        WiFi.status() == WL_CONNECTED &&
+        (lastActiveStatusPollAt == 0 || millis() - lastActiveStatusPollAt >= ENROLLMENT_STATUS_POLL_MS)) {
+      lastActiveStatusPollAt = millis();
       String response;
       int code = requestHardwareServer("/enrollments/" + String(enrollmentId) + "/status",
                                        "", response, true, true);
@@ -1528,6 +1598,8 @@ void enrollmentPollTask(void* parameter) {
         }
       }
       pollDelay = ENROLLMENT_ACTIVE_POLL_MS;
+    } else if (!enrollmentBusy) {
+      lastActiveStatusPollAt = 0;
     }
     bool queueIsEmpty = enrollmentQueue && uxQueueMessagesWaiting(enrollmentQueue) == 0;
     if (ENABLE_REMOTE_ENROLLMENT &&
@@ -1629,7 +1701,12 @@ bool processEnrollmentRequest() {
 }
 
 int postAttendanceRecord(const OfflineAttendanceRecord& record, String& response) {
-  return requestHardwareServer("/tap", attendancePayload(record), response, false);
+  int code = requestHardwareServer("/tap", attendancePayload(record), response, false);
+  if (code == 200 && jsonValue(response, "action").isEmpty()) {
+    Serial.println("Attendance response has no action; keeping the tap for retry.");
+    return -1004;
+  }
+  return code;
 }
 
 bool shouldQueueAttendance(int code) {
@@ -1749,6 +1826,7 @@ void sendAttendance(String identifier, String method) {
 
   attendanceBusy = true;
   liveAttendanceUploadPending = true;
+  liveAttendanceSlowNoticeShown = false;
   liveAttendanceStartedAt = millis();
   liveAttendanceRecord = record;
   strncpy(liveAttendanceEventId, record.eventId, sizeof(liveAttendanceEventId) - 1);
@@ -1759,6 +1837,7 @@ void sendAttendance(String identifier, String method) {
   if (xQueueSend(attendanceUploadQueue, &record, 0) != pdTRUE) {
     attendanceBusy = false;
     liveAttendanceUploadPending = false;
+    liveAttendanceSlowNoticeShown = false;
     showOfflineSaved(record);
   }
 }
@@ -1776,6 +1855,7 @@ void processAttendanceUploadResults() {
     bool stillWaiting = liveAttendanceUploadPending;
     attendanceBusy = false;
     liveAttendanceUploadPending = false;
+    liveAttendanceSlowNoticeShown = false;
     liveAttendanceEventId[0] = '\0';
     digitalWrite(YELLOW_LED_PIN, LOW);
     String response = String(result.response);
@@ -1793,12 +1873,15 @@ void processAttendanceUploadResults() {
 
 void refreshLiveAttendanceTimeout() {
   if (!liveAttendanceUploadPending || millis() - liveAttendanceStartedAt < LIVE_ATTENDANCE_WAIT_MS) return;
-  liveAttendanceUploadPending = false;
+  // Do not turn a slow but still-connected request into a fake offline result.
+  // The network worker continues using the same event_id. The scanner is
+  // released so another faculty can tap while the first request completes;
+  // the eventual server response still acknowledges the queued record.
+  if (liveAttendanceSlowNoticeShown) return;
+  liveAttendanceSlowNoticeShown = true;
   attendanceBusy = false;
-  // Keep the original timestamp and method. Do not construct a zero-valued
-  // record here: epoch zero renders as 08:00 AM in Philippine time and makes
-  // a current tap look like it happened at 8:00 AM.
-  showOfflineSaved(liveAttendanceRecord);
+  digitalWrite(YELLOW_LED_PIN, LOW);
+  showMessage("Still processing", "Server response pending");
 }
 
 void attendanceNetworkTask(void* parameter) {
@@ -1822,7 +1905,10 @@ void attendanceNetworkTask(void* parameter) {
       result.code = code;
       result.durationMs = millis() - startedAt;
       response.toCharArray(result.response, sizeof(result.response));
-      if (attendanceResultQueue) xQueueSend(attendanceResultQueue, &result, pdMS_TO_TICKS(100));
+      if (attendanceResultQueue &&
+          xQueueSend(attendanceResultQueue, &result, pdMS_TO_TICKS(500)) != pdTRUE) {
+        Serial.println("Attendance result queue full; keeping the record for retry.");
+      }
       continue;
     }
     syncNextOfflineAttendance();
@@ -1880,8 +1966,15 @@ void syncNextOfflineAttendance() {
     Serial.println("Unregistered queued scan removed: " + String(record.eventId) +
                    ". Remaining: " + String(pendingOfflineRecordCount()));
   } else {
-    offlineSyncRetryMs = shouldQueueAttendance(code) ? 30000 : 60000;
-    if (code < 0) offlineSyncStatus = "SYNC: CONNECTION FAILED (" + String(code) + ") / RETRY 30s";
+    // Retry transport failures sooner, without showing a misleading fixed
+    // "retry 30s" error. HTTP validation/server errors keep the slower backoff.
+    offlineSyncRetryMs = code < 0 ? 10000 : (shouldQueueAttendance(code) ? 30000 : 60000);
+    // Transport failures are often transient (Wi-Fi handoff, DNS/TLS retry, or
+    // a busy server).  Keep the user-facing status calm and actionable instead
+    // of exposing the low-level -1 code after one missed background request.
+    if (code < 0) offlineSyncStatus = serverTransportFailures >= 3
+      ? "SYNC: SERVER UNREACHABLE / RETRYING"
+      : "SYNC: SLOW CONNECTION / RETRYING";
     else if (code == 401 || code == 403) offlineSyncStatus = "SYNC: API KEY REJECTED / CHECK SERVER CONFIG";
     else if (code == 404) offlineSyncStatus = "SYNC: 404 / CREDENTIAL OR API NOT FOUND";
     else if (code == 422 && response.indexOf("future") >= 0) offlineSyncStatus = "SYNC: RECORD TIME IN FUTURE / CHECK CLOCK";
@@ -2046,7 +2139,7 @@ void setup() {
   // attendance queue are ready immediately; maintainWiFi() completes this.
   startWiFiInBackground();
   attendanceUploadQueue = xQueueCreate(4, sizeof(OfflineAttendanceRecord));
-  attendanceResultQueue = xQueueCreate(4, sizeof(AttendanceUploadResult));
+  attendanceResultQueue = xQueueCreate(8, sizeof(AttendanceUploadResult));
   if (attendanceUploadQueue && attendanceResultQueue) {
     xTaskCreatePinnedToCore(attendanceNetworkTask, "attendance-net", 12288, nullptr, 2, nullptr, 0);
     Serial.println("Background attendance network worker started.");
@@ -2055,7 +2148,7 @@ void setup() {
   }
   enrollmentQueue = xQueueCreate(1, sizeof(EnrollmentRequest));
   if (enrollmentQueue) {
-    xTaskCreatePinnedToCore(enrollmentPollTask, "enrollment-poll", 12288, nullptr, 1, nullptr, 0);
+    xTaskCreatePinnedToCore(enrollmentPollTask, "enrollment-poll", 12288, nullptr, 2, nullptr, 0);
     Serial.println("Background enrollment polling started.");
   } else {
     Serial.println("Could not create the enrollment request queue.");
